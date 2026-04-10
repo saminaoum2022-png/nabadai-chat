@@ -27,16 +27,16 @@
     #nabad-header {
       padding: 14px 20px; border-bottom: 1px solid rgba(0,212,255,0.2);
       display: flex; align-items: center; gap: 10px;
-      background: linear-gradient(135deg, #00D4FF, #00B4D8);
+      background: #E0F7FF;
     }
     #nabad-header img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
     #nabad-header .dot {
-      width: 8px; height: 8px; border-radius: 50%; background: #ffffff;
-      box-shadow: 0 0 8px rgba(255,255,255,0.8); animation: pulse 2s infinite;
+      width: 8px; height: 8px; border-radius: 50%; background: #2D4EE8;
+      box-shadow: 0 0 8px rgba(45,78,232,0.6); animation: pulse 2s infinite;
     }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    #nabad-header span { color: #ffffff; font-weight: 600; font-size: 15px; }
-    #nabad-header small { color: rgba(255,255,255,0.85); font-size: 11px; margin-left: auto; }
+    #nabad-header span { color: #1a1a1a; font-weight: 600; font-size: 15px; }
+    #nabad-header small { color: #00A8CC; font-size: 11px; margin-left: auto; }
     #nabad-messages {
       flex: 1; overflow-y: auto; padding: 16px;
       display: flex; flex-direction: column; gap: 12px;
@@ -49,14 +49,14 @@
       font-size: 13px; line-height: 1.6; white-space: pre-line;
     }
     .nabad-msg.bot {
-      background: #ffffff; color: #1a1a1a;
-      border: 1px solid rgba(0,212,255,0.15); align-self: flex-start;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      background: transparent; color: #1a1a1a;
+      border: none; align-self: flex-start;
+      box-shadow: none; padding-left: 4px;
     }
     .nabad-msg.user {
-      background: linear-gradient(135deg, #00D4FF, #00B4D8); color: #ffffff;
+      background: #E0F7FF; color: #1a1a1a;
       border: none; align-self: flex-end;
-      box-shadow: 0 2px 12px rgba(0,212,255,0.3);
+      box-shadow: 0 2px 8px rgba(0,212,255,0.15);
     }
     .nabad-typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
     .nabad-typing span {
