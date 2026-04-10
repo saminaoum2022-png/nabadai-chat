@@ -4,20 +4,21 @@
   style.textContent = `
     #nabad-widget * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
     @keyframes nabadRotateGlow {
-      0% { box-shadow: 0 0 20px rgba(0,212,255,0.6), 0 0 40px rgba(45,78,232,0.3); }
-      50% { box-shadow: 0 0 30px rgba(45,78,232,0.6), 0 0 60px rgba(0,212,255,0.3); }
-      100% { box-shadow: 0 0 20px rgba(0,212,255,0.6), 0 0 40px rgba(45,78,232,0.3); }
+      0% { box-shadow: 0 0 20px rgba(0,212,255,0.6), 0 0 40px rgba(0,180,216,0.3); }
+      50% { box-shadow: 0 0 30px rgba(0,180,216,0.6), 0 0 60px rgba(0,212,255,0.3); }
+      100% { box-shadow: 0 0 20px rgba(0,212,255,0.6), 0 0 40px rgba(0,180,216,0.3); }
     }
     #nabad-bubble {
       position: fixed; bottom: 24px; right: 24px; z-index: 9999;
       width: 56px; height: 56px; border-radius: 50%;
-      background: transparent; cursor: pointer;
+      background: linear-gradient(135deg, #00D4FF, #00B4D8);
+      cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       animation: nabadRotateGlow 2.5s ease-in-out infinite;
       transition: transform 0.2s ease;
     }
     #nabad-bubble:hover { transform: scale(1.08); }
-    #nabad-bubble img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
+    #nabad-bubble svg { width: 24px; height: 24px; fill: #ffffff; }
     #nabad-window {
       position: fixed; bottom: 90px; right: 24px; z-index: 9999;
       width: 360px; height: 540px; border-radius: 16px;
@@ -31,19 +32,21 @@
       to { opacity: 1; transform: translateY(0); }
     }
     #nabad-header {
-      padding: 16px 20px; border-bottom: 1px solid rgba(0,212,255,0.2);
+      padding: 14px 20px; border-bottom: 1px solid rgba(0,212,255,0.2);
       display: flex; align-items: center; gap: 10px;
-      background: #1B3A8C;
+      background: linear-gradient(135deg, #00D4FF, #00B4D8);
+    }
+    #nabad-header img {
+      width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
     }
     #nabad-header .dot {
       width: 8px; height: 8px; border-radius: 50%;
-      background: #1B3A8C;
-      box-shadow: 0 0 8px rgba(27,58,140,0.9), 0 0 16px rgba(27,58,140,0.5);
-      animation: pulse 2s infinite;
+      background: #ffffff;
+      box-shadow: 0 0 8px rgba(255,255,255,0.8); animation: pulse 2s infinite;
     }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
     #nabad-header span { color: #ffffff; font-weight: 600; font-size: 15px; }
-    #nabad-header small { color: #00D4FF; font-size: 11px; margin-left: auto; }
+    #nabad-header small { color: rgba(255,255,255,0.8); font-size: 11px; margin-left: auto; }
     #nabad-messages {
       flex: 1; overflow-y: auto; padding: 16px;
       display: flex; flex-direction: column; gap: 12px;
@@ -61,14 +64,14 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
     .nabad-msg.user {
-      background: linear-gradient(135deg, #1B3A8C, #00D4FF); color: #ffffff;
+      background: linear-gradient(135deg, #00D4FF, #00B4D8); color: #ffffff;
       border: none; align-self: flex-end;
       box-shadow: 0 2px 12px rgba(0,212,255,0.3);
     }
     .nabad-typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
     .nabad-typing span {
       width: 6px; height: 6px; border-radius: 50%;
-      background: linear-gradient(135deg, #1B3A8C, #00D4FF);
+      background: linear-gradient(135deg, #00D4FF, #00B4D8);
       animation: nabadBounce 1.2s infinite;
     }
     .nabad-typing span:nth-child(2) { animation-delay: 0.2s; }
@@ -90,11 +93,11 @@
     }
     @keyframes nabadInputGlow {
       0% { box-shadow: 0 0 0 3px rgba(0,212,255,0.15), 0 0 20px rgba(0,212,255,0.3); }
-      50% { box-shadow: 0 0 0 3px rgba(27,58,140,0.15), 0 0 20px rgba(27,58,140,0.3); }
+      50% { box-shadow: 0 0 0 3px rgba(0,180,216,0.15), 0 0 20px rgba(0,180,216,0.3); }
       100% { box-shadow: 0 0 0 3px rgba(0,212,255,0.15), 0 0 20px rgba(0,212,255,0.3); }
     }
     #nabad-lead button {
-      background: linear-gradient(135deg, #1B3A8C, #00D4FF); color: #ffffff; border: none;
+      background: linear-gradient(135deg, #00D4FF, #00B4D8); color: #ffffff; border: none;
       border-radius: 10px; padding: 11px; font-weight: 700;
       font-size: 13px; cursor: pointer; transition: opacity 0.2s;
     }
@@ -115,24 +118,13 @@
       animation: nabadInputGlow 2.5s ease-in-out infinite;
     }
     #nabad-send {
-      background: transparent; border: none; border-radius: 50%;
-      width: 38px; height: 38px; cursor: pointer; padding: 0;
+      background: linear-gradient(135deg, #00D4FF, #00B4D8); border: none; border-radius: 10px;
+      width: 38px; height: 38px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: transform 0.2s;
+      transition: opacity 0.2s;
     }
-    #nabad-send img {
-      width: 38px; height: 38px; border-radius: 50%; object-fit: cover;
-    }
-    #nabad-send.spinning img {
-      animation: nabadSpin3D 0.6s ease-in-out;
-    }
-    @keyframes nabadSpin3D {
-      0% { transform: perspective(400px) rotateY(0deg) scale(1); }
-      25% { transform: perspective(400px) rotateY(180deg) scale(0.8); }
-      50% { transform: perspective(400px) rotateY(360deg) scale(1.1); }
-      75% { transform: perspective(400px) rotateY(540deg) scale(0.9); }
-      100% { transform: perspective(400px) rotateY(720deg) scale(1); }
-    }
+    #nabad-send:hover { opacity: 0.85; }
+    #nabad-send svg { width: 16px; height: 16px; fill: #ffffff; }
     @media(max-width:480px) {
       #nabad-window { width: calc(100vw - 32px); right: 16px; bottom: 80px; }
     }
@@ -143,12 +135,13 @@
   widget.id = 'nabad-widget';
   widget.innerHTML = `
     <div id="nabad-bubble">
-      <img src="${LOGO}" alt="Nabad AI" />
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l4.93-1.37A9.96 9.96 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/></svg>
     </div>
     <div id="nabad-window">
       <div id="nabad-header">
-        <div class="dot"></div>
+        <img src="${LOGO}" alt="Nabad AI" />
         <span>Nabad AI</span>
+        <div class="dot"></div>
         <small>NabadAi Assistant</small>
       </div>
       <div id="nabad-lead">
@@ -161,7 +154,7 @@
       <div id="nabad-footer">
         <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
         <button id="nabad-send">
-          <img src="${LOGO}" alt="Send" />
+          <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
         </button>
       </div>
     </div>
@@ -223,8 +216,6 @@
     if (!text) return;
     input.value = '';
     addMessage('user', text);
-    send.classList.add('spinning');
-    setTimeout(() => send.classList.remove('spinning'), 650);
     showTyping();
     try {
       const res = await fetch(window.NABAD_API, {
