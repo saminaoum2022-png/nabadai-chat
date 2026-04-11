@@ -131,7 +131,7 @@
 #nabad-messages img.loading {
   height: 220px;
   background: linear-gradient(135deg, #f0f4ff, #e8f7ff);
-  animation: nabadBorderGlow 3s linear infinite;
+  animation: rotateSiri 3s linear infinite;
   filter: blur(0px);
 }
 
@@ -169,20 +169,15 @@
     .nabad-typing span:nth-child(2) { animation-delay: 0.2s; }
     .nabad-typing span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes nabadBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
-    @keyframes nabadBorderGlow {
-  0%   { box-shadow: 4px 0 16px rgba(0,212,255,0.7), -4px 0 16px rgba(45,78,232,0.4); }
-  25%  { box-shadow: 0 4px 16px rgba(45,78,232,0.7), 0 -4px 16px rgba(0,212,255,0.4); }
-  50%  { box-shadow: -4px 0 16px rgba(0,212,255,0.7), 4px 0 16px rgba(45,78,232,0.4); }
-  75%  { box-shadow: 0 -4px 16px rgba(45,78,232,0.7), 0 4px 16px rgba(0,212,255,0.4); }
-  100% { box-shadow: 4px 0 16px rgba(0,212,255,0.7), -4px 0 16px rgba(45,78,232,0.4); }
-}
-@keyframes nabadBorderGlowIdle {
-  0%   { box-shadow: 2px 0 8px rgba(0,212,255,0.2), -2px 0 8px rgba(45,78,232,0.1); }
-  25%  { box-shadow: 0 2px 8px rgba(45,78,232,0.2), 0 -2px 8px rgba(0,212,255,0.1); }
-  50%  { box-shadow: -2px 0 8px rgba(0,212,255,0.2), 2px 0 8px rgba(45,78,232,0.1); }
-  75%  { box-shadow: 0 -2px 8px rgba(45,78,232,0.2), 0 2px 8px rgba(0,212,255,0.1); }
-  100% { box-shadow: 2px 0 8px rgba(0,212,255,0.2), -2px 0 8px rgba(45,78,232,0.1); }
-}
+
+    @property --angle {
+      syntax: '<angle>';
+      initial-value: 0deg;
+      inherits: false;
+    }
+    @keyframes rotateSiri {
+      to { --angle: 360deg; }
+    }
 
     /* BRAND KIT BUTTON */
     .nabad-brandkit-btn {
@@ -239,20 +234,24 @@
 
     /* FOOTER */
     #nabad-footer {
-  padding: 12px 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(0,212,255,0.1);
-  display: none; gap: 8px; align-items: center; background: #ffffff;
-}
+      padding: 12px 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom));
+      border-top: 1px solid rgba(0,212,255,0.1);
+      display: none; gap: 8px; align-items: center; background: #ffffff;
+    }
+    .nabad-input-wrapper {
+      flex: 1; position: relative; border-radius: 10px; padding: 2px;
+      background: conic-gradient(from var(--angle), #00D4FF, #2D4EE8, #00D4FF);
+      animation: rotateSiri 3s linear infinite;
+    }
+    .nabad-input-wrapper.focused {
+      background: conic-gradient(from var(--angle), #00D4FF, #2D4EE8, #7B61FF, #00D4FF);
+      animation: rotateSiri 1.5s linear infinite;
+    }
     #nabad-input {
-  flex: 1; background: #f7f8fc; border: 1px solid rgba(0,212,255,0.2);
-  border-radius: 10px; padding: 10px 14px; color: #1a1a1a; font-size: 14px;
-  outline: none; resize: none; transition: border-color 0.3s; font-family: inherit;
-  animation: nabadBorderGlowIdle 4s linear infinite;
-}
-    #nabad-input:focus {
-  border-color: rgba(0,212,255,0.6);
-  animation: nabadBorderGlow 3s linear infinite;
-}
-
+      width: 100%; background: #f7f8fc; border: none;
+      border-radius: 8px; padding: 10px 14px; color: #1a1a1a; font-size: 14px;
+      outline: none; resize: none; font-family: inherit; display: block;
+    }
     #nabad-send {
       width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
       background: linear-gradient(135deg, #2D4EE8, #00D4FF);
@@ -317,7 +316,9 @@
 
       <div id="nabad-messages" style="display:none"></div>
       <div id="nabad-footer">
-        <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
+        <div class="nabad-input-wrapper" id="nabad-input-wrapper">
+          <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
+        </div>
         <button id="nabad-send">
           <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
         </button>
@@ -334,6 +335,7 @@
   const lead = document.getElementById('nabad-lead');
   const input = document.getElementById('nabad-input');
   const send = document.getElementById('nabad-send');
+  const inputWrapper = document.getElementById('nabad-input-wrapper');
   const startBtn = document.getElementById('nabad-start');
   const guestBtn = document.getElementById('nabad-guest');
   const avatar = document.getElementById('nabad-avatar');
@@ -341,6 +343,10 @@
   const avatarDropdown = document.getElementById('nabad-avatar-dropdown');
   const signinBtn = document.getElementById('nabad-signin-btn');
   const signoutBtn = document.getElementById('nabad-signout');
+
+  // Focus/blur for Siri effect intensity
+  input.addEventListener('focus', () => inputWrapper.classList.add('focused'));
+  input.addEventListener('blur', () => inputWrapper.classList.remove('focused'));
 
   let isGuest = false;
   let botMessageCount = 0;
@@ -400,13 +406,13 @@
   });
 
   // Show profile form when clicking Create Profile
-signinBtn.addEventListener('click', () => {
-  messages.style.display = 'none';
-  footer.style.display = 'none';
-  lead.style.display = 'flex';
-});
+  signinBtn.addEventListener('click', () => {
+    messages.style.display = 'none';
+    footer.style.display = 'none';
+    lead.style.display = 'flex';
+  });
 
-   // New conversation
+  // New conversation
   document.getElementById('nabad-new-chat').addEventListener('click', () => {
     history = [];
     saveHistory([]);
@@ -414,7 +420,7 @@ signinBtn.addEventListener('click', () => {
     addMessage('bot', `What would you like to work on today, <b>${profile.name}</b>? 🚀`);
     avatarDropdown.classList.remove('open');
   });
-  
+
   // Bubble toggle
   bubble.addEventListener('click', () => {
     isOpen = !isOpen;
@@ -461,16 +467,15 @@ signinBtn.addEventListener('click', () => {
     div.className = `nabad-msg ${role}`;
     div.innerHTML = cleanText;
 
-// Handle image loading state
-const imgs = div.querySelectorAll('img');
-imgs.forEach(img => {
-  img.classList.add('loading');
-  img.onload = () => img.classList.remove('loading');
-  img.onerror = () => {
-    img.classList.remove('loading');
-    img.style.display = 'none';
-  };
-});
+    const imgs = div.querySelectorAll('img');
+    imgs.forEach(img => {
+      img.classList.add('loading');
+      img.onload = () => img.classList.remove('loading');
+      img.onerror = () => {
+        img.classList.remove('loading');
+        img.style.display = 'none';
+      };
+    });
 
     messages.appendChild(div);
 
