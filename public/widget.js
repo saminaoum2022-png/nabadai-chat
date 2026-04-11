@@ -140,6 +140,14 @@
     .nabad-typing span:nth-child(2) { animation-delay: 0.2s; }
     .nabad-typing span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes nabadBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+    @keyframes nabadBorderGlow {
+  0%   { box-shadow: 4px 0 16px rgba(0,212,255,0.7), -4px 0 16px rgba(45,78,232,0.4); }
+  25%  { box-shadow: 0 4px 16px rgba(45,78,232,0.7), 0 -4px 16px rgba(0,212,255,0.4); }
+  50%  { box-shadow: -4px 0 16px rgba(0,212,255,0.7), 4px 0 16px rgba(45,78,232,0.4); }
+  75%  { box-shadow: 0 -4px 16px rgba(45,78,232,0.7), 0 4px 16px rgba(0,212,255,0.4); }
+  100% { box-shadow: 4px 0 16px rgba(0,212,255,0.7), -4px 0 16px rgba(45,78,232,0.4); }
+}
+
 
     /* BRAND KIT BUTTON */
     .nabad-brandkit-btn {
@@ -204,7 +212,11 @@
       border-radius: 10px; padding: 10px 14px; color: #1a1a1a; font-size: 14px;
       outline: none; resize: none; transition: border-color 0.3s; font-family: inherit;
     }
-    #nabad-input:focus { border-color: rgba(0,212,255,0.5); }
+    #nabad-input:focus {
+  border-color: rgba(0,212,255,0.6);
+  animation: nabadBorderGlow 3s linear infinite;
+}
+
     #nabad-send {
       width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
       background: linear-gradient(135deg, #2D4EE8, #00D4FF);
