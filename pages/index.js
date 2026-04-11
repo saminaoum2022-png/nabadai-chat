@@ -206,39 +206,72 @@ export default function Home() {
       </div>
 
       <script dangerouslySetInnerHTML={{ __html: `window.NABAD_API = '/api/chat';` }} />
-      <script src="/widget.js?v=4" defer></script>
-      <script dangerouslySetInnerHTML={{
-        __html: `
-          if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-              navigator.serviceWorker.register('/sw.js');
-            });
-          }
-          window.addEventListener('load', () => {
-            setTimeout(() => {
-              const splash = document.getElementById('nabad-splash');
-              if (splash) {
-                splash.style.opacity = '0';
-                setTimeout(() => splash.remove(), 500);
-              }
-            }, 2000);
+<script src="/widget.js?v=4" defer></script>
+<script dangerouslySetInnerHTML={{
+  __html: `
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js');
+      });
+    }
 
-            const isDesktop = window.innerWidth >= 768;
-            if (isDesktop) {
-              const chatArea = document.getElementById('nabad-chat-area');
-              const nabadWindow = document.getElementById('nabad-window');
-              if (chatArea && nabadWindow) chatArea.appendChild(nabadWindow);
-            }
+    window.addEventListener('load', () => {
 
-            document.getElementById('nabad-new-chat')?.addEventListener('click', () => {
-              const messages = document.getElementById('nabad-messages');
-              const lead = document.getElementById('nabad-lead');
-              if (messages) { messages.innerHTML = ''; messages.style.display = 'none'; }
-              if (lead) lead.style.display = 'flex';
-            });
+      // Splash fade
+      setTimeout(() => {
+        const splash = document.getElementById('nabad-splash');
+        if (splash) {
+          splash.style.opacity = '0';
+          setTimeout(() => splash.remove(), 500);
+        }
+      }, 2000);
+
+      // Desktop: move chat into sidebar layout
+      const isDesktop = window.innerWidth >= 768;
+      if (isDesktop) {
+        const chatArea = document.getElementById('nabad-chat-area');
+        const nabadWindow = document.getElementById('nabad-window');
+        if (chatArea && nabadWindow) chatArea.appendChild(nabadWindow);
+      }
+
+      // New chat button
+      document.getElementById('nabad-new-chat')?.addEventListener('click', () => {
+        const messages = document.getElementById('nabad-messages');
+        const lead = document.getElementById('nabad-lead');
+        if (messages) { messages.innerHTML = ''; messages.style.display = 'none'; }
+        if (lead) lead.style.display = 'flex';
+      });
+
+      // Force padding + glow after widget renders
+      setTimeout(() => {
+        const footer = document.getElementById('nabad-footer');
+        const input = document.getElementById('nabad-input');
+        const messages = document.getElementById('nabad-messages');
+
+        if (footer) {
+          footer.style.paddingBottom = 'calc(16px + env(safe-area-inset-bottom))';
+          footer.style.paddingLeft = '12px';
+          footer.style.paddingRight = '12px';
+        }
+
+        if (input) {
+          input.style.boxShadow = '0 0 4px rgba(0,212,255,0.15)';
+          input.style.transition = 'box-shadow 0.3s ease';
+          input.addEventListener('focus', () => {
+            input.style.boxShadow = '0 0 8px rgba(0,212,255,0.25), 0 0 16px rgba(0,212,255,0.15)';
           });
-        `
-      }} />
-    </>
-  );
-}
+          input.addEventListener('blur', () => {
+            input.style.boxShadow = '0 0 4px rgba(0,212,255,0.15)';
+          });
+        }
+
+        if (messages && window.innerWidth < 768) {
+          messages.style.paddingLeft = '12px';
+          messages.style.paddingRight = '12px';
+        }
+
+      }, 500);
+
+    });
+  `
+}} />
