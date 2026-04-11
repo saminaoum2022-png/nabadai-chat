@@ -119,7 +119,7 @@
   height: 220px;
   background: linear-gradient(135deg, #f0f4ff, #e8f7ff);
   animation: nabadBorderGlow 3s linear infinite;
-  filter: blur(8px);
+  filter: blur(2px);
 }
 
     #nabad-messages::-webkit-scrollbar { width: 4px; }
