@@ -19,12 +19,19 @@ export default function Home() {
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#f7f8fc" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Nabad AI" />
         <link rel="apple-touch-icon" href="/logo.png" />
         <style>{`
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          html, body { width: 100%; height: 100%; overflow: hidden; background: #E8F4FF; }
+          html, body { 
+  width: 100%; 
+  height: 100%; 
+  overflow: hidden; 
+  background: #f7f8fc;
+  padding-top: env(safe-area-inset-top);
+}
+
           #nabad-window {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
