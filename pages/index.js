@@ -3,6 +3,16 @@ import Head from 'next/head';
 export default function Home() {
   return (
     <>
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 'env(safe-area-inset-top)',
+        background: '#E8F4FF',
+        zIndex: 99999
+      }} />
+
       <Head>
         <title>Nabad AI</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
@@ -15,18 +25,6 @@ export default function Home() {
         <style>{`
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body { width: 100%; height: 100%; overflow: hidden; background: #E8F4FF; }
-          
-          #nabad-header::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: env(safe-area-inset-top);
-  background: #E8F4FF;
-  z-index: 9999;
-}
-
           #nabad-window {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
@@ -49,11 +47,8 @@ export default function Home() {
           }
         `}</style>
       </Head>
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `window.NABAD_API = '/api/chat';`
-        }}
-      />
+
+      <script dangerouslySetInnerHTML={{ __html: `window.NABAD_API = '/api/chat';` }} />
       <script src="/widget.js?v=3" defer></script>
       <script dangerouslySetInnerHTML={{
         __html: `
