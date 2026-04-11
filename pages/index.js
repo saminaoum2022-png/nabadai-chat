@@ -14,7 +14,7 @@ export default function Home() {
         <link rel="apple-touch-icon" href="/logo.png" />
         <style>{`
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          html, body { width: 100%; height: 100%; overflow: hidden; background: #f7f8fc; }
+          html, body { width: 100%; height: 100%; overflow: hidden; background: #E8F4FF; }
           #nabad-window {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
