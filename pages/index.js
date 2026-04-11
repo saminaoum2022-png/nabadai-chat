@@ -66,6 +66,31 @@ export default function Home() {
             padding-right: 4px !important;
           }
 
+          /* INPUT GLOW — PWA only */
+          @media (display-mode: standalone), (display-mode: fullscreen) {
+            #nabad-input {
+              box-shadow: 0 0 4px rgba(0,212,255,0.15) !important;
+              transition: box-shadow 0.3s ease !important;
+            }
+            #nabad-input:focus {
+              box-shadow: 0 0 8px rgba(0,212,255,0.25), 0 0 16px rgba(0,212,255,0.15) !important;
+              outline: none !important;
+            }
+          }
+
+          /* MOBILE PADDING */
+          @media (max-width: 767px) {
+            #nabad-messages {
+              padding-left: 12px !important;
+              padding-right: 12px !important;
+            }
+            #nabad-footer {
+              padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+              padding-left: 12px !important;
+              padding-right: 12px !important;
+            }
+          }
+
           /* DESKTOP SIDEBAR */
           #nabad-desktop-layout { display: none; }
 
@@ -78,7 +103,6 @@ export default function Home() {
               z-index: 1;
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }
-
             #nabad-sidebar {
               width: 260px;
               min-width: 260px;
@@ -140,16 +164,9 @@ export default function Home() {
               color: #fff; font-size: 14px; font-weight: 700;
               box-shadow: 0 0 8px rgba(0,212,255,0.3);
             }
-            #nabad-sidebar-profile-info {
-              display: flex; flex-direction: column;
-            }
-            #nabad-sidebar-profile-name {
-              font-size: 13px; font-weight: 600; color: #1a1a1a;
-            }
-            #nabad-sidebar-profile-role {
-              font-size: 11px; color: #888;
-            }
-
+            #nabad-sidebar-profile-info { display: flex; flex-direction: column; }
+            #nabad-sidebar-profile-name { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+            #nabad-sidebar-profile-role { font-size: 11px; color: #888; }
             #nabad-chat-area {
               flex: 1;
               height: 100%;
@@ -174,7 +191,7 @@ export default function Home() {
         <div id="nabad-sidebar">
           <div id="nabad-sidebar-logo">
             <img src="/logo.png" alt="Nabad" />
-            <span>Nabad AI</span>
+            <span>NabadAi</span>
           </div>
           <button id="nabad-new-chat">➕ New Conversation</button>
           <div id="nabad-sidebar-profile">
