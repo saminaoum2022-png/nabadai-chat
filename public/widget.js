@@ -29,7 +29,7 @@
 
     /* HEADER */
     #nabad-header {
-      padding: 14px 20px; border-bottom: 1px solid rgba(0,212,255,0.15);
+      padding: calc(14px + env(safe-area-inset-top)) 20px 14px 20px; border-bottom: 1px solid rgba(0,212,255,0.15);
       display: flex; align-items: center; gap: 10px;
       background: linear-gradient(135deg, #E8F4FF, #E0F7FF);
     }
