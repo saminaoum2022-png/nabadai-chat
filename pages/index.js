@@ -178,7 +178,7 @@ export default function Home() {
       </div>
 
       <script dangerouslySetInnerHTML={{ __html: `window.NABAD_API = '/api/chat';` }} />
-      <script src="/widget.js?v=4" defer></script>
+      <script src="/widget.js?v=5" defer></script>
       <script dangerouslySetInnerHTML={{
         __html: `
           if ('serviceWorker' in navigator) {
