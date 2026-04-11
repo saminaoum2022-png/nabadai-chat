@@ -121,13 +121,13 @@
       display: block;
     }
     #nabad-messages img.loading {
-  height: 220px;
-  background: linear-gradient(90deg, #ffffff, #e8f4ff, #f0f8ff, #ffffff);
-  background-size: 300% 300%;
-  animation: siriGlow 2s ease infinite;
-  box-shadow: 0 0 16px rgba(0,212,255,0.4), 0 0 32px rgba(45,78,232,0.2);
-  border: 1px solid rgba(0,212,255,0.2);
-}
+      height: 220px;
+      background: linear-gradient(90deg, #ffffff, #e8f4ff, #f0f8ff, #ffffff);
+      background-size: 300% 300%;
+      animation: siriGlow 2s ease infinite;
+      box-shadow: 0 0 16px rgba(0,212,255,0.5), 0 0 32px rgba(45,78,232,0.3), 0 0 48px rgba(120,80,255,0.15);
+      border: 1px solid rgba(0,212,255,0.2);
+    }
     #nabad-messages::-webkit-scrollbar { width: 4px; }
     #nabad-messages::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 4px; }
     .nabad-msg {
@@ -169,10 +169,15 @@
       50%  { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
+    @keyframes siriGlowIdle {
+      0%   { box-shadow: 0 0 6px rgba(0,212,255,0.4), 0 0 12px rgba(45,78,232,0.2); }
+      50%  { box-shadow: 0 0 10px rgba(45,78,232,0.5), 0 0 18px rgba(0,212,255,0.25); }
+      100% { box-shadow: 0 0 6px rgba(0,212,255,0.4), 0 0 12px rgba(45,78,232,0.2); }
+    }
     @keyframes siriGlowFocus {
-      0%   { background-position: 0% 50%; }
-      50%  { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+      0%   { box-shadow: 0 0 10px rgba(0,212,255,0.7), 0 0 24px rgba(45,78,232,0.5), 0 0 40px rgba(120,80,255,0.2); }
+      50%  { box-shadow: 0 0 14px rgba(45,78,232,0.8), 0 0 28px rgba(0,212,255,0.5), 0 0 48px rgba(120,80,255,0.25); }
+      100% { box-shadow: 0 0 10px rgba(0,212,255,0.7), 0 0 24px rgba(45,78,232,0.5), 0 0 40px rgba(120,80,255,0.2); }
     }
 
     /* BRAND KIT BUTTON */
@@ -236,18 +241,16 @@
       display: none; gap: 8px; align-items: center; background: #ffffff;
     }
     .nabad-input-wrapper {
-      flex: 1; position: relative; border-radius: 10px; padding: 2px;
-      background: linear-gradient(90deg, #00D4FF, #2D4EE8, #00D4FF);
-      background-size: 200% 200%;
-      animation: siriGlow 3s ease infinite;
+      flex: 1; position: relative; border-radius: 10px;
+      background: #f7f8fc;
+      animation: siriGlowIdle 3s ease infinite;
     }
     .nabad-input-wrapper.focused {
       animation: siriGlowFocus 1.5s ease infinite;
-      box-shadow: 0 0 12px rgba(0,212,255,0.5), 0 0 24px rgba(45,78,232,0.3);
     }
     #nabad-input {
-      width: 100%; background: #f7f8fc; border: none;
-      border-radius: 8px; padding: 10px 14px; color: #1a1a1a; font-size: 14px;
+      width: 100%; background: #f7f8fc; border: 1px solid rgba(0,212,255,0.2);
+      border-radius: 10px; padding: 10px 14px; color: #1a1a1a; font-size: 14px;
       outline: none; resize: none; font-family: inherit; display: block;
     }
     #nabad-send {
@@ -325,7 +328,6 @@
   `;
   document.body.appendChild(widget);
 
-  // Elements
   const bubble = document.getElementById('nabad-bubble');
   const win = document.getElementById('nabad-window');
   const messages = document.getElementById('nabad-messages');
@@ -342,7 +344,6 @@
   const signinBtn = document.getElementById('nabad-signin-btn');
   const signoutBtn = document.getElementById('nabad-signout');
 
-  // Siri glow intensity on focus/blur
   input.addEventListener('focus', () => inputWrapper.classList.add('focused'));
   input.addEventListener('blur', () => inputWrapper.classList.remove('focused'));
 
