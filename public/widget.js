@@ -33,6 +33,18 @@
       display: flex; align-items: center; gap: 10px;
       background: linear-gradient(135deg, #E8F4FF, #E0F7FF);
     }
+    
+    #nabad-header::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  background: #E8F4FF;
+  z-index: 9999;
+}
+
     #nabad-header img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
     #nabad-header .dot {
       width: 8px; height: 8px; border-radius: 50%; background: #2D4EE8;
