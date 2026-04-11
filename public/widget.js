@@ -117,8 +117,9 @@
 
 #nabad-messages img.loading {
   height: 220px;
-  background: linear-gradient(135deg, #0a0f1e, #1a2a4a);
+  background: linear-gradient(135deg, #f0f4ff, #e8f7ff);
   animation: nabadBorderGlow 3s linear infinite;
+  filter: blur(8px);
 }
 
     #nabad-messages::-webkit-scrollbar { width: 4px; }
