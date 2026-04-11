@@ -121,12 +121,13 @@
       display: block;
     }
     #nabad-messages img.loading {
-      height: 220px;
-      background: linear-gradient(90deg, #00D4FF, #2D4EE8, #7B61FF, #00D4FF);
-      background-size: 300% 300%;
-      animation: siriGlow 2s ease infinite;
-      box-shadow: 0 0 24px rgba(0,212,255,0.6), 0 0 48px rgba(45,78,232,0.4);
-    }
+  height: 220px;
+  background: linear-gradient(90deg, #ffffff, #e8f4ff, #f0f8ff, #ffffff);
+  background-size: 300% 300%;
+  animation: siriGlow 2s ease infinite;
+  box-shadow: 0 0 16px rgba(0,212,255,0.4), 0 0 32px rgba(45,78,232,0.2);
+  border: 1px solid rgba(0,212,255,0.2);
+}
     #nabad-messages::-webkit-scrollbar { width: 4px; }
     #nabad-messages::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 4px; }
     .nabad-msg {
