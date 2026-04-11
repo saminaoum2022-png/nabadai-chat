@@ -106,6 +106,21 @@
       display: flex; flex-direction: column; gap: 12px;
       background: #f7f8fc;
     }
+    
+#nabad-messages img {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 12px;
+  margin-top: 8px;
+  display: block;
+}
+
+#nabad-messages img.loading {
+  height: 220px;
+  background: linear-gradient(135deg, #0a0f1e, #1a2a4a);
+  animation: nabadBorderGlow 3s linear infinite;
+}
+
     #nabad-messages::-webkit-scrollbar { width: 4px; }
     #nabad-messages::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 4px; }
     .nabad-msg {
@@ -424,6 +439,18 @@ signinBtn.addEventListener('click', () => {
     const div = document.createElement('div');
     div.className = `nabad-msg ${role}`;
     div.innerHTML = cleanText;
+
+// Handle image loading state
+const imgs = div.querySelectorAll('img');
+imgs.forEach(img => {
+  img.classList.add('loading');
+  img.onload = () => img.classList.remove('loading');
+  img.onerror = () => {
+    img.classList.remove('loading');
+    img.style.display = 'none';
+  };
+});
+
     messages.appendChild(div);
 
     if (hasBrandKit) {
