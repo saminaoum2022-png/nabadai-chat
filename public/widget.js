@@ -249,6 +249,7 @@
             <div class="nabad-dropdown-item">👤 My Profile <span class="soon">Soon</span></div>
             <div class="nabad-dropdown-item">🏢 Business Settings <span class="soon">Soon</span></div>
             <div class="nabad-dropdown-item">💬 Chat History <span class="soon">Soon</span></div>
+            <div class="nabad-dropdown-item" id="nabad-new-chat">🔄 New Conversation</div>
             <div class="nabad-dropdown-signout" id="nabad-signout">🚪 Sign Out</div>
           </div>
         </div>
@@ -369,6 +370,15 @@ signinBtn.addEventListener('click', () => {
   lead.style.display = 'flex';
 });
 
+   // New conversation
+  document.getElementById('nabad-new-chat').addEventListener('click', () => {
+    history = [];
+    saveHistory([]);
+    messages.innerHTML = '';
+    addMessage('bot', `What would you like to work on today, <b>${profile.name}</b>? 🚀`);
+    avatarDropdown.classList.remove('open');
+  });
+  
   // Bubble toggle
   bubble.addEventListener('click', () => {
     isOpen = !isOpen;
