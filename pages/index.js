@@ -178,7 +178,7 @@ export default function Home() {
       </div>
 
       <script dangerouslySetInnerHTML={{ __html: `window.NABAD_API = '/api/chat';` }} />
-      <script src="/widget.js?v=5" defer></script>
+      <script src="/widget.js?v=6" defer></script>
       <script dangerouslySetInnerHTML={{
         __html: `
           if ('serviceWorker' in navigator) {
@@ -211,21 +211,8 @@ export default function Home() {
               if (lead) lead.style.display = 'flex';
             });
 
-                        const applyStyles = () => {
-              const input = document.getElementById('nabad-input');
+            const applyStyles = () => {
               const messages = document.getElementById('nabad-messages');
-
-              if (input) {
-                input.style.setProperty('box-shadow', '0 0 4px rgba(0,212,255,0.15)', 'important');
-                input.style.setProperty('transition', 'box-shadow 0.3s ease', 'important');
-                input.addEventListener('focus', () => {
-                  input.style.setProperty('box-shadow', '0 0 8px rgba(0,212,255,0.25), 0 0 16px rgba(0,212,255,0.15)', 'important');
-                });
-                input.addEventListener('blur', () => {
-                  input.style.setProperty('box-shadow', '0 0 4px rgba(0,212,255,0.15)', 'important');
-                });
-              }
-
               if (messages && window.innerWidth < 768) {
                 messages.style.setProperty('padding-left', '12px', 'important');
                 messages.style.setProperty('padding-right', '12px', 'important');
