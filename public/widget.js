@@ -233,9 +233,9 @@
 
     /* FOOTER */
     #nabad-footer {
-      padding: 12px 16px; border-top: 1px solid rgba(0,212,255,0.1);
-      display: none; gap: 8px; align-items: center; background: #ffffff;
-    }
+  padding: 12px 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(0,212,255,0.1);
+  display: none; gap: 8px; align-items: center; background: #ffffff;
+}
     #nabad-input {
       flex: 1; background: #f7f8fc; border: 1px solid rgba(0,212,255,0.2);
       border-radius: 10px; padding: 10px 14px; color: #1a1a1a; font-size: 14px;
