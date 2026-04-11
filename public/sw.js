@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nabadai-v3';
+const CACHE_NAME = 'nabadai-v4';
 const ASSETS = [
   '/',
   '/logo.png'
