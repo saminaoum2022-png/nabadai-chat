@@ -38,7 +38,7 @@
       position: fixed;
       top: 0; left: 0; right: 0;
       height: env(safe-area-inset-top);
-      background: #E8F4FF;
+      background: linear-gradient(135deg, #E8F4FF, #E0F7FF);
       z-index: 9999;
     }
     #nabad-header img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
@@ -231,7 +231,7 @@
 
     /* FOOTER */
     #nabad-footer {
-      padding: 12px 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom));
+      padding: 12px 16px; padding-bottom: calc(24px + env(safe-area-inset-bottom));
       border-top: 1px solid rgba(0,212,255,0.1);
       display: none; gap: 8px; align-items: center; background: #ffffff;
     }
