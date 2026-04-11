@@ -111,7 +111,8 @@
   width: 100%;
   max-width: 100%;
   border-radius: 12px;
-  margin-top: 8px;
+  margin-top: 12px; 
+  margin-bottom: 8px; 
   display: block;
 }
 
