@@ -211,16 +211,9 @@ export default function Home() {
               if (lead) lead.style.display = 'flex';
             });
 
-            const applyStyles = () => {
-              const footer = document.getElementById('nabad-footer');
+                        const applyStyles = () => {
               const input = document.getElementById('nabad-input');
               const messages = document.getElementById('nabad-messages');
-
-              if (footer) {
-                footer.style.setProperty('padding-bottom', 'calc(16px + env(safe-area-inset-bottom))', 'important');
-                footer.style.setProperty('padding-left', '12px', 'important');
-                footer.style.setProperty('padding-right', '12px', 'important');
-              }
 
               if (input) {
                 input.style.setProperty('box-shadow', '0 0 4px rgba(0,212,255,0.15)', 'important');
