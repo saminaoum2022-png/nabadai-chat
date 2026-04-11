@@ -21,7 +21,6 @@ export default function Home() {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
 
-          /* SPLASH */
           #nabad-splash {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -42,7 +41,6 @@ export default function Home() {
             to   { filter: drop-shadow(0 0 24px rgba(0,212,255,0.9)) drop-shadow(0 0 48px rgba(0,212,255,0.5)) drop-shadow(0 0 64px rgba(45,78,232,0.3)); }
           }
 
-          /* MOBILE — fullscreen */
           #nabad-window {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
@@ -66,32 +64,6 @@ export default function Home() {
             padding-right: 4px !important;
           }
 
-          /* INPUT GLOW — PWA only */
-          @media (display-mode: standalone), (display-mode: fullscreen) {
-            #nabad-input {
-              box-shadow: 0 0 4px rgba(0,212,255,0.15) !important;
-              transition: box-shadow 0.3s ease !important;
-            }
-            #nabad-input:focus {
-              box-shadow: 0 0 8px rgba(0,212,255,0.25), 0 0 16px rgba(0,212,255,0.15) !important;
-              outline: none !important;
-            }
-          }
-
-          /* MOBILE PADDING */
-          @media (max-width: 767px) {
-            #nabad-messages {
-              padding-left: 12px !important;
-              padding-right: 12px !important;
-            }
-            #nabad-footer {
-              padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
-              padding-left: 12px !important;
-              padding-right: 12px !important;
-            }
-          }
-
-          /* DESKTOP SIDEBAR */
           #nabad-desktop-layout { display: none; }
 
           @media (min-width: 768px) {
@@ -206,72 +178,71 @@ export default function Home() {
       </div>
 
       <script dangerouslySetInnerHTML={{ __html: `window.NABAD_API = '/api/chat';` }} />
-<script src="/widget.js?v=4" defer></script>
-<script dangerouslySetInnerHTML={{
-  __html: `
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js');
-      });
-    }
+      <script src="/widget.js?v=4" defer></script>
+      <script dangerouslySetInnerHTML={{
+        __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+              navigator.serviceWorker.register('/sw.js');
+            });
+          }
 
-    window.addEventListener('load', () => {
+          window.addEventListener('load', () => {
 
-      // Splash fade
-      setTimeout(() => {
-        const splash = document.getElementById('nabad-splash');
-        if (splash) {
-          splash.style.opacity = '0';
-          setTimeout(() => splash.remove(), 500);
-        }
-      }, 2000);
+            setTimeout(() => {
+              const splash = document.getElementById('nabad-splash');
+              if (splash) {
+                splash.style.opacity = '0';
+                setTimeout(() => splash.remove(), 500);
+              }
+            }, 2000);
 
-      // Desktop: move chat into sidebar layout
-      const isDesktop = window.innerWidth >= 768;
-      if (isDesktop) {
-        const chatArea = document.getElementById('nabad-chat-area');
-        const nabadWindow = document.getElementById('nabad-window');
-        if (chatArea && nabadWindow) chatArea.appendChild(nabadWindow);
-      }
+            const isDesktop = window.innerWidth >= 768;
+            if (isDesktop) {
+              const chatArea = document.getElementById('nabad-chat-area');
+              const nabadWindow = document.getElementById('nabad-window');
+              if (chatArea && nabadWindow) chatArea.appendChild(nabadWindow);
+            }
 
-      // New chat button
-      document.getElementById('nabad-new-chat')?.addEventListener('click', () => {
-        const messages = document.getElementById('nabad-messages');
-        const lead = document.getElementById('nabad-lead');
-        if (messages) { messages.innerHTML = ''; messages.style.display = 'none'; }
-        if (lead) lead.style.display = 'flex';
-      });
+            document.getElementById('nabad-new-chat')?.addEventListener('click', () => {
+              const messages = document.getElementById('nabad-messages');
+              const lead = document.getElementById('nabad-lead');
+              if (messages) { messages.innerHTML = ''; messages.style.display = 'none'; }
+              if (lead) lead.style.display = 'flex';
+            });
 
-      // Force padding + glow after widget renders
-      setTimeout(() => {
-        const footer = document.getElementById('nabad-footer');
-        const input = document.getElementById('nabad-input');
-        const messages = document.getElementById('nabad-messages');
+            setTimeout(() => {
+              const footer = document.getElementById('nabad-footer');
+              const input = document.getElementById('nabad-input');
+              const messages = document.getElementById('nabad-messages');
 
-        if (footer) {
-          footer.style.paddingBottom = 'calc(16px + env(safe-area-inset-bottom))';
-          footer.style.paddingLeft = '12px';
-          footer.style.paddingRight = '12px';
-        }
+              if (footer) {
+                footer.style.paddingBottom = 'calc(16px + env(safe-area-inset-bottom))';
+                footer.style.paddingLeft = '12px';
+                footer.style.paddingRight = '12px';
+              }
 
-        if (input) {
-          input.style.boxShadow = '0 0 4px rgba(0,212,255,0.15)';
-          input.style.transition = 'box-shadow 0.3s ease';
-          input.addEventListener('focus', () => {
-            input.style.boxShadow = '0 0 8px rgba(0,212,255,0.25), 0 0 16px rgba(0,212,255,0.15)';
+              if (input) {
+                input.style.boxShadow = '0 0 4px rgba(0,212,255,0.15)';
+                input.style.transition = 'box-shadow 0.3s ease';
+                input.addEventListener('focus', () => {
+                  input.style.boxShadow = '0 0 8px rgba(0,212,255,0.25), 0 0 16px rgba(0,212,255,0.15)';
+                });
+                input.addEventListener('blur', () => {
+                  input.style.boxShadow = '0 0 4px rgba(0,212,255,0.15)';
+                });
+              }
+
+              if (messages && window.innerWidth < 768) {
+                messages.style.paddingLeft = '12px';
+                messages.style.paddingRight = '12px';
+              }
+
+            }, 500);
+
           });
-          input.addEventListener('blur', () => {
-            input.style.boxShadow = '0 0 4px rgba(0,212,255,0.15)';
-          });
-        }
-
-        if (messages && window.innerWidth < 768) {
-          messages.style.paddingLeft = '12px';
-          messages.style.paddingRight = '12px';
-        }
-
-      }, 500);
-
-    });
-  `
-}} />
+        `
+      }} />
+    </>
+  );
+}
