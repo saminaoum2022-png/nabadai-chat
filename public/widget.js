@@ -265,7 +265,7 @@
       <div id="nabad-header">
         <img src="${LOGO}" alt="Nabad" />
         <div class="dot"></div>
-        <span>Nabad</span>
+        <span>NabadAi</span>
         <button id="nabad-signin-btn">Create Profile</button>
         <div id="nabad-avatar">
           <span id="nabad-avatar-initials">?</span>
