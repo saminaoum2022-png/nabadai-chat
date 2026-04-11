@@ -362,6 +362,13 @@
     location.reload();
   });
 
+  // Show profile form when clicking Create Profile
+signinBtn.addEventListener('click', () => {
+  messages.style.display = 'none';
+  footer.style.display = 'none';
+  lead.style.display = 'flex';
+});
+
   // Bubble toggle
   bubble.addEventListener('click', () => {
     isOpen = !isOpen;
