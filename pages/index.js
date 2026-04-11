@@ -18,6 +18,7 @@ export default function Home() {
             width: 100%; height: 100%;
             overflow: hidden; background: #E8F4FF;
             padding-top: env(safe-area-inset-top);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
 
           /* SPLASH */
@@ -32,13 +33,13 @@ export default function Home() {
             transition: opacity 0.5s ease;
           }
           #nabad-splash img {
-            width: 100px; height: 100px;
-            border-radius: 50%;
+            width: 120px; height: 120px;
+            object-fit: contain;
             animation: nabadGlow 1.5s ease-in-out infinite alternate;
           }
           @keyframes nabadGlow {
-            from { box-shadow: 0 0 10px rgba(0,212,255,0.4), 0 0 20px rgba(0,212,255,0.2); }
-            to   { box-shadow: 0 0 30px rgba(0,212,255,0.9), 0 0 60px rgba(0,212,255,0.5), 0 0 80px rgba(45,78,232,0.3); }
+            from { filter: drop-shadow(0 0 8px rgba(0,212,255,0.4)) drop-shadow(0 0 16px rgba(0,212,255,0.2)); }
+            to   { filter: drop-shadow(0 0 24px rgba(0,212,255,0.9)) drop-shadow(0 0 48px rgba(0,212,255,0.5)) drop-shadow(0 0 64px rgba(45,78,232,0.3)); }
           }
 
           /* MOBILE — fullscreen */
@@ -52,6 +53,7 @@ export default function Home() {
             box-shadow: none !important;
             border: none !important;
             background: #f7f8fc !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
           }
           #nabad-bubble { display: none !important; }
           .nabad-msg.bot {
@@ -65,9 +67,7 @@ export default function Home() {
           }
 
           /* DESKTOP SIDEBAR */
-          #nabad-desktop-layout {
-            display: none;
-          }
+          #nabad-desktop-layout { display: none; }
 
           @media (min-width: 768px) {
             #nabad-desktop-layout {
@@ -76,9 +76,9 @@ export default function Home() {
               top: 0; left: 0; right: 0; bottom: 0;
               background: #E8F4FF;
               z-index: 1;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }
 
-            /* SIDEBAR */
             #nabad-sidebar {
               width: 260px;
               min-width: 260px;
@@ -99,14 +99,13 @@ export default function Home() {
             }
             #nabad-sidebar-logo img {
               width: 36px; height: 36px;
-              border-radius: 50%;
-              box-shadow: 0 0 10px rgba(0,212,255,0.4);
+              object-fit: contain;
+              filter: drop-shadow(0 0 6px rgba(0,212,255,0.5));
             }
             #nabad-sidebar-logo span {
               font-size: 16px;
               font-weight: 700;
               color: #1a1a1a;
-              font-family: inherit;
             }
             #nabad-new-chat {
               display: flex;
@@ -121,7 +120,7 @@ export default function Home() {
               font-weight: 600;
               cursor: pointer;
               transition: opacity 0.2s;
-              font-family: inherit;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               width: 100%;
             }
             #nabad-new-chat:hover { opacity: 0.85; }
@@ -151,11 +150,11 @@ export default function Home() {
               font-size: 11px; color: #888;
             }
 
-            /* CHAT AREA */
             #nabad-chat-area {
               flex: 1;
               height: 100%;
               position: relative;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }
             #nabad-window {
               position: absolute !important;
@@ -171,7 +170,6 @@ export default function Home() {
         <img src="/logo.png" alt="Nabad AI" />
       </div>
 
-      {/* DESKTOP LAYOUT */}
       <div id="nabad-desktop-layout">
         <div id="nabad-sidebar">
           <div id="nabad-sidebar-logo">
@@ -180,9 +178,9 @@ export default function Home() {
           </div>
           <button id="nabad-new-chat">➕ New Conversation</button>
           <div id="nabad-sidebar-profile">
-            <div id="nabad-sidebar-profile-avatar" id="nabad-avatar-initials">N</div>
+            <div id="nabad-sidebar-profile-avatar">N</div>
             <div id="nabad-sidebar-profile-info">
-              <div id="nabad-sidebar-profile-name" id="nabad-profile-name-text">Guest</div>
+              <div id="nabad-sidebar-profile-name">Guest</div>
               <div id="nabad-sidebar-profile-role">AI Business Consultant</div>
             </div>
           </div>
@@ -200,7 +198,6 @@ export default function Home() {
             });
           }
           window.addEventListener('load', () => {
-            // Splash fade
             setTimeout(() => {
               const splash = document.getElementById('nabad-splash');
               if (splash) {
@@ -209,17 +206,13 @@ export default function Home() {
               }
             }, 2000);
 
-            // Desktop: move nabad-window into chat area
             const isDesktop = window.innerWidth >= 768;
             if (isDesktop) {
               const chatArea = document.getElementById('nabad-chat-area');
               const nabadWindow = document.getElementById('nabad-window');
-              if (chatArea && nabadWindow) {
-                chatArea.appendChild(nabadWindow);
-              }
+              if (chatArea && nabadWindow) chatArea.appendChild(nabadWindow);
             }
 
-            // New chat button
             document.getElementById('nabad-new-chat')?.addEventListener('click', () => {
               const messages = document.getElementById('nabad-messages');
               const lead = document.getElementById('nabad-lead');
