@@ -211,34 +211,41 @@ export default function Home() {
               if (lead) lead.style.display = 'flex';
             });
 
-            setTimeout(() => {
+            const applyStyles = () => {
               const footer = document.getElementById('nabad-footer');
               const input = document.getElementById('nabad-input');
               const messages = document.getElementById('nabad-messages');
 
               if (footer) {
-                footer.style.paddingBottom = 'calc(16px + env(safe-area-inset-bottom))';
-                footer.style.paddingLeft = '12px';
-                footer.style.paddingRight = '12px';
+                footer.style.setProperty('padding-bottom', 'calc(16px + env(safe-area-inset-bottom))', 'important');
+                footer.style.setProperty('padding-left', '12px', 'important');
+                footer.style.setProperty('padding-right', '12px', 'important');
               }
 
               if (input) {
-                input.style.boxShadow = '0 0 4px rgba(0,212,255,0.15)';
-                input.style.transition = 'box-shadow 0.3s ease';
+                input.style.setProperty('box-shadow', '0 0 4px rgba(0,212,255,0.15)', 'important');
+                input.style.setProperty('transition', 'box-shadow 0.3s ease', 'important');
                 input.addEventListener('focus', () => {
-                  input.style.boxShadow = '0 0 8px rgba(0,212,255,0.25), 0 0 16px rgba(0,212,255,0.15)';
+                  input.style.setProperty('box-shadow', '0 0 8px rgba(0,212,255,0.25), 0 0 16px rgba(0,212,255,0.15)', 'important');
                 });
                 input.addEventListener('blur', () => {
-                  input.style.boxShadow = '0 0 4px rgba(0,212,255,0.15)';
+                  input.style.setProperty('box-shadow', '0 0 4px rgba(0,212,255,0.15)', 'important');
                 });
               }
 
               if (messages && window.innerWidth < 768) {
-                messages.style.paddingLeft = '12px';
-                messages.style.paddingRight = '12px';
+                messages.style.setProperty('padding-left', '12px', 'important');
+                messages.style.setProperty('padding-right', '12px', 'important');
               }
+            };
 
-            }, 500);
+            const observer = new MutationObserver(() => {
+              if (document.getElementById('nabad-footer')) {
+                applyStyles();
+                observer.disconnect();
+              }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
 
           });
         `
