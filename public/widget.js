@@ -17,7 +17,7 @@
     #nabad-window {
       position: fixed; bottom: 90px; right: 24px; z-index: 9999;
       width: 370px; height: 600px; border-radius: 20px;
-      background: #ffffff; border: 1px solid rgba(0,212,255,0.2);
+      background: #f7f8fc; border: 1px solid rgba(0,212,255,0.2);
       box-shadow: 0 8px 40px rgba(0,0,0,0.14), 0 0 20px rgba(0,212,255,0.08);
       display: none; flex-direction: column; overflow: hidden;
       animation: nabadSlideUp 0.3s ease;
