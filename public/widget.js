@@ -237,10 +237,10 @@
   display: none; gap: 8px; align-items: center; background: #ffffff;
 }
     #nabad-input {
-      flex: 1; background: #f7f8fc; border: 1px solid rgba(0,212,255,0.2);
-      border-radius: 10px; padding: 10px 14px; color: #1a1a1a; font-size: 14px;
-      outline: none; resize: none; transition: border-color 0.3s; font-family: inherit;
-    }
+  flex: 1; background: #f7f8fc; border: 1px solid rgba(0,212,255,0.2);
+  border-radius: 10px; padding: 10px 14px; color: #1a1a1a; font-size: 14px;
+  outline: none; resize: none; transition: border-color 0.3s; font-family: inherit;
+}
     #nabad-input:focus {
   border-color: rgba(0,212,255,0.6);
   animation: nabadBorderGlow 3s linear infinite;
