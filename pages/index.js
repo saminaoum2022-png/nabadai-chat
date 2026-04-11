@@ -42,7 +42,7 @@ export default function Home() {
           __html: `window.NABAD_API = '/api/chat';`
         }}
       />
-      <script src="/widget.js" defer></script>
+      <script src="/widget.js?v=3" defer></script>
       <script dangerouslySetInnerHTML={{
         __html: `
           if ('serviceWorker' in navigator) {
