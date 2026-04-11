@@ -33,18 +33,14 @@
       display: flex; align-items: center; gap: 10px;
       background: linear-gradient(135deg, #E8F4FF, #E0F7FF);
     }
-    
     #nabad-header::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: env(safe-area-inset-top);
-  background: #E8F4FF;
-  z-index: 9999;
-}
-
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: env(safe-area-inset-top);
+      background: #E8F4FF;
+      z-index: 9999;
+    }
     #nabad-header img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
     #nabad-header .dot {
       width: 8px; height: 8px; border-radius: 50%; background: #2D4EE8;
@@ -118,23 +114,19 @@
       display: flex; flex-direction: column; gap: 12px;
       background: #f7f8fc;
     }
-    
-#nabad-messages img {
-  width: 100%;
-  max-width: 100%;
-  border-radius: 12px;
-  margin-top: 12px; 
-  margin-bottom: 8px; 
-  display: block;
-}
-
-#nabad-messages img.loading {
-  height: 220px;
-  background: linear-gradient(135deg, #f0f4ff, #e8f7ff);
-  animation: rotateSiri 3s linear infinite;
-  filter: blur(0px);
-}
-
+    #nabad-messages img {
+      width: 100%; max-width: 100%;
+      border-radius: 12px;
+      margin-top: 12px; margin-bottom: 8px;
+      display: block;
+    }
+    #nabad-messages img.loading {
+      height: 220px;
+      background: linear-gradient(90deg, #00D4FF, #2D4EE8, #7B61FF, #00D4FF);
+      background-size: 300% 300%;
+      animation: siriGlow 2s ease infinite;
+      box-shadow: 0 0 24px rgba(0,212,255,0.6), 0 0 48px rgba(45,78,232,0.4);
+    }
     #nabad-messages::-webkit-scrollbar { width: 4px; }
     #nabad-messages::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 4px; }
     .nabad-msg {
@@ -156,7 +148,8 @@
       box-shadow: 0 2px 12px rgba(45,78,232,0.25);
       border-bottom-right-radius: 4px;
     }
-    .nabad-typing { display: flex; gap: 4px; align-items: center; padding: 12px 15px;
+    .nabad-typing {
+      display: flex; gap: 4px; align-items: center; padding: 12px 15px;
       background: #ffffff; border-radius: 14px; border-bottom-left-radius: 4px;
       align-self: flex-start; box-shadow: 0 2px 12px rgba(0,0,0,0.07);
       border: 1px solid rgba(0,212,255,0.12);
@@ -170,13 +163,15 @@
     .nabad-typing span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes nabadBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
 
-    @property --angle {
-      syntax: '<angle>';
-      initial-value: 0deg;
-      inherits: false;
+    @keyframes siriGlow {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
-    @keyframes rotateSiri {
-      to { --angle: 360deg; }
+    @keyframes siriGlowFocus {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
 
     /* BRAND KIT BUTTON */
@@ -204,7 +199,8 @@
 
     /* LEAD / PROFILE FORM */
     #nabad-lead {
-      padding: calc(24px + env(safe-area-inset-top)) 20px 24px 20px; display: flex; flex-direction: column; gap: 12px;
+      padding: calc(24px + env(safe-area-inset-top)) 20px 24px 20px;
+      display: flex; flex-direction: column; gap: 12px;
       background: #f7f8fc; overflow-y: auto;
     }
     #nabad-lead h3 { font-size: 16px; font-weight: 700; color: #1a1a1a; margin: 0 0 4px; }
@@ -240,12 +236,13 @@
     }
     .nabad-input-wrapper {
       flex: 1; position: relative; border-radius: 10px; padding: 2px;
-      background: conic-gradient(from var(--angle), #00D4FF, #2D4EE8, #00D4FF);
-      animation: rotateSiri 3s linear infinite;
+      background: linear-gradient(90deg, #00D4FF, #2D4EE8, #00D4FF);
+      background-size: 200% 200%;
+      animation: siriGlow 3s ease infinite;
     }
     .nabad-input-wrapper.focused {
-      background: conic-gradient(from var(--angle), #00D4FF, #2D4EE8, #7B61FF, #00D4FF);
-      animation: rotateSiri 1.5s linear infinite;
+      animation: siriGlowFocus 1.5s ease infinite;
+      box-shadow: 0 0 12px rgba(0,212,255,0.5), 0 0 24px rgba(45,78,232,0.3);
     }
     #nabad-input {
       width: 100%; background: #f7f8fc; border: none;
@@ -344,7 +341,7 @@
   const signinBtn = document.getElementById('nabad-signin-btn');
   const signoutBtn = document.getElementById('nabad-signout');
 
-  // Focus/blur for Siri effect intensity
+  // Siri glow intensity on focus/blur
   input.addEventListener('focus', () => inputWrapper.classList.add('focused'));
   input.addEventListener('blur', () => inputWrapper.classList.remove('focused'));
 
@@ -354,7 +351,6 @@
   let isOpen = false;
   let profile = null;
 
-  // Storage helpers
   function saveHistory(h) {
     if (!isGuest) localStorage.setItem('nabad_history', JSON.stringify(h));
     else sessionStorage.setItem('nabad_history_session', JSON.stringify(h));
@@ -366,7 +362,6 @@
 
   let history = [];
 
-  // Check returning user
   const savedProfile = localStorage.getItem('nabad_profile');
   if (savedProfile) {
     profile = JSON.parse(savedProfile);
@@ -391,28 +386,24 @@
     document.getElementById('dd-location').textContent = `📍 ${p.location}`;
   }
 
-  // Avatar dropdown
   avatar.addEventListener('click', (e) => {
     e.stopPropagation();
     avatarDropdown.classList.toggle('open');
   });
   document.addEventListener('click', () => avatarDropdown.classList.remove('open'));
 
-  // Sign out
   signoutBtn.addEventListener('click', () => {
     localStorage.removeItem('nabad_profile');
     localStorage.removeItem('nabad_history');
     location.reload();
   });
 
-  // Show profile form when clicking Create Profile
   signinBtn.addEventListener('click', () => {
     messages.style.display = 'none';
     footer.style.display = 'none';
     lead.style.display = 'flex';
   });
 
-  // New conversation
   document.getElementById('nabad-new-chat').addEventListener('click', () => {
     history = [];
     saveHistory([]);
@@ -421,13 +412,11 @@
     avatarDropdown.classList.remove('open');
   });
 
-  // Bubble toggle
   bubble.addEventListener('click', () => {
     isOpen = !isOpen;
     win.style.display = isOpen ? 'flex' : 'none';
   });
 
-  // Create profile
   startBtn.addEventListener('click', () => {
     const name = document.getElementById('nabad-name').value.trim();
     const company = document.getElementById('nabad-company').value.trim();
@@ -448,7 +437,6 @@
     addMessage('bot', `Profile created! Welcome, <b>${name}</b>! 🚀<br>I'm Nabad, your AI business consultant. I see you're in <b>${industry}</b> based in <b>${location}</b>. What are you working on?`);
   });
 
-  // Guest mode
   guestBtn.addEventListener('click', () => {
     isGuest = true;
     profile = null;
