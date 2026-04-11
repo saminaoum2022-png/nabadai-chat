@@ -34,6 +34,7 @@ export default function Home() {
             display: flex !important;
             box-shadow: none !important;
             border: none !important;
+            background: #f7f8fc !important;
           }
           #nabad-bubble { display: none !important; }
           .nabad-msg.bot {
