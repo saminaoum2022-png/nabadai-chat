@@ -203,7 +203,7 @@
 
     /* LEAD / PROFILE FORM */
     #nabad-lead {
-      padding: 24px 20px; display: flex; flex-direction: column; gap: 12px;
+      padding: calc(24px + env(safe-area-inset-top)) 20px 24px 20px; display: flex; flex-direction: column; gap: 12px;
       background: #f7f8fc; overflow-y: auto;
     }
     #nabad-lead h3 { font-size: 16px; font-weight: 700; color: #1a1a1a; margin: 0 0 4px; }
