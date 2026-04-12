@@ -819,7 +819,8 @@
 }
     `;
     document.head.appendChild(style);
-
+  }
+    
   function buildShell() {
     const root = document.createElement('div');
     root.id = 'nabad-widget-root';
