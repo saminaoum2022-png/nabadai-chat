@@ -7,7 +7,7 @@
     title: 'NabadAi',
     subtitle: 'Business AI',
     launcherLabel: 'Ask Nabad',
-    storageNamespace: 'nabad_widget_v3',
+    storageNamespace: 'nabad_widget_v5',
     zIndex: 2147483000,
     ...window.NABAD_WIDGET_CONFIG
   };
@@ -188,7 +188,8 @@
     const style = document.createElement('style');
     style.id = 'nabad-widget-styles';
     style.textContent = `
-      #nabad-widget-root, #nabad-widget-root * {
+      #nabad-widget-root,
+      #nabad-widget-root * {
         box-sizing: border-box;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
@@ -198,6 +199,13 @@
         right: 18px;
         bottom: 18px;
         z-index: ${CONFIG.zIndex};
+        pointer-events: none;
+      }
+
+      #nabad-launcher,
+      #nabad-panel,
+      #nabad-lightbox {
+        pointer-events: auto;
       }
 
       #nabad-launcher {
@@ -208,16 +216,42 @@
         cursor: pointer;
         background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
         color: #fff;
-        box-shadow: 0 16px 45px rgba(37, 99, 235, 0.35);
+        box-shadow:
+          0 10px 24px rgba(37, 99, 235, 0.18),
+          0 0 18px rgba(6, 182, 212, 0.12);
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 18px;
         font-weight: 800;
+        transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+        animation: nabadAiryIdle 4.6s ease-in-out infinite;
       }
 
       #nabad-launcher:hover {
-        transform: translateY(-1px);
+        transform: translateY(-1px) scale(1.01);
+        box-shadow:
+          0 12px 30px rgba(37, 99, 235, 0.22),
+          0 0 22px rgba(6, 182, 212, 0.16);
+      }
+
+      #nabad-widget-root.nabad-open #nabad-launcher {
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(0.92);
+      }
+
+      @keyframes nabadAiryIdle {
+        0%, 100% {
+          box-shadow:
+            0 10px 24px rgba(37, 99, 235, 0.18),
+            0 0 18px rgba(6, 182, 212, 0.10);
+        }
+        50% {
+          box-shadow:
+            0 12px 28px rgba(37, 99, 235, 0.20),
+            0 0 24px rgba(6, 182, 212, 0.14);
+        }
       }
 
       #nabad-panel {
@@ -229,10 +263,11 @@
         background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
         border: 1px solid rgba(37, 99, 235, 0.10);
         border-radius: 24px;
-        box-shadow: 0 25px 80px rgba(15, 23, 42, 0.22);
+        box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
         overflow: hidden;
         display: none;
         flex-direction: column;
+        backdrop-filter: blur(10px);
       }
 
       #nabad-panel.open {
@@ -244,7 +279,7 @@
         align-items: center;
         justify-content: space-between;
         padding: 14px 16px;
-        background: linear-gradient(180deg, rgba(226, 240, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 100%);
+        background: linear-gradient(180deg, rgba(226, 240, 255, 0.96) 0%, rgba(240, 249, 255, 0.95) 100%);
         border-bottom: 1px solid rgba(37, 99, 235, 0.08);
       }
 
@@ -256,17 +291,17 @@
       }
 
       #nabad-logo {
-        width: 40px;
-        height: 40px;
+        width: 42px;
+        height: 42px;
         border-radius: 999px;
         background: radial-gradient(circle at 30% 30%, #67e8f9 0%, #2563eb 45%, #1e3a8a 100%);
-        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35);
         display: flex;
         align-items: center;
         justify-content: center;
         color: #fff;
         font-weight: 900;
-        font-size: 13px;
+        font-size: 14px;
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35);
       }
 
       #nabad-title-wrap {
@@ -293,18 +328,18 @@
       }
 
       .nabad-icon-btn {
-        width: 34px;
-        height: 34px;
+        width: 36px;
+        height: 36px;
         border: none;
-        border-radius: 10px;
+        border-radius: 12px;
         cursor: pointer;
-        background: rgba(255,255,255,0.8);
+        background: rgba(255,255,255,0.85);
         color: #1e3a8a;
         font-size: 16px;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
       }
 
       .nabad-icon-btn:hover {
@@ -322,6 +357,7 @@
         background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
         border: 1px solid rgba(37, 99, 235, 0.10);
         color: #1e3a8a;
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.05);
       }
 
       #nabad-selected-personality.show {
@@ -348,6 +384,7 @@
         overflow-y: auto;
         padding: 14px;
         scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
       }
 
       .nabad-msg {
@@ -377,18 +414,19 @@
         background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
         color: #fff;
         border-bottom-right-radius: 6px;
-        box-shadow: 0 14px 34px rgba(37, 99, 235, 0.18);
+        box-shadow: 0 14px 34px rgba(37, 99, 235, 0.16);
       }
 
       .nabad-msg.bot .nabad-bubble {
-        background: #fff;
+        background: rgba(255,255,255,0.96);
         color: #0f172a;
         border: 1px solid rgba(15, 23, 42, 0.06);
         border-bottom-left-radius: 6px;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
       }
 
-      .nabad-bubble h3, .nabad-bubble h4 {
+      .nabad-bubble h3,
+      .nabad-bubble h4 {
         margin: 0 0 8px;
         line-height: 1.25;
         color: #0f172a;
@@ -435,7 +473,7 @@
         margin-top: 6px;
         cursor: zoom-in;
         background: #f1f5f9;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.10);
       }
 
       .nabad-bubble img.loading {
@@ -443,8 +481,14 @@
       }
 
       @keyframes nabadGlow {
-        0% { box-shadow: 0 0 0 rgba(37, 99, 235, 0.0), 0 10px 30px rgba(15, 23, 42, 0.10); opacity: 0.88; }
-        100% { box-shadow: 0 0 22px rgba(6, 182, 212, 0.42), 0 12px 34px rgba(37, 99, 235, 0.18); opacity: 1; }
+        0% {
+          box-shadow: 0 0 0 rgba(37, 99, 235, 0.0), 0 10px 30px rgba(15, 23, 42, 0.10);
+          opacity: 0.88;
+        }
+        100% {
+          box-shadow: 0 0 22px rgba(6, 182, 212, 0.42), 0 12px 34px rgba(37, 99, 235, 0.18);
+          opacity: 1;
+        }
       }
 
       #nabad-onboarding {
@@ -475,24 +519,26 @@
         width: 100%;
         text-align: left;
         border: 1px solid rgba(37, 99, 235, 0.12);
-        background: #fff;
-        border-radius: 16px;
+        background: rgba(255,255,255,0.98);
+        border-radius: 18px;
         padding: 14px;
         cursor: pointer;
         transition: all 0.18s ease;
-        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
       }
 
       .nabad-personality-card:hover {
         transform: translateY(-1px);
         border-color: rgba(37, 99, 235, 0.26);
-        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.10);
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08);
       }
 
       .nabad-personality-card.active {
-        border-color: #2563eb;
+        border-color: rgba(37, 99, 235, 0.45);
         background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
-        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12);
+        box-shadow:
+          0 10px 24px rgba(37, 99, 235, 0.08),
+          0 0 18px rgba(6, 182, 212, 0.08);
       }
 
       .nabad-personality-title {
@@ -562,7 +608,7 @@
       #nabad-input-wrap {
         padding: 12px 14px 14px;
         border-top: 1px solid rgba(15, 23, 42, 0.06);
-        background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, #f8fbff 100%);
+        background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
       }
 
       #nabad-input-row {
@@ -582,13 +628,18 @@
         font-size: 15px;
         color: #0f172a;
         outline: none;
-        background: #fff;
-        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+        background: rgba(255,255,255,0.98);
+        box-shadow:
+          inset 0 1px 2px rgba(15, 23, 42, 0.03),
+          0 0 14px rgba(6, 182, 212, 0.04);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
       }
 
       #nabad-input:focus {
-        border-color: rgba(37, 99, 235, 0.45);
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+        border-color: rgba(37, 99, 235, 0.30);
+        box-shadow:
+          0 0 0 2px rgba(37, 99, 235, 0.05),
+          0 0 18px rgba(6, 182, 212, 0.12);
       }
 
       #nabad-send {
@@ -601,7 +652,17 @@
         color: #fff;
         font-size: 18px;
         font-weight: 900;
-        box-shadow: 0 14px 34px rgba(37, 99, 235, 0.22);
+        box-shadow:
+          0 8px 20px rgba(37, 99, 235, 0.14),
+          0 0 14px rgba(6, 182, 212, 0.08);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      #nabad-send:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 10px 24px rgba(37, 99, 235, 0.16),
+          0 0 16px rgba(6, 182, 212, 0.10);
       }
 
       #nabad-send:disabled {
@@ -623,7 +684,7 @@
         display: none;
         align-items: center;
         justify-content: center;
-        z-index: ${CONFIG.zIndex + 10};
+        z-index: ${CONFIG.zIndex + 20};
         padding: 20px;
       }
 
@@ -699,30 +760,52 @@
 
       @media (max-width: 640px) {
         #nabad-widget-root {
+          position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100dvh;
           right: 0;
-          left: 0;
           bottom: 0;
-          width: 100%;
-          display: flex;
-          justify-content: flex-end;
-          padding: 0 12px 12px;
+          left: 0;
+          padding: 0;
         }
 
         #nabad-panel {
+          position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100dvh;
+          max-width: 100vw;
+          max-height: 100dvh;
           right: 0;
-          bottom: 78px;
-          width: calc(100vw - 24px);
-          height: calc(100vh - 104px);
-          border-radius: 22px;
+          bottom: 0;
+          border-radius: 0;
+          box-shadow: none;
+          border: none;
+        }
+
+        #nabad-header {
+          padding-top: max(14px, env(safe-area-inset-top));
+        }
+
+        #nabad-input-wrap {
+          padding-bottom: max(14px, env(safe-area-inset-bottom));
         }
 
         #nabad-launcher {
+          position: fixed;
+          right: 14px;
+          bottom: 14px;
           width: 60px;
           height: 60px;
         }
 
         .nabad-bubble {
           max-width: 92%;
+        }
+
+        #nabad-messages {
+          padding-bottom: 18px;
         }
       }
     `;
@@ -811,7 +894,7 @@
   }
 
   function bindEvents(root) {
-    refs.launcher.addEventListener('click', () => toggleWidget());
+    refs.launcher.addEventListener('click', () => toggleWidget(true));
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
     root.querySelector('#nabad-new-chat').addEventListener('click', startNewChat);
@@ -872,17 +955,26 @@
 
   function toggleWidget(force) {
     state.open = typeof force === 'boolean' ? force : !state.open;
+
     refs.panel.classList.toggle('open', state.open);
     refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
+    refs.root.classList.toggle('nabad-open', state.open);
 
     if (state.open) {
+      document.body.style.overflow = 'hidden';
+
       setTimeout(() => {
         if (!state.personalityChosen && !state.messages.length) {
           renderPersonalityOnboarding();
+          scrollToBottom();
+          return;
         }
+
         refs.input.focus();
         scrollToBottom();
       }, 40);
+    } else {
+      document.body.style.overflow = '';
     }
   }
 
@@ -953,6 +1045,11 @@
         setInputPlaceholder();
         refs.messages.innerHTML = '';
         renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+
+        setTimeout(() => {
+          refs.input.focus();
+          scrollToBottom();
+        }, 50);
       });
     });
 
@@ -1058,7 +1155,9 @@
     refs.lightbox.classList.remove('open');
     refs.lightboxImg.src = '';
     currentLightboxSrc = '';
-    document.body.style.overflow = '';
+    if (!state.open) {
+      document.body.style.overflow = '';
+    }
   }
 
   function showTyping(show) {
@@ -1069,6 +1168,7 @@
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
+      if (!refs.messages) return;
       refs.messages.scrollTop = refs.messages.scrollHeight;
     });
   }
@@ -1104,6 +1204,11 @@
 
     state.messages = [];
     saveMessages();
+    state.personality = 'auto';
+    state.personalityChosen = false;
+    savePersonality('');
+    updatePersonalityBadge();
+    setInputPlaceholder();
     refs.messages.innerHTML = '';
     renderPersonalityOnboarding();
   }
