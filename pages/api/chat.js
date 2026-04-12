@@ -17,7 +17,7 @@ const GEMINI_TEXT_MODELS = [
   'gemini-3-flash-preview'
 ];
 
-const SHOW_IMAGE_DEBUG = false; // set to true only when testing
+const SHOW_IMAGE_DEBUG = false;
 
 function isAllowedOrigin(origin = '') {
   if (!origin) return false;
@@ -288,7 +288,10 @@ function shouldGenerateImage(messages = [], lastUserMessage = '') {
 function buildStockKeyword(text = '') {
   const cleaned = sanitizePromptText(
     String(text || '')
-      .replace(/\b(show|give|find|send|need|want|me|some|free|stock|photos?|images?|references?|reference|inspiration|pictures?)\b/gi, ' ')
+      .replace(
+        /\b(show|give|find|send|need|want|me|some|free|stock|photos?|images?|references?|reference|inspiration|pictures?)\b/gi,
+        ' '
+      )
       .replace(/\bfor\b/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim(),
@@ -318,17 +321,13 @@ function buildStrictFallbackPrompt(lastUserMessage = '', messages = []) {
 
   if (/dark/.test(lower)) changes.push('darker mood with deeper shadows');
   if (/light|bright/.test(lower)) changes.push('cleaner brighter studio lighting');
-  if (/premium|luxury|luxurious/.test(lower)) {
-    changes.push('more premium luxurious finish and materials');
-  }
+  if (/premium|luxury|luxurious/.test(lower)) changes.push('more premium luxurious finish and materials');
   if (/closer|close-up|zoom/.test(lower)) changes.push('closer crop and tighter framing');
   if (/angle|side|top|perspective/.test(lower)) changes.push('different camera angle');
   if (/minimal|clean/.test(lower)) changes.push('cleaner more minimal composition');
   if (/gold/.test(lower)) changes.push('richer gold accents');
   if (/silver/.test(lower)) changes.push('refined silver accents');
-  if (/without\b/.test(lower)) {
-    changes.push('remove any optional extra elements the user rejected');
-  }
+  if (/without\b/.test(lower)) changes.push('remove any optional extra elements the user rejected');
 
   const variationInstruction = isRegenerationRequest(lastUserMessage)
     ? 'Create a new variation of the same exact concept. Keep the same main subject, same background family, same business purpose, and same premium style. Only vary camera angle, crop, reflections, or small details.'
@@ -481,9 +480,7 @@ function buildImageReplyHtml(prompt, meta = {}) {
   const debugHtml = SHOW_IMAGE_DEBUG
     ? `<div style="font-size:12px;color:#667;margin-bottom:8px;"><b>Debug:</b> source=${escapeHtml(
         meta.source || 'fallback'
-      )} | model=${escapeHtml(
-        meta.model || 'none'
-      )}</div><div style="font-size:12px;color:#667;margin-bottom:10px;"><b>Prompt:</b> ${escapeHtml(
+      )} | model=${escapeHtml(meta.model || 'none')}</div><div style="font-size:12px;color:#667;margin-bottom:10px;"><b>Prompt:</b> ${escapeHtml(
         prompt
       )}</div>`
     : '';
@@ -576,6 +573,189 @@ Prefer sharp recommendations over vague checklists.
 CURRENT MODE: BUSINESS ADVISOR
 Act like a commercially smart founder advisor. Be practical, strategic, and creative.
 `
+  };
+}
+
+function getPersonalityConfig(selectedPersonality = 'auto') {
+  const key = String(selectedPersonality || 'auto').toLowerCase();
+
+  switch (key) {
+    case 'strategist':
+      return {
+        id: 'strategist',
+        label: 'Strategist',
+        instruction: `
+SELECTED PERSONALITY: STRATEGIST
+Tone: smart, structured, commercially sharp.
+Behavior:
+- prioritize clarity, direction, sequencing, and positioning
+- recommend the smartest path, not all possible paths
+- think like a founder strategist
+- avoid fluffy motivation
+`
+      };
+
+    case 'growth':
+      return {
+        id: 'growth',
+        label: 'Growth Expert',
+        instruction: `
+SELECTED PERSONALITY: GROWTH EXPERT
+Tone: practical, energetic, opportunity-focused.
+Behavior:
+- focus on customers, lead generation, conversion, distribution, and revenue growth
+- prioritize traction, acquisition, and marketing leverage
+- suggest practical ways to get faster results
+`
+      };
+
+    case 'branding':
+      return {
+        id: 'branding',
+        label: 'Brand Builder',
+        instruction: `
+SELECTED PERSONALITY: BRAND BUILDER
+Tone: creative, premium, perceptive, modern.
+Behavior:
+- focus on brand perception, identity, positioning, memorability, naming, messaging, and premium feel
+- make ideas stronger, more differentiated, and easier to remember
+- care about aesthetics and commercial impact
+`
+      };
+
+    case 'offer':
+      return {
+        id: 'offer',
+        label: 'Offer Architect',
+        instruction: `
+SELECTED PERSONALITY: OFFER ARCHITECT
+Tone: persuasive, commercial, monetization-focused.
+Behavior:
+- focus on offer design, pricing, packaging, upsells, value perception, and ease of purchase
+- help turn vague ideas into offers people actually buy
+- improve commercial clarity
+`
+      };
+
+    case 'creative':
+      return {
+        id: 'creative',
+        label: 'Creative Challenger',
+        instruction: `
+SELECTED PERSONALITY: CREATIVE CHALLENGER
+Tone: bold, inventive, unconventional, commercially aware.
+Behavior:
+- push beyond obvious ideas
+- suggest unexpected but practical business angles
+- add at least one stronger, fresher idea when possible
+- still keep answers commercially useful, not random
+`
+      };
+
+    case 'straight_talk':
+      return {
+        id: 'straight_talk',
+        label: 'Straight Talk',
+        instruction: `
+SELECTED PERSONALITY: STRAIGHT TALK
+Tone: direct, honest, sharp, no-fluff.
+Behavior:
+- tell the user what is weak, risky, vague, or unrealistic
+- do not sugarcoat
+- be concise and commercially grounded
+- prioritize truth and usefulness over politeness
+`
+      };
+
+    case 'auto':
+    default:
+      return {
+        id: 'auto',
+        label: 'Auto',
+        instruction: `
+SELECTED PERSONALITY: AUTO
+Adapt naturally to the user's goal.
+If the question is strategic, be strategic.
+If the question is branding-related, be brand-smart.
+If the question is about growth, be growth-focused.
+Still sound premium, commercially intelligent, and creative.
+`
+      };
+  }
+}
+
+function detectToneOverride(text = '') {
+  const value = String(text || '').toLowerCase();
+
+  if (
+    /\b(be direct|be more direct|be brutally honest|be honest|straight talk|no fluff|stop being soft|be blunt|be harsh|tell me the truth|be real)\b/i.test(
+      value
+    )
+  ) {
+    return 'straight_talk';
+  }
+
+  if (
+    /\b(be more creative|think outside the box|out of the box|be bold|challenge me|push me|fresh ideas|unexpected ideas|wild ideas|bolder ideas|creative mode)\b/i.test(
+      value
+    )
+  ) {
+    return 'creative';
+  }
+
+  if (
+    /\b(focus on growth|growth mode|marketing mode|sales mode|lead generation|customer acquisition|get customers|focus on conversion|acquisition strategy)\b/i.test(
+      value
+    )
+  ) {
+    return 'growth';
+  }
+
+  if (
+    /\b(brand mode|branding mode|think like a brand strategist|focus on branding|premium brand thinking|naming and branding|brand expert)\b/i.test(
+      value
+    )
+  ) {
+    return 'branding';
+  }
+
+  if (
+    /\b(offer mode|pricing mode|monetization mode|help me monetize|focus on pricing|design my offer|package this|improve my offer)\b/i.test(
+      value
+    )
+  ) {
+    return 'offer';
+  }
+
+  if (
+    /\b(strategy mode|be strategic|think like a strategist|focus on strategy|high level strategy|strategic mode)\b/i.test(
+      value
+    )
+  ) {
+    return 'strategist';
+  }
+
+  return '';
+}
+
+function resolveActivePersonality(selectedPersonality = 'auto', lastUserMessage = '') {
+  const cleanedSelected = String(selectedPersonality || 'auto').toLowerCase();
+  const override = detectToneOverride(lastUserMessage);
+
+  if (cleanedSelected !== 'auto') {
+    return {
+      personalityId: override || cleanedSelected,
+      source: override ? 'override' : 'selected',
+      selectedPersonality: cleanedSelected,
+      overridePersonality: override || ''
+    };
+  }
+
+  return {
+    personalityId: override || 'auto',
+    source: override ? 'override' : 'auto',
+    selectedPersonality: cleanedSelected,
+    overridePersonality: override || ''
   };
 }
 
@@ -690,6 +870,8 @@ export default async function handler(req, res) {
       .filter((m) => m.content);
 
     const profile = body.profile || {};
+    const selectedPersonality = cleanText(body.personality || 'auto', 60).toLowerCase();
+
     const profileText = [
       profile.name ? `Name: ${cleanText(profile.name, 120)}` : '',
       profile.business ? `Business: ${cleanText(profile.business, 180)}` : '',
@@ -788,6 +970,16 @@ export default async function handler(req, res) {
       : '';
 
     const businessMode = detectBusinessMode(lastUserMessage, messages);
+    const personalityResolution = resolveActivePersonality(selectedPersonality, lastUserMessage);
+    const personalityConfig = getPersonalityConfig(personalityResolution.personalityId);
+
+    console.log('[PERSONALITY DEBUG]', {
+      selectedPersonality,
+      activePersonality: personalityConfig.id,
+      personalitySource: personalityResolution.source,
+      overridePersonality: personalityResolution.overridePersonality || '',
+      businessMode: businessMode.id
+    });
 
     const systemPrompt = `
 You are Nabad, an elite business strategist, growth advisor, offer architect, and creative commercial thinker.
@@ -841,8 +1033,25 @@ STYLE RULES:
 - If the user asks about a business idea, also think about brand, pricing, offer, audience, and go-to-market
 - Speak like a founder advisor, not a school teacher
 - Prefer a point of view over neutral waffle
+- If the user explicitly asks for a different style in their latest message, follow that style for this reply while still staying commercially useful
+
+EMOJI STYLE:
+- You may use 1 to 3 tasteful business-relevant emojis when helpful
+- Good examples: 📈 💡 🎯 🚀 🧠 💼 🎨 ⚡
+- Do not overuse emojis
+- Emojis should support clarity, not make the response childish
 
 MODE GUIDANCE:
+SELECTED PERSONALITY PREFERENCE:
+- User selected: ${personalityResolution.selectedPersonality}
+- Active personality for this reply: ${personalityConfig.label}
+- Personality source: ${personalityResolution.source}
+${personalityResolution.overridePersonality ? `- Temporary override requested in latest message: ${personalityResolution.overridePersonality}` : ''}
+
+PERSONALITY INSTRUCTIONS:
+${personalityConfig.instruction}
+
+CURRENT TASK MODE:
 ${businessMode.instruction}
 
 SPECIAL RULE FOR BROAD BUSINESS QUESTIONS:
@@ -903,8 +1112,7 @@ ${websiteAuditContent ? `WEBSITE AUDIT CONTEXT:\n${websiteAuditContent}` : ''}
     console.error('[CHAT API ERROR]', error);
 
     return res.status(500).json({
-      reply:
-        '<p>Sorry — something went wrong on my side. Please try again in a moment.</p>'
+      reply: '<p>Sorry — something went wrong on my side. Please try again in a moment.</p>'
     });
   }
 }
