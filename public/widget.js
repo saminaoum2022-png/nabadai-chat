@@ -2,6 +2,10 @@
   const LOGO = 'https://nabadai-chat.vercel.app/logo.png';
   const BRANDKIT_URL = 'https://nabadai-brandkit-ft995hk2l-nabadais-projects.vercel.app';
 
+    const isStandaloneApp =
+    window.location.hostname.includes('nabadai-chat.vercel.app') ||
+    !!document.getElementById('nabad-desktop-layout');
+
     if (!window.DOMPurify) {
     const purifyScript = document.createElement('script');
     purifyScript.src = 'https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js';
@@ -139,20 +143,20 @@
   border: 1px solid rgba(0,212,255,0.2);
 }
 
-@media (min-width: 768px) {
-  #nabad-messages img {
-    width: min(100%, 520px);
-    max-width: 520px;
-    max-height: 320px;
-    object-fit: cover;
-    margin-left: 0;
-    margin-right: auto;
-  }
+#nabad-widget.nabad-embed-mode #nabad-messages img {
+  width: 100%;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+}
 
-  #nabad-messages img.loading {
-    width: min(100%, 520px);
-    max-width: 520px;
-  }
+#nabad-widget.nabad-embed-mode #nabad-messages img.loading {
+  width: 100%;
+  min-width: 240px;
+  max-width: 100%;
+  height: 220px;
+  max-height: 220px;
+  object-fit: cover;
 }
 
     #nabad-messages::-webkit-scrollbar { width: 4px; }
@@ -291,8 +295,12 @@
   `;
   document.head.appendChild(style);
 
-  const widget = document.createElement('div');
+    const widget = document.createElement('div');
   widget.id = 'nabad-widget';
+
+  if (!isStandaloneApp) {
+    widget.classList.add('nabad-embed-mode');
+  }
   widget.innerHTML = `
     <div id="nabad-bubble"><img src="${LOGO}" alt="Nabad" /></div>
     <div id="nabad-window">
