@@ -845,6 +845,18 @@
     max-width: 92%;
   }
 }
+
+@media (min-width: 641px) {
+  #nabad-input-wrap {
+    padding-left: 16px;
+    padding-right: 16px;
+    margin-bottom: 4px;
+  }
+
+  #nabad-input {
+    margin: 2px;
+  }
+}
     `;
     document.head.appendChild(style);
   }
