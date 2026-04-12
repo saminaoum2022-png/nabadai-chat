@@ -1,22 +1,120 @@
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+const ALLOWED_ORIGINS = [
+  'https://nabadai.com',
+  'https://www.nabadai.com',
+  'https://nabadai-chat.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+function setCors(req, res) {
+  const origin = req.headers.origin;
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).end();
+}
 
-  const { messages, url, profile } = req.body;
+function cleanText(value, maxLength = 300) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
 
-  let systemPrompt = `You are Nabad, a global AI business startup consultant for NabadAi — a premium AI-powered digital services agency.
+function sanitizePromptText(value, maxLength = 1200) {
+  return String(value || '')
+    .replace(/[<>`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function isValidHttpUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export default async function handler(req, res) {
+  setCors(req, res);
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ reply: 'Method not allowed.' });
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ reply: 'Server is missing OpenAI configuration.' });
+  }
+
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const inputMessages = Array.isArray(body.messages) ? body.messages : [];
+    const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
+    const rawProfile = body.profile && typeof body.profile === 'object' ? body.profile : null;
+
+    const messages = inputMessages
+      .filter(
+        (m) =>
+          m &&
+          typeof m === 'object' &&
+          (m.role === 'user' || m.role === 'assistant') &&
+          typeof m.content === 'string'
+      )
+      .slice(-20)
+      .map((m) => ({
+        role: m.role,
+        content: sanitizePromptText(m.content, 4000)
+      }))
+      .filter((m) => m.content.length > 0);
+
+    const profile = rawProfile
+      ? {
+          name: cleanText(rawProfile.name, 80),
+          company: cleanText(rawProfile.company, 120),
+          industry: cleanText(rawProfile.industry, 80),
+          location: cleanText(rawProfile.location, 120)
+        }
+      : null;
+
+    let systemPrompt = `You are Nabad, a global AI business startup consultant for NabadAi — a premium AI-powered digital services agency.
 
 Your mission: Help entrepreneurs worldwide turn ideas into successful businesses.
 
-${profile ? `USER PROFILE:
-- Name: ${profile.name}
-- Company: ${profile.company}
-- Industry: ${profile.industry}
-- Location: ${profile.location}
-Use this context to personalize every response from the first message.` : 'No profile provided — ask for their name, business, and location early.'}
+${
+  profile && (profile.name || profile.company || profile.industry || profile.location)
+    ? `USER PROFILE:
+- Name: ${profile.name || 'Unknown'}
+- Company: ${profile.company || 'Unknown'}
+- Industry: ${profile.industry || 'Unknown'}
+- Location: ${profile.location || 'Unknown'}
+Use this context to personalize every response from the first message.`
+    : 'No profile provided — ask for their name, business, and location early.'
+}
 
 CORE STRENGTHS:
 - Always personalize answers to their specific business
@@ -33,22 +131,24 @@ FORMATTING RULES — CRITICAL, always follow:
 - Use <ul><li>item</li></ul> for bullet points
 - Use <br><br> between sections
 - Responses must render as HTML, not plain text
+- Never output <script>, <iframe>, inline event handlers, javascript: links, or unsafe HTML
 
 EMOJIS: Use business emojis naturally (📊 💡 🚀 📋 🎯 💼 📈 🔍 ✅) — NO smiley faces
 
 PROACTIVE TIPS: Every 5 messages, naturally add a quick industry insight or actionable tip relevant to their business — keep it short, 1-2 lines, prefixed with 💡
 
 STOCK PHOTOS: When users ask for images, photos, or visuals, suggest free stock photos as clickable HTML links:
-- <a href="https://unsplash.com/s/photos/[keyword]" target="_blank">🖼 Search [keyword] on Unsplash</a>
-- <a href="https://www.pexels.com/search/[keyword]" target="_blank">🖼 Search [keyword] on Pexels</a>
+- <a href="https://unsplash.com/s/photos/[keyword]" target="_blank" rel="noopener noreferrer">🖼 Search [keyword] on Unsplash</a>
+- <a href="https://www.pexels.com/search/[keyword]" target="_blank" rel="noopener noreferrer">🖼 Search [keyword] on Pexels</a>
 Replace [keyword] with the relevant search term.
 
 IMAGE GENERATION: When users ask you to generate, create, or show an image, use Pollinations AI — completely free, no login needed.
 Format the image as HTML:
-<img src="https://image.pollinations.ai/prompt/[descriptive prompt here]" style="width:100%;border-radius:12px;margin-top:8px;max-height:300px;object-fit:cover">
+<img src="https://image.pollinations.ai/prompt/[descriptive prompt here]" alt="Generated image">
 Replace [descriptive prompt here] with a detailed English description. Always show the image inline.
+Do not add inline style attributes to the image tag.
 
-When a user asks about visuals, logos, products, or any topic where an image would help, 
+When a user asks about visuals, logos, products, or any topic where an image would help,
 proactively ask: "🖼 Would you like me to generate an image for that?"
 If they say yes, generate it immediately using Pollinations AI.
 
@@ -57,34 +157,68 @@ BRAND KIT: When discussing branding, logo, or business identity naturally sugges
 
 You are helpful, action-oriented, and premium.`;
 
-  let userMessages = [...messages];
+    if (rawUrl) {
+      if (isValidHttpUrl(rawUrl)) {
+        try {
+          const auditUrl = new URL(rawUrl).toString();
+          const jinaRes = await fetchWithTimeout(`https://r.jina.ai/${auditUrl}`, {}, 15000);
 
-  if (url) {
-    try {
-      const jinaRes = await fetch(`https://r.jina.ai/${url}`);
-      const content = await jinaRes.text();
-      systemPrompt += `\n\nWebsite audit requested for: ${url}\nContent:\n${content.slice(0, 3000)}`;
-    } catch (e) {
-      systemPrompt += `\n\nCould not fetch ${url}. Inform the user politely.`;
+          if (jinaRes.ok) {
+            const content = await jinaRes.text();
+            systemPrompt += `\n\nWebsite audit requested for: ${auditUrl}\nContent:\n${sanitizePromptText(content, 3000)}`;
+          } else {
+            systemPrompt += `\n\nCould not fetch ${auditUrl}. Inform the user politely.`;
+          }
+        } catch {
+          systemPrompt += `\n\nCould not fetch the provided website. Inform the user politely.`;
+        }
+      } else {
+        systemPrompt += `\n\nThe user provided an invalid or unsupported URL. Explain that only full http/https website links are supported.`;
+      }
     }
+
+    const openaiResponse = await fetchWithTimeout(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages
+          ],
+          max_tokens: 800,
+          temperature: 0.7
+        })
+      },
+      30000
+    );
+
+    const data = await openaiResponse.json().catch(() => ({}));
+
+    if (!openaiResponse.ok) {
+      const errorMessage =
+        data?.error?.message ||
+        'The AI service is temporarily unavailable. Please try again.';
+      return res.status(openaiResponse.status).json({ reply: errorMessage });
+    }
+
+    const reply = data?.choices?.[0]?.message?.content;
+
+    if (!reply || typeof reply !== 'string') {
+      return res
+        .status(502)
+        .json({ reply: 'I could not generate a valid response. Please try again.' });
+    }
+
+    return res.status(200).json({ reply });
+  } catch (error) {
+    return res.status(500).json({
+      reply: 'Something went wrong on the server. Please try again.'
+    });
   }
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...userMessages
-      ],
-      max_tokens: 800
-    })
-  });
-
-  const data = await response.json();
-  res.status(200).json({ reply: data.choices[0].message.content });
 }
