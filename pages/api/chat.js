@@ -29,6 +29,8 @@ function isAllowedOrigin(origin = '') {
     if (ALLOWED_ORIGINS.includes(origin)) return true;
     if (hostname === 'nabadai.com' || hostname.endsWith('.nabadai.com')) return true;
     if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+    if (hostname.endsWith('.vercel.app')) return true;
+
 
     return false;
   } catch {
