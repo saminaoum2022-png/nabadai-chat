@@ -855,6 +855,13 @@
 
   #nabad-input {
     margin: 2px;
+    padding: 10px 14px !important;
+    min-height: 44px !important;
+  }
+
+  #nabad-send {
+    width: 44px !important;
+    height: 44px !important;
   }
 }
     `;
