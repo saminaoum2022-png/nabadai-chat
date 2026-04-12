@@ -6,6 +6,8 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000'
 ];
 
+const GEMINI_TEXT_MODELS = ['gemini-2.5-flash', 'gemini-3-flash-preview'];
+
 function setCors(req, res) {
   const origin = req.headers.origin;
 
@@ -56,6 +58,121 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 20000) {
   }
 }
 
+function isStockPhotoRequest(text = '') {
+  return /(stock photo|stock photos|free stock|unsplash|pexels|reference photos|reference images|inspiration images|free photos)/i.test(
+    text
+  );
+}
+
+function isImageRequest(text = '') {
+  return /(generate|create|make|show|draw|design|image|photo|picture|visual|logo|poster|banner|flyer|mockup|render)/i.test(
+    text
+  );
+}
+
+function isRegenerationRequest(text = '') {
+  return /(again|one more|another|regenerate|generate more|different version|variation|try again|another one)/i.test(
+    text
+  );
+}
+
+function conversationRecentlyHadImage(messages = []) {
+  return messages
+    .slice(-8)
+    .some(
+      (m) =>
+        m &&
+        typeof m.content === 'string' &&
+        /<img\s/i.test(m.content)
+    );
+}
+
+function getLatestExplicitImageRequest(messages = []) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (m?.role === 'user' && typeof m.content === 'string' && isImageRequest(m.content)) {
+      return sanitizePromptText(m.content, 500);
+    }
+  }
+  return '';
+}
+
+function shouldGenerateImage(messages = [], lastUserMessage = '') {
+  if (!lastUserMessage) return false;
+  if (isStockPhotoRequest(lastUserMessage)) return false;
+
+  if (isImageRequest(lastUserMessage)) return true;
+
+  if (isRegenerationRequest(lastUserMessage) && conversationRecentlyHadImage(messages)) {
+    return true;
+  }
+
+  return false;
+}
+
+async function buildImagePromptWithGemini(messages, geminiApiKey) {
+  const recentConversation = messages
+    .slice(-8)
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join('\n');
+
+  let lastError = null;
+
+  for (const model of GEMINI_TEXT_MODELS) {
+    try {
+      const response = await fetchWithTimeout(
+        'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${geminiApiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'Turn the conversation into one strong English prompt for an AI image generator. Return only the final prompt text. No markdown. No HTML. No explanations. If the user asks for another version, vary the angle, composition, lighting, colors, mood, background, and framing so the result feels clearly different but still relevant.'
+              },
+              {
+                role: 'user',
+                content: recentConversation
+              }
+            ],
+            temperature: 0.9,
+            max_tokens: 180
+          })
+        },
+        30000
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        lastError = new Error(data?.error?.message || `Gemini prompt generation failed for ${model}.`);
+        continue;
+      }
+
+      const prompt = sanitizePromptText(data?.choices?.[0]?.message?.content || '', 500);
+
+      if (prompt) return prompt;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Gemini prompt generation failed.');
+}
+
+function buildPollinationsImageHtml(prompt) {
+  const cleanPrompt = sanitizePromptText(prompt, 500);
+  const encodedPrompt = encodeURIComponent(cleanPrompt);
+
+  return `<img src="https://image.pollinations.ai/prompt/${encodedPrompt}" alt="Generated image">`;
+}
+
 export default async function handler(req, res) {
   setCors(req, res);
 
@@ -101,6 +218,36 @@ export default async function handler(req, res) {
         }
       : null;
 
+    const lastUserMessage =
+      [...messages].reverse().find((m) => m.role === 'user')?.content || '';
+
+    if (shouldGenerateImage(messages, lastUserMessage)) {
+      const basePrompt =
+        getLatestExplicitImageRequest(messages) ||
+        sanitizePromptText(lastUserMessage, 500) ||
+        'A premium professional business visual';
+
+      try {
+        let finalPrompt = basePrompt;
+
+        if (process.env.GEMINI_API_KEY) {
+          const improvedPrompt = await buildImagePromptWithGemini(
+            messages,
+            process.env.GEMINI_API_KEY
+          );
+          if (improvedPrompt) finalPrompt = improvedPrompt;
+        }
+
+        return res.status(200).json({
+          reply: buildPollinationsImageHtml(finalPrompt)
+        });
+      } catch {
+        return res.status(200).json({
+          reply: buildPollinationsImageHtml(basePrompt)
+        });
+      }
+    }
+
     let systemPrompt = `You are Nabad, a global AI business startup consultant for NabadAi — a premium AI-powered digital services agency.
 
 Your mission: Help entrepreneurs worldwide turn ideas into successful businesses.
@@ -133,26 +280,40 @@ FORMATTING RULES — CRITICAL, always follow:
 - Responses must render as HTML, not plain text
 - Never output <script>, <iframe>, inline event handlers, javascript: links, or unsafe HTML
 
-EMOJIS: Use business emojis naturally (📊 💡 🚀 📋 🎯 💼 📈 🔍 ✅) — NO smiley faces
+EMOJIS:
+- Use business emojis naturally (📊 💡 🚀 📋 🎯 💼 📈 🔍 ✅)
+- NO smiley faces
 
-PROACTIVE TIPS: Every 5 messages, naturally add a quick industry insight or actionable tip relevant to their business — keep it short, 1-2 lines, prefixed with 💡
+PROACTIVE TIPS:
+- Every 5 messages, naturally add a quick industry insight or actionable tip relevant to their business
+- Keep it short, 1-2 lines, prefixed with 💡
 
-STOCK PHOTOS: When users ask for images, photos, or visuals, suggest free stock photos as clickable HTML links:
-- <a href="https://unsplash.com/s/photos/[keyword]" target="_blank" rel="noopener noreferrer">🖼 Search [keyword] on Unsplash</a>
-- <a href="https://www.pexels.com/search/[keyword]" target="_blank" rel="noopener noreferrer">🖼 Search [keyword] on Pexels</a>
-Replace [keyword] with the relevant search term.
+STOCK PHOTOS:
+If the user asks for free stock photos, free image sources, inspiration images, photo references, or visual references, return exactly 2 clickable HTML links and nothing else before them:
 
-IMAGE GENERATION: When users ask you to generate, create, or show an image, use Pollinations AI — completely free, no login needed.
-Format the image as HTML:
-<img src="https://image.pollinations.ai/prompt/[descriptive prompt here]" alt="Generated image">
-Replace [descriptive prompt here] with a detailed English description. Always show the image inline.
-Do not add inline style attributes to the image tag.
+<a href="https://unsplash.com/s/photos/[keyword]" target="_blank" rel="noopener noreferrer">🖼 Search [keyword] on Unsplash</a><br>
+<a href="https://www.pexels.com/search/[keyword]/" target="_blank" rel="noopener noreferrer">🖼 Search [keyword] on Pexels</a>
 
-When a user asks about visuals, logos, products, or any topic where an image would help,
-proactively ask: "🖼 Would you like me to generate an image for that?"
-If they say yes, generate it immediately using Pollinations AI.
+Rules:
+- Replace [keyword] with a short relevant English search phrase
+- Always make both links clickable
+- Do not use markdown
+- Do not wrap links in code blocks
+- Do not return plain text URLs unless the user specifically asks for plain URLs
 
-BRAND KIT: When discussing branding, logo, or business identity naturally suggest:
+IMAGE REQUESTS:
+If the user asks for an image, logo concept, poster, banner, mockup, branding visual, or product photo idea, respond helpfully and naturally.
+Do not manually invent image URLs.
+Do not output HTML image tags.
+The backend may generate images separately.
+
+VISUAL FOLLOW-UP:
+- If the user is discussing visuals, branding, products, ads, or packaging and an image would help, you may naturally ask:
+"🖼 Would you like me to generate an image for that?"
+- If they ask for free stock sources instead, provide the stock-photo links format above
+
+BRAND KIT:
+When discussing branding, logo, or business identity naturally suggest:
 "🎨 Want to build your brand identity? Try our free Brand Kit! [BRANDKIT_CTA]"
 
 You are helpful, action-oriented, and premium.`;
@@ -187,10 +348,7 @@ You are helpful, action-oriented, and premium.`;
         },
         body: JSON.stringify({
           model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages
-          ],
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
           max_tokens: 800,
           temperature: 0.7
         })
