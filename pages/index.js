@@ -38,7 +38,7 @@ export default function Home() {
 
     const hideSplashTimer = window.setTimeout(() => {
       setShowSplash(false);
-    }, 1150);
+    }, 1600);
 
     const registerServiceWorker = () => {
       if (!('serviceWorker' in navigator)) return;
