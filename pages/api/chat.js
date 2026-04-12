@@ -17,10 +17,11 @@ const GEMINI_TEXT_MODELS = [
   'gemini-3-flash-preview'
 ];
 
-const SHOW_IMAGE_DEBUG = false; // turn true only for testing
+const SHOW_IMAGE_DEBUG = false; // set to true only when testing
 
 function isAllowedOrigin(origin = '') {
   if (!origin) return false;
+
   try {
     const url = new URL(origin);
     const hostname = url.hostname.toLowerCase();
@@ -76,7 +77,7 @@ function cleanText(text = '', maxLen = 4000) {
     .slice(0, maxLen);
 }
 
-function sanitizePromptText(text = '', maxLen = 1200) {
+function sanitizePromptText(text = '', maxLen = 1400) {
   return String(text ?? '')
     .replace(/<img[\s\S]*?>/gi, ' ')
     .replace(/<[^>]*>/g, ' ')
@@ -317,15 +318,17 @@ function buildStrictFallbackPrompt(lastUserMessage = '', messages = []) {
 
   if (/dark/.test(lower)) changes.push('darker mood with deeper shadows');
   if (/light|bright/.test(lower)) changes.push('cleaner brighter studio lighting');
-  if (/premium|luxury|luxurious/.test(lower))
+  if (/premium|luxury|luxurious/.test(lower)) {
     changes.push('more premium luxurious finish and materials');
+  }
   if (/closer|close-up|zoom/.test(lower)) changes.push('closer crop and tighter framing');
   if (/angle|side|top|perspective/.test(lower)) changes.push('different camera angle');
   if (/minimal|clean/.test(lower)) changes.push('cleaner more minimal composition');
   if (/gold/.test(lower)) changes.push('richer gold accents');
   if (/silver/.test(lower)) changes.push('refined silver accents');
-  if (/without\b/.test(lower))
+  if (/without\b/.test(lower)) {
     changes.push('remove any optional extra elements the user rejected');
+  }
 
   const variationInstruction = isRegenerationRequest(lastUserMessage)
     ? 'Create a new variation of the same exact concept. Keep the same main subject, same background family, same business purpose, and same premium style. Only vary camera angle, crop, reflections, or small details.'
@@ -478,12 +481,163 @@ function buildImageReplyHtml(prompt, meta = {}) {
   const debugHtml = SHOW_IMAGE_DEBUG
     ? `<div style="font-size:12px;color:#667;margin-bottom:8px;"><b>Debug:</b> source=${escapeHtml(
         meta.source || 'fallback'
-      )} | model=${escapeHtml(meta.model || 'none')}</div><div style="font-size:12px;color:#667;margin-bottom:10px;"><b>Prompt:</b> ${escapeHtml(
+      )} | model=${escapeHtml(
+        meta.model || 'none'
+      )}</div><div style="font-size:12px;color:#667;margin-bottom:10px;"><b>Prompt:</b> ${escapeHtml(
         prompt
       )}</div>`
     : '';
 
   return `${debugHtml}${buildPollinationsImageHtml(prompt, meta)}`;
+}
+
+function detectBusinessMode(text = '', messages = []) {
+  const fullText = `${text} ${messages
+    .slice(-6)
+    .map((m) => m?.content || '')
+    .join(' ')}`.toLowerCase();
+
+  if (/\b(brand|branding|logo|identity|visual identity|packaging|name|slogan|tagline|rebrand|positioning)\b/.test(fullText)) {
+    return {
+      id: 'branding',
+      label: 'Branding',
+      temperature: 0.82,
+      maxTokens: 520,
+      instruction: `
+CURRENT MODE: BRANDING
+Focus on brand clarity, positioning, naming, identity, perception, premium feel, memorability, and commercial distinctiveness.
+Do not give generic brand advice. Suggest angles that make the brand easier to remember and easier to sell.
+`
+    };
+  }
+
+  if (/\b(grow|growth|marketing|sales|funnel|lead|leads|ads|advertising|campaign|seo|content|social media|conversion|traffic|reach|audience)\b/.test(fullText)) {
+    return {
+      id: 'growth',
+      label: 'Growth',
+      temperature: 0.84,
+      maxTokens: 540,
+      instruction: `
+CURRENT MODE: GROWTH
+Focus on customer acquisition, channel strategy, conversion, messaging, demand generation, and scalable growth opportunities.
+Prefer practical growth moves over theory.
+`
+    };
+  }
+
+  if (/\b(offer|service package|package|pricing|proposal|upsell|bundle|retainer|productized|value proposition|what should i sell|monetize|monetise)\b/.test(fullText)) {
+    return {
+      id: 'offer',
+      label: 'Offer',
+      temperature: 0.83,
+      maxTokens: 520,
+      instruction: `
+CURRENT MODE: OFFER
+Focus on designing strong offers, pricing logic, perceived value, packaging, outcomes, differentiation, and ease of purchase.
+Make the offer more compelling and easier to say yes to.
+`
+    };
+  }
+
+  if (/\b(idea|ideas|brainstorm|creative|unique|different|unusual|out of the box|innovative|concept|concepts)\b/.test(fullText)) {
+    return {
+      id: 'creative',
+      label: 'Creative Ideas',
+      temperature: 0.9,
+      maxTokens: 560,
+      instruction: `
+CURRENT MODE: CREATIVE IDEAS
+Think expansively but commercially. Suggest fresh, original, monetizable angles. Avoid generic brainstorming.
+Every answer should include at least one stronger-than-obvious idea.
+`
+    };
+  }
+
+  if (/\b(strategy|strategic|launch|business plan|roadmap|niche|market|audience|target market|business model|position|positioning|plan|direction|start a business|startup|start up)\b/.test(fullText)) {
+    return {
+      id: 'strategy',
+      label: 'Strategy',
+      temperature: 0.8,
+      maxTokens: 540,
+      instruction: `
+CURRENT MODE: STRATEGY
+Focus on choosing the right market, angle, business model, positioning, sequencing, and strategic path.
+Prefer sharp recommendations over vague checklists.
+`
+    };
+  }
+
+  return {
+    id: 'advisor',
+    label: 'Business Advisor',
+    temperature: 0.82,
+    maxTokens: 520,
+    instruction: `
+CURRENT MODE: BUSINESS ADVISOR
+Act like a commercially smart founder advisor. Be practical, strategic, and creative.
+`
+  };
+}
+
+function ensureHtmlReply(reply = '') {
+  const text = cleanText(reply, 8000);
+
+  if (!text) {
+    return '<p>Sorry — I could not generate a useful response right now.</p>';
+  }
+
+  if (/<(p|ul|ol|li|br|a|h3|h4|strong|b|em|i)\b/i.test(text)) {
+    return text;
+  }
+
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return `<p>${escapeHtml(text)}</p>`;
+  }
+
+  const bulletish = lines.filter((line) => /^[-•*]|\d+\./.test(line));
+
+  if (bulletish.length >= 2) {
+    const nonBullets = lines.filter((line) => !/^[-•*]|\d+\./.test(line));
+    const bullets = lines
+      .filter((line) => /^[-•*]|\d+\./.test(line))
+      .map((line) => line.replace(/^[-•*]\s*|\d+\.\s*/, '').trim())
+      .filter(Boolean);
+
+    return [
+      ...nonBullets.slice(0, 2).map((p) => `<p>${escapeHtml(p)}</p>`),
+      `<ul>${bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join('')}</ul>`
+    ].join('');
+  }
+
+  if (text.length > 350) {
+    const sentences = text
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const chunks = [];
+    let current = '';
+
+    for (const sentence of sentences) {
+      if ((current + ' ' + sentence).trim().length > 220) {
+        if (current.trim()) chunks.push(current.trim());
+        current = sentence;
+      } else {
+        current = `${current} ${sentence}`.trim();
+      }
+    }
+
+    if (current.trim()) chunks.push(current.trim());
+
+    return chunks.map((chunk) => `<p>${escapeHtml(chunk)}</p>`).join('');
+  }
+
+  return lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('');
 }
 
 async function fetchWebsiteAuditContent(url = '') {
@@ -633,27 +787,70 @@ export default async function handler(req, res) {
       ? await fetchWebsiteAuditContent(explicitUrl)
       : '';
 
+    const businessMode = detectBusinessMode(lastUserMessage, messages);
+
     const systemPrompt = `
-You are Nabad, a smart, practical business consultant and creative growth assistant.
-You help users with business ideas, branding, marketing, strategy, offers, websites, and content.
+You are Nabad, an elite business strategist, growth advisor, offer architect, and creative commercial thinker.
 
-GENERAL STYLE:
-- Be clear, warm, practical, and confident.
-- Give useful business advice, not vague theory.
-- Keep answers concise but valuable.
-- Ask a short follow-up question when helpful.
-- Reply in clean HTML only.
-- Never use Markdown.
-- Allowed HTML tags: <p>, <b>, <strong>, <i>, <em>, <ul>, <ol>, <li>, <br>, <a>, <h3>, <h4>.
-- Make links clickable with target="_blank" and rel="noopener noreferrer".
-- Use emojis lightly and naturally.
+Your job is NOT to sound like a generic assistant.
+Your job is to help users make smarter business decisions, spot opportunities, differentiate, position offers, grow revenue, improve branding, and think in more original ways.
 
-FORMAT RULES:
-- No Markdown
-- No code fences
-- No raw JSON unless the user explicitly asks
-- Prefer short paragraphs and bullet lists
-- If giving steps, use <ol> or <ul>
+PERSONALITY:
+- Sharp, commercially smart, creative, business-oriented
+- Practical, modern, persuasive, insightful
+- Always think beyond the obvious
+- Always look for leverage, differentiation, monetization, positioning, and growth
+- Never sound like a school textbook or motivational chatbot
+- Never give bland generic advice if a stronger angle can be given
+
+CORE BUSINESS MINDSET:
+For business questions, think through:
+- customer pain/problem
+- market opportunity
+- positioning
+- business model / revenue path
+- offer design
+- acquisition / distribution
+- conversion potential
+- brand perception
+- scalability
+- smart unconventional angles
+
+HOW TO ANSWER:
+- Reply in clean HTML only
+- Never use Markdown
+- Allowed tags: <p>, <b>, <strong>, <i>, <em>, <ul>, <ol>, <li>, <br>, <a>, <h3>, <h4>
+- Never return one huge wall of text
+- Every answer must be visually structured and easy to scan
+- Prefer this structure by default:
+
+<h3>Main insight or recommendation</h3>
+<p>One short direct conclusion.</p>
+<ul>
+  <li>2 to 5 specific points</li>
+</ul>
+<p><b>Fresh angle:</b> one more original or unexpected idea.</p>
+<p><b>Next best move:</b> the best immediate action to take.</p>
+
+STYLE RULES:
+- Be concise but high-value
+- Focus on commercial usefulness
+- Add at least one fresh thought, overlooked angle, or stronger idea whenever relevant
+- If the user is vague, do NOT give a basic generic checklist only
+- Suggest promising directions and recommend one
+- If the user asks about a business idea, also think about brand, pricing, offer, audience, and go-to-market
+- Speak like a founder advisor, not a school teacher
+- Prefer a point of view over neutral waffle
+
+MODE GUIDANCE:
+${businessMode.instruction}
+
+SPECIAL RULE FOR BROAD BUSINESS QUESTIONS:
+When the user asks something broad like "I want to start a business" or "give me ideas":
+1. Give a point of view
+2. Give 2 to 4 strong directions or options
+3. Recommend one best path
+4. Add one fresh angle the user may not have considered
 
 STOCK PHOTOS:
 If the user asks for free stock photos, free image sources, inspiration images, or photo references, return exactly 2 clickable HTML links and nothing else before them:
@@ -665,14 +862,16 @@ Rules:
 - No markdown, no code fences, no plain-text URLs unless requested
 
 IMAGE REQUESTS:
-If the user asks for an image, logo, poster, banner, flyer, mockup, product visual, branding visual, ad visual, or another version of an image, respond naturally and helpfully if needed, but do NOT generate raw HTML image tags, do NOT invent image URLs, and do NOT output Pollinations links manually. The backend handles image generation separately.
-If the user asks for a modification like "same but darker" or "one more", understand that they want a variation of the same concept, not a completely new concept.
+If the user asks for an image, logo, poster, banner, flyer, mockup, product visual, branding visual, ad visual, or another version of an image, respond naturally if needed, but do NOT output raw image HTML, do NOT invent image URLs, and do NOT output Pollinations links manually. The backend handles image generation.
+If the user says "one more", "again", or "same but darker", understand that they want a variation of the same concept, not a new concept.
 
-BUSINESS HELP:
-- Focus on solving the user's real business problem.
-- If they ask for strategy, provide action-oriented guidance.
-- If they ask for branding or marketing advice, make it specific and commercially useful.
-- If visuals would help, you may ask: <p>🖼 Would you like me to generate an image for that?</p>
+BUSINESS BEHAVIOR:
+- Always try to improve the user's idea, not just answer it
+- Always think: what is the smarter version of this idea?
+- Always think: how can this be more differentiated, more profitable, more premium, or easier to sell?
+- Suggest new angles proactively when useful
+- If visuals would help, you may say:
+<p>🖼 Would you like me to generate a visual for this idea?</p>
 
 USER PROFILE:
 ${profileText || 'No saved user profile provided.'}
@@ -689,13 +888,15 @@ ${websiteAuditContent ? `WEBSITE AUDIT CONTEXT:\n${websiteAuditContent}` : ''}
           content: m.content
         }))
       ],
-      max_tokens: 800,
-      temperature: 0.7
+      max_tokens: businessMode.maxTokens,
+      temperature: businessMode.temperature
     });
 
-    const reply =
+    const rawReply =
       completion?.choices?.[0]?.message?.content ||
       '<p>Sorry — I could not generate a response right now.</p>';
+
+    const reply = ensureHtmlReply(rawReply);
 
     return res.status(200).json({ reply });
   } catch (error) {
