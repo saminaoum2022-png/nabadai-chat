@@ -176,8 +176,9 @@ export default function Home() {
         <div id="nabad-chat-area"></div>
       </div>
 
-      <script dangerouslySetInnerHTML={{ __html: `window.NABAD_API = '/api/chat';` }} />
-      <script src="/widget.js?v=6" defer></script>
+      <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script dangerouslySetInnerHTML={{ __html: `window.NABAD_API = '/api/chat';` }} />
+<script src="/widget.js?v=7" defer></script>
       <script dangerouslySetInnerHTML={{
         __html: `
           if ('serviceWorker' in navigator) {
