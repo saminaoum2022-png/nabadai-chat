@@ -553,14 +553,18 @@ export default function Home() {
         }
 
         @media (max-width: 767px) {
-          #nabad-desktop-hero {
-            display: none;
-          }
+  #nabad-desktop-hero {
+    display: none;
+  }
 
-          #nabad-mobile-shell {
-            display: flex;
-          }
-        }
+  #nabad-mobile-shell {
+    display: none;
+  }
+
+  #nabad-launcher {
+    display: none !important;
+  }
+}
 
         @media (min-width: 768px) {
           #nabad-mobile-shell {
