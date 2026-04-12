@@ -6,25 +6,7 @@
     window.location.hostname.includes('nabadai-chat.vercel.app') ||
     !!document.getElementById('nabad-desktop-layout');
 
-  const purifyReady = window.DOMPurify
-    ? Promise.resolve()
-    : new Promise((resolve) => {
-        const existing = document.querySelector('script[data-nabad-purify="true"]');
-        if (existing) {
-          if (window.DOMPurify) return resolve();
-          existing.addEventListener('load', () => resolve(), { once: true });
-          existing.addEventListener('error', () => resolve(), { once: true });
-          return;
-        }
-
-        const purifyScript = document.createElement('script');
-        purifyScript.src = 'https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js';
-        purifyScript.crossOrigin = 'anonymous';
-        purifyScript.setAttribute('data-nabad-purify', 'true');
-        purifyScript.onload = () => resolve();
-        purifyScript.onerror = () => resolve();
-        document.head.appendChild(purifyScript);
-      });
+    const purifyReady = Promise.resolve();
 
   function escapeHtml(text) {
     return String(text)
@@ -36,13 +18,66 @@
   }
 
   function sanitizeBotHtml(html) {
-    if (window.DOMPurify) {
-      return window.DOMPurify.sanitize(html, {
-        ALLOWED_TAGS: ['b', 'br', 'ul', 'li', 'a', 'img'],
-        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt']
+    const template = document.createElement('template');
+    template.innerHTML = String(html || '');
+
+    const allowedTags = new Set(['B', 'BR', 'UL', 'LI', 'A', 'IMG']);
+    const blockedTags = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED']);
+
+    const nodes = Array.from(template.content.querySelectorAll('*'));
+
+    nodes.forEach((node) => {
+      const tag = node.tagName;
+
+      if (blockedTags.has(tag)) {
+        node.remove();
+        return;
+      }
+
+      if (!allowedTags.has(tag)) {
+        const textNode = document.createTextNode(node.textContent || '');
+        node.replaceWith(textNode);
+        return;
+      }
+
+      const attrs = Array.from(node.attributes);
+      const attrMap = {};
+      attrs.forEach((attr) => {
+        attrMap[attr.name.toLowerCase()] = attr.value;
       });
-    }
-    return escapeHtml(html);
+
+      while (node.attributes.length > 0) {
+        node.removeAttribute(node.attributes[0].name);
+      }
+
+      if (tag === 'A') {
+        const href = (attrMap.href || '').trim();
+        if (/^https?:\/\//i.test(href)) {
+          node.setAttribute('href', href);
+          node.setAttribute('target', '_blank');
+          node.setAttribute('rel', 'noopener noreferrer');
+        } else {
+          const textNode = document.createTextNode(node.textContent || '');
+          node.replaceWith(textNode);
+        }
+        return;
+      }
+
+      if (tag === 'IMG') {
+        const src = (attrMap.src || '').trim();
+        const alt = (attrMap.alt || 'Generated image').trim().slice(0, 120);
+
+        if (/^https?:\/\//i.test(src)) {
+          node.setAttribute('src', src);
+          node.setAttribute('alt', alt || 'Generated image');
+        } else {
+          node.remove();
+        }
+        return;
+      }
+    });
+
+    return template.innerHTML;
   }
 
   const style = document.createElement('style');
