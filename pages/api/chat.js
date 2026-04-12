@@ -65,7 +65,7 @@ function isStockPhotoRequest(text = '') {
 }
 
 function isImageRequest(text = '') {
-  return /(generate|create|make|show|draw|design|image|photo|picture|visual|logo|poster|banner|flyer|mockup|render)/i.test(
+  return /(generate|create|make|show|draw|design|image|photo|picture|visual|logo|poster|banner|flyer|mockup|render|illustration|ad|advert|campaign|cover)/i.test(
     text
   );
 }
@@ -77,14 +77,16 @@ function isRegenerationRequest(text = '') {
 }
 
 function conversationRecentlyHadImage(messages = []) {
-  return messages
-    .slice(-8)
-    .some(
-      (m) =>
-        m &&
-        typeof m.content === 'string' &&
-        /<img\s/i.test(m.content)
+  return messages.slice(-12).some((m) => {
+    const content = typeof m?.content === 'string' ? m.content : '';
+
+    return (
+      /<img\s/i.test(content) ||
+      /img\s+src=/i.test(content) ||
+      /image\.pollinations\.ai\/prompt\//i.test(content) ||
+      /Generated image/i.test(content)
     );
+  });
 }
 
 function getLatestExplicitImageRequest(messages = []) {
@@ -103,7 +105,10 @@ function shouldGenerateImage(messages = [], lastUserMessage = '') {
 
   if (isImageRequest(lastUserMessage)) return true;
 
-  if (isRegenerationRequest(lastUserMessage) && conversationRecentlyHadImage(messages)) {
+  if (
+    isRegenerationRequest(lastUserMessage) &&
+    (conversationRecentlyHadImage(messages) || !!getLatestExplicitImageRequest(messages))
+  ) {
     return true;
   }
 
