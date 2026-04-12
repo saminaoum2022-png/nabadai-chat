@@ -639,8 +639,8 @@
   resize: none;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 16px;
-  padding: 14px 14px;
-  min-height: 54px;
+  padding: 10px 14px;
+  min-height: 44px;
   max-height: 150px;
   font-size: 16px;
   color: #0f172a;
@@ -660,8 +660,8 @@
 }
 
       #nabad-send {
-        width: 54px;
-        height: 54px;
+        width: 44px;
+        height: 44px;
         border: none;
         border-radius: 16px;
         cursor: pointer;
