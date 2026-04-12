@@ -605,42 +605,58 @@
         40% { transform: translateY(-4px); opacity: 1; }
       }
 
+@keyframes siriIdleGlow {
+  0%   { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 6px rgba(6,182,212,0.3), 0 0 12px rgba(37,99,235,0.15); }
+  50%  { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(37,99,235,0.35), 0 0 18px rgba(6,182,212,0.2); }
+  100% { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 6px rgba(6,182,212,0.3), 0 0 12px rgba(37,99,235,0.15); }
+}
+
+@keyframes siriFocusGlow {
+  0%   { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(6,182,212,0.7), 0 0 24px rgba(37,99,235,0.4), 0 0 40px rgba(6,182,212,0.2); }
+  50%  { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 14px rgba(37,99,235,0.8), 0 0 28px rgba(6,182,212,0.5), 0 0 48px rgba(37,99,235,0.25); }
+  100% { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(6,182,212,0.7), 0 0 24px rgba(37,99,235,0.4), 0 0 40px rgba(6,182,212,0.2); }
+}
+
       #nabad-input-wrap {
-        padding: 12px 14px 14px;
-        border-top: 1px solid rgba(15, 23, 42, 0.06);
-        background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
-      }
+  padding: 12px 14px 14px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
+  width: 100%;
+}
 
       #nabad-input-row {
-        display: flex;
-        align-items: flex-end;
-        gap: 10px;
-      }
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  overflow: hidden;
+}
 
       #nabad-input {
-        flex: 1;
-        resize: none;
-        border: 1px solid rgba(37, 99, 235, 0.14);
-        border-radius: 16px;
-        padding: 14px 14px;
-        min-height: 54px;
-        max-height: 150px;
-        font-size: 15px;
-        color: #0f172a;
-        outline: none;
-        background: rgba(255,255,255,0.98);
-        box-shadow:
-          inset 0 1px 2px rgba(15, 23, 42, 0.03),
-          0 0 14px rgba(6, 182, 212, 0.04);
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
-      }
+  flex: 1;
+  resize: none;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 16px;
+  padding: 14px 14px;
+  min-height: 54px;
+  max-height: 150px;
+  font-size: 15px;
+  color: #0f172a;
+  outline: none;
+  background: rgba(255,255,255,0.98);
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.03),
+    0 0 8px rgba(6, 182, 212, 0.25),
+    0 0 16px rgba(37, 99, 235, 0.15);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: siriIdleGlow 3s ease-in-out infinite;
+}
 
-      #nabad-input:focus {
-        border-color: rgba(37, 99, 235, 0.30);
-        box-shadow:
-          0 0 0 2px rgba(37, 99, 235, 0.05),
-          0 0 18px rgba(6, 182, 212, 0.12);
-      }
+#nabad-input:focus {
+  border-color: rgba(37, 99, 235, 0.30);
+  animation: siriFocusGlow 1.5s ease-in-out infinite;
+}
 
       #nabad-send {
         width: 54px;
@@ -772,6 +788,9 @@
     padding: 0;
   }
 
+  #nabad-close {
+    display: none !important;
+  }
   #nabad-panel {
     position: fixed;
     inset: 0;
@@ -839,7 +858,7 @@
           </div>
           <div id="nabad-header-actions">
             <button class="nabad-icon-btn" id="nabad-new-chat" type="button" title="New chat">⟳</button>
-            <button class="nabad-icon-btn" id="nabad-close" type="button" title="Close">×</button>
+            <button class="nabad-icon-btn" id="nabad-close" type="button" title="Close" class="nabad-desktop-only">×</button>
           </div>
         </div>
 
