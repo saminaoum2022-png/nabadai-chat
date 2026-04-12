@@ -115,19 +115,39 @@
       background: #f7f8fc;
     }
     #nabad-messages img {
-      width: 100%; max-width: 100%;
-      border-radius: 12px;
-      margin-top: 12px; margin-bottom: 8px;
-      display: block;
-    }
-    #nabad-messages img.loading {
-      height: 220px;
-      background: linear-gradient(90deg, #ffffff, #e8f4ff, #f0f8ff, #ffffff);
-      background-size: 300% 300%;
-      animation: siriGlow 2s ease infinite;
-      box-shadow: 0 0 16px rgba(0,212,255,0.5), 0 0 32px rgba(45,78,232,0.3), 0 0 48px rgba(120,80,255,0.15);
-      border: 1px solid rgba(0,212,255,0.2);
-    }
+  width: 100%;
+  max-width: 100%;
+  border-radius: 12px;
+  margin-top: 12px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+#nabad-messages img.loading {
+  height: 220px;
+  background: linear-gradient(90deg, #ffffff, #e8f4ff, #f0f8ff, #ffffff);
+  background-size: 300% 300%;
+  animation: siriGlow 2s ease infinite;
+  box-shadow: 0 0 16px rgba(0,212,255,0.5), 0 0 32px rgba(45,78,232,0.3), 0 0 48px rgba(120,80,255,0.15);
+  border: 1px solid rgba(0,212,255,0.2);
+}
+
+@media (min-width: 768px) {
+  #nabad-messages img {
+    width: min(100%, 520px);
+    max-width: 520px;
+    max-height: 320px;
+    object-fit: cover;
+    margin-left: 0;
+    margin-right: auto;
+  }
+
+  #nabad-messages img.loading {
+    width: min(100%, 520px);
+    max-width: 520px;
+  }
+}
+
     #nabad-messages::-webkit-scrollbar { width: 4px; }
     #nabad-messages::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 4px; }
     .nabad-msg {
@@ -454,8 +474,24 @@
     const cleanText = text.replace('[BRANDKIT_CTA]', '').trim();
 
     const div = document.createElement('div');
-    div.className = `nabad-msg ${role}`;
-    div.innerHTML = cleanText;
+div.className = `nabad-msg ${role}`;
+
+const safeHtml = window.DOMPurify
+  ? window.DOMPurify.sanitize(cleanText, {
+      ALLOWED_TAGS: ['b', 'br', 'ul', 'li', 'a', 'img'],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt']
+    })
+  : cleanText
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+div.innerHTML = safeHtml;
+
+div.querySelectorAll('a').forEach(link => {
+  link.setAttribute('target', '_blank');
+  link.setAttribute('rel', 'noopener noreferrer');
+});
 
     const imgs = div.querySelectorAll('img');
     imgs.forEach(img => {
