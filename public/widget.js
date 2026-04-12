@@ -2,6 +2,13 @@
   const LOGO = 'https://nabadai-chat.vercel.app/logo.png';
   const BRANDKIT_URL = 'https://nabadai-brandkit-ft995hk2l-nabadais-projects.vercel.app';
 
+    if (!window.DOMPurify) {
+    const purifyScript = document.createElement('script');
+    purifyScript.src = 'https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js';
+    purifyScript.crossOrigin = 'anonymous';
+    document.head.appendChild(purifyScript);
+  }
+
   const style = document.createElement('style');
   style.textContent = `
     #nabad-widget * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
