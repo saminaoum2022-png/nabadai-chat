@@ -623,6 +623,7 @@
   border-top: 1px solid rgba(15, 23, 42, 0.06);
   background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
   width: 100%;
+  overflow: visible;
 }
 
       #nabad-input-row {
@@ -641,7 +642,7 @@
   padding: 14px 14px;
   min-height: 54px;
   max-height: 150px;
-  font-size: 15px;
+  font-size: 16px;
   color: #0f172a;
   outline: none;
   background: rgba(255,255,255,0.98);
@@ -787,6 +788,14 @@
     height: 100dvh;
     padding: 0;
   }
+
+#nabad-input-wrap {
+  overflow: visible !important;
+}
+
+#nabad-input-row {
+  overflow: visible !important;
+}
 
   #nabad-close {
     display: none !important;
