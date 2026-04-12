@@ -817,6 +817,8 @@
     max-width: 92%;
   }
 }
+    `;
+    document.head.appendChild(style);
 
   function buildShell() {
     const root = document.createElement('div');
