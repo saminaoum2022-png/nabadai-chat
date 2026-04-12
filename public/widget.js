@@ -2,15 +2,47 @@
   const LOGO = 'https://nabadai-chat.vercel.app/logo.png';
   const BRANDKIT_URL = 'https://nabadai-brandkit-ft995hk2l-nabadais-projects.vercel.app';
 
-    const isStandaloneApp =
+  const isStandaloneApp =
     window.location.hostname.includes('nabadai-chat.vercel.app') ||
     !!document.getElementById('nabad-desktop-layout');
 
-    if (!window.DOMPurify) {
-    const purifyScript = document.createElement('script');
-    purifyScript.src = 'https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js';
-    purifyScript.crossOrigin = 'anonymous';
-    document.head.appendChild(purifyScript);
+  const purifyReady = window.DOMPurify
+    ? Promise.resolve()
+    : new Promise((resolve) => {
+        const existing = document.querySelector('script[data-nabad-purify="true"]');
+        if (existing) {
+          if (window.DOMPurify) return resolve();
+          existing.addEventListener('load', () => resolve(), { once: true });
+          existing.addEventListener('error', () => resolve(), { once: true });
+          return;
+        }
+
+        const purifyScript = document.createElement('script');
+        purifyScript.src = 'https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js';
+        purifyScript.crossOrigin = 'anonymous';
+        purifyScript.setAttribute('data-nabad-purify', 'true');
+        purifyScript.onload = () => resolve();
+        purifyScript.onerror = () => resolve();
+        document.head.appendChild(purifyScript);
+      });
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function sanitizeBotHtml(html) {
+    if (window.DOMPurify) {
+      return window.DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['b', 'br', 'ul', 'li', 'a', 'img'],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt']
+      });
+    }
+    return escapeHtml(html);
   }
 
   const style = document.createElement('style');
@@ -126,38 +158,38 @@
       background: #f7f8fc;
     }
     #nabad-messages img {
-  width: 100%;
-  max-width: 100%;
-  border-radius: 12px;
-  margin-top: 12px;
-  margin-bottom: 8px;
-  display: block;
-}
+      width: 100%;
+      max-width: 100%;
+      border-radius: 12px;
+      margin-top: 12px;
+      margin-bottom: 8px;
+      display: block;
+    }
 
-#nabad-messages img.loading {
-  height: 220px;
-  background: linear-gradient(90deg, #ffffff, #e8f4ff, #f0f8ff, #ffffff);
-  background-size: 300% 300%;
-  animation: siriGlow 2s ease infinite;
-  box-shadow: 0 0 16px rgba(0,212,255,0.5), 0 0 32px rgba(45,78,232,0.3), 0 0 48px rgba(120,80,255,0.15);
-  border: 1px solid rgba(0,212,255,0.2);
-}
+    #nabad-messages img.loading {
+      height: 220px;
+      background: linear-gradient(90deg, #ffffff, #e8f4ff, #f0f8ff, #ffffff);
+      background-size: 300% 300%;
+      animation: siriGlow 2s ease infinite;
+      box-shadow: 0 0 16px rgba(0,212,255,0.5), 0 0 32px rgba(45,78,232,0.3), 0 0 48px rgba(120,80,255,0.15);
+      border: 1px solid rgba(0,212,255,0.2);
+    }
 
-#nabad-widget.nabad-embed-mode #nabad-messages img {
-  width: 100%;
-  max-width: 100%;
-  max-height: 320px;
-  object-fit: cover;
-}
+    #nabad-widget.nabad-embed-mode #nabad-messages img {
+      width: 100%;
+      max-width: 100%;
+      max-height: 320px;
+      object-fit: cover;
+    }
 
-#nabad-widget.nabad-embed-mode #nabad-messages img.loading {
-  width: 100%;
-  min-width: 240px;
-  max-width: 100%;
-  height: 220px;
-  max-height: 220px;
-  object-fit: cover;
-}
+    #nabad-widget.nabad-embed-mode #nabad-messages img.loading {
+      width: 100%;
+      min-width: 240px;
+      max-width: 100%;
+      height: 220px;
+      max-height: 220px;
+      object-fit: cover;
+    }
 
     #nabad-messages::-webkit-scrollbar { width: 4px; }
     #nabad-messages::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 4px; }
@@ -295,12 +327,13 @@
   `;
   document.head.appendChild(style);
 
-    const widget = document.createElement('div');
+  const widget = document.createElement('div');
   widget.id = 'nabad-widget';
 
   if (!isStandaloneApp) {
     widget.classList.add('nabad-embed-mode');
   }
+
   widget.innerHTML = `
     <div id="nabad-bubble"><img src="${LOGO}" alt="Nabad" /></div>
     <div id="nabad-window">
@@ -392,6 +425,7 @@
     if (!isGuest) localStorage.setItem('nabad_history', JSON.stringify(h));
     else sessionStorage.setItem('nabad_history_session', JSON.stringify(h));
   }
+
   function loadHistory() {
     if (!isGuest) return JSON.parse(localStorage.getItem('nabad_history') || '[]');
     return JSON.parse(sessionStorage.getItem('nabad_history_session') || '[]');
@@ -407,10 +441,13 @@
     lead.style.display = 'none';
     messages.style.display = 'flex';
     footer.style.display = 'flex';
-    history.forEach(m => renderMessage(m.role === 'assistant' ? 'bot' : 'user', m.content, false));
-    if (history.length === 0) {
-      addMessage('bot', `Welcome back, <b>${profile.name}</b>! 🚀 Ready to continue building <b>${profile.company}</b>?`);
-    }
+
+    purifyReady.then(() => {
+      history.forEach(m => renderMessage(m.role === 'assistant' ? 'bot' : 'user', m.content, false));
+      if (history.length === 0) {
+        addMessage('bot', `Welcome back, <b>${profile.name}</b>! 🚀 Ready to continue building <b>${profile.company}</b>?`);
+      }
+    });
   }
 
   function showAvatar(p) {
@@ -427,6 +464,7 @@
     e.stopPropagation();
     avatarDropdown.classList.toggle('open');
   });
+
   document.addEventListener('click', () => avatarDropdown.classList.remove('open'));
 
   signoutBtn.addEventListener('click', () => {
@@ -459,10 +497,12 @@
     const company = document.getElementById('nabad-company').value.trim();
     const industry = document.getElementById('nabad-industry').value;
     const location = document.getElementById('nabad-location').value.trim();
+
     if (!name || !company || !industry || !location) {
       alert('Please fill in all fields to create your profile.');
       return;
     }
+
     profile = { name, company, industry, location };
     isGuest = false;
     localStorage.setItem('nabad_profile', JSON.stringify(profile));
@@ -489,24 +529,19 @@
     const cleanText = text.replace('[BRANDKIT_CTA]', '').trim();
 
     const div = document.createElement('div');
-div.className = `nabad-msg ${role}`;
+    div.className = `nabad-msg ${role}`;
 
-const safeHtml = window.DOMPurify
-  ? window.DOMPurify.sanitize(cleanText, {
-      ALLOWED_TAGS: ['b', 'br', 'ul', 'li', 'a', 'img'],
-      ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt']
-    })
-  : cleanText
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    const renderedHtml =
+      role === 'bot'
+        ? sanitizeBotHtml(cleanText)
+        : escapeHtml(cleanText);
 
-div.innerHTML = safeHtml;
+    div.innerHTML = renderedHtml;
 
-div.querySelectorAll('a').forEach(link => {
-  link.setAttribute('target', '_blank');
-  link.setAttribute('rel', 'noopener noreferrer');
-});
+    div.querySelectorAll('a').forEach(link => {
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+    });
 
     const imgs = div.querySelectorAll('img');
     imgs.forEach(img => {
@@ -541,7 +576,9 @@ div.querySelectorAll('a').forEach(link => {
     }
   }
 
-  function addMessage(role, text) { renderMessage(role, text, true); }
+  function addMessage(role, text) {
+    renderMessage(role, text, true);
+  }
 
   function showSaveBanner() {
     saveBannerShown = true;
@@ -575,19 +612,29 @@ div.querySelectorAll('a').forEach(link => {
   async function sendMessage() {
     const text = input.value.trim();
     if (!text) return;
+
     input.value = '';
     addMessage('user', text);
     showTyping();
     const url = extractUrl(text);
+
     try {
       const res = await fetch(window.NABAD_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history, url: url || undefined, profile: profile || undefined })
       });
-      const data = await res.json();
+
+      const data = await res.json().catch(() => ({}));
       removeTyping();
-      addMessage('bot', data.reply);
+
+      if (!res.ok) {
+        addMessage('bot', data.reply || 'Something went wrong. Please try again.');
+        return;
+      }
+
+      await purifyReady;
+      addMessage('bot', data.reply || 'Something went wrong. Please try again.');
     } catch (e) {
       removeTyping();
       addMessage('bot', 'Something went wrong. Please try again.');
@@ -596,6 +643,9 @@ div.querySelectorAll('a').forEach(link => {
 
   send.addEventListener('click', sendMessage);
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   });
 })();
