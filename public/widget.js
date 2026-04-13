@@ -81,13 +81,13 @@
 
   function getPersonalityGreeting(id = 'auto') {
     switch (id) {
-      case 'strategist':   return `<h3>🧠 Strategist mode selected</h3><p>I'll help you make sharper business decisions, choose the right direction, and avoid weak moves.</p><p><b>What are you working on?</b></p>`;
-      case 'growth':       return `<h3>📈 Growth Expert mode selected</h3><p>I'll focus on traction, marketing, leads, conversion, and practical growth opportunities.</p><p><b>What are you working on?</b></p>`;
-      case 'branding':     return `<h3>🎨 Brand Builder mode selected</h3><p>I'll focus on identity, positioning, perception, naming, and premium brand thinking.</p><p><b>What are you working on?</b></p>`;
-      case 'offer':        return `<h3>💼 Offer Architect mode selected</h3><p>I'll help you shape stronger offers, pricing, packaging, and monetization.</p><p><b>What are you working on?</b></p>`;
-      case 'creative':     return `<h3>⚡ Creative Challenger mode selected</h3><p>I'll push for fresher, bolder, more differentiated business ideas.</p><p><b>What are you working on?</b></p>`;
-      case 'straight_talk':return `<h3>🎯 Straight Talk mode selected</h3><p>I'll give direct, no-fluff, commercially honest advice.</p><p><b>What are you working on?</b></p>`;
-      default:             return `<h3>✨ Nabad will adapt to you</h3><p>I'll adjust my style based on your goal and give business-focused advice.</p><p><b>What are you working on?</b></p>`;
+      case 'strategist':    return `<h3>🧠 Strategist mode selected</h3><p>I'll help you make sharper business decisions, choose the right direction, and avoid weak moves.</p><p><b>What are you working on?</b></p>`;
+      case 'growth':        return `<h3>📈 Growth Expert mode selected</h3><p>I'll focus on traction, marketing, leads, conversion, and practical growth opportunities.</p><p><b>What are you working on?</b></p>`;
+      case 'branding':      return `<h3>🎨 Brand Builder mode selected</h3><p>I'll focus on identity, positioning, perception, naming, and premium brand thinking.</p><p><b>What are you working on?</b></p>`;
+      case 'offer':         return `<h3>💼 Offer Architect mode selected</h3><p>I'll help you shape stronger offers, pricing, packaging, and monetization.</p><p><b>What are you working on?</b></p>`;
+      case 'creative':      return `<h3>⚡ Creative Challenger mode selected</h3><p>I'll push for fresher, bolder, more differentiated business ideas.</p><p><b>What are you working on?</b></p>`;
+      case 'straight_talk': return `<h3>🎯 Straight Talk mode selected</h3><p>I'll give direct, no-fluff, commercially honest advice.</p><p><b>What are you working on?</b></p>`;
+      default:              return `<h3>✨ Nabad will adapt to you</h3><p>I'll adjust my style based on your goal and give business-focused advice.</p><p><b>What are you working on?</b></p>`;
     }
   }
 
@@ -171,7 +171,9 @@
       }
 
       /* ══════════════════════════════
-         DESKTOP — glow wrap
+         GLOW WRAPPER — static position
+         spinning is done by ::before
+         so the panel never rotates
       ══════════════════════════════ */
       #nabad-panel-glow-wrap {
         position: absolute;
@@ -180,7 +182,23 @@
         width: min(420px, calc(100vw - 24px));
         height: min(760px, calc(100vh - 110px));
         border-radius: 24px;
-        padding: 2px;
+        display: none;
+        pointer-events: none;
+        z-index: 0;
+        /* NO transform or animation here — wrapper never moves */
+      }
+
+      #nabad-panel-glow-wrap.open {
+        display: block;
+        pointer-events: auto;
+      }
+
+      /* ── spinning conic border — lives on ::before only ── */
+      #nabad-panel-glow-wrap::before {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: 26px;
         background: conic-gradient(
           from 0deg,
           transparent            0deg,
@@ -195,20 +213,14 @@
           transparent            360deg
         );
         animation: nabadSiriSpin 5s linear infinite;
-        display: none;
-        pointer-events: none;
-        z-index: 0;
+        z-index: -1;
       }
 
-      #nabad-panel-glow-wrap.open {
-        display: block;
-        pointer-events: auto;
-      }
-
-      #nabad-panel-glow-wrap::before {
+      /* ── blurred color halo — also spins on its own ── */
+      #nabad-panel-glow-wrap::after {
         content: '';
         position: absolute;
-        inset: -5px;
+        inset: -8px;
         border-radius: 30px;
         background: conic-gradient(
           from 0deg,
@@ -216,7 +228,7 @@
           rgba(6,182,212,0.0)    20deg,
           rgba(6,182,212,0.40)   38deg,
           rgba(103,232,249,0.60) 55deg,
-          rgba(255,255,255,0.45) 62deg,
+          rgba(255,255,255,0.35) 62deg,
           rgba(103,232,249,0.60) 69deg,
           rgba(37,99,235,0.35)   82deg,
           rgba(6,182,212,0.0)    110deg,
@@ -224,32 +236,29 @@
         );
         animation: nabadSiriSpin 5s linear infinite;
         filter: blur(10px);
-        z-index: -1;
+        z-index: -2;
       }
 
-      #nabad-panel-glow-wrap::after {
-        content: '';
-        position: absolute;
-        inset: -12px;
-        border-radius: 32px;
-        box-shadow:
-          0 0 14px rgba(6,182,212,0.30),
-          0 0 30px rgba(37,99,235,0.18),
-          0 0 6px  rgba(255,255,255,0.22);
-        animation: nabadSiriPulse 3.5s ease-in-out infinite;
-        pointer-events: none;
-        z-index: -1;
-      }
-
-      #nabad-panel-glow-wrap.active {
-        animation: nabadSiriSpin 1.8s linear infinite;
-      }
-
+      /* ── active state — faster spin ── */
       #nabad-panel-glow-wrap.active::before {
         animation: nabadSiriSpin 1.8s linear infinite;
       }
 
       #nabad-panel-glow-wrap.active::after {
+        animation: nabadSiriSpin 1.8s linear infinite;
+      }
+
+      /* ── ambient pulse box shadow on the panel itself ── */
+      #nabad-panel-glow-wrap.open #nabad-panel {
+        box-shadow:
+          0 0 14px rgba(6,182,212,0.25),
+          0 0 30px rgba(37,99,235,0.14),
+          0 0 5px  rgba(255,255,255,0.18),
+          0 24px 80px rgba(0,0,0,0.45);
+        animation: nabadSiriPulse 3.5s ease-in-out infinite;
+      }
+
+      #nabad-panel-glow-wrap.active #nabad-panel {
         animation: nabadSiriPulse 1s ease-in-out infinite;
       }
 
@@ -261,15 +270,17 @@
       @keyframes nabadSiriPulse {
         0%, 100% {
           box-shadow:
-            0 0 14px rgba(6,182,212,0.30),
-            0 0 30px rgba(37,99,235,0.18),
-            0 0 6px rgba(255,255,255,0.22);
+            0 0 14px rgba(6,182,212,0.25),
+            0 0 30px rgba(37,99,235,0.14),
+            0 0 5px rgba(255,255,255,0.18),
+            0 24px 80px rgba(0,0,0,0.45);
         }
         50% {
           box-shadow:
-            0 0 22px rgba(6,182,212,0.50),
-            0 0 45px rgba(37,99,235,0.28),
-            0 0 10px rgba(255,255,255,0.38);
+            0 0 22px rgba(6,182,212,0.42),
+            0 0 45px rgba(37,99,235,0.22),
+            0 0 9px rgba(255,255,255,0.30),
+            0 24px 80px rgba(0,0,0,0.45);
         }
       }
 
@@ -278,13 +289,10 @@
       ══════════════════════════════ */
       #nabad-panel {
         position: relative;
-        right: unset;
-        bottom: unset;
         width: 100%;
         height: 100%;
         border-radius: 22px;
         border: none;
-        box-shadow: none;
         overflow: hidden;
         display: none;
         flex-direction: column;
@@ -292,7 +300,6 @@
           radial-gradient(ellipse at 20% 10%, rgba(37,99,235,0.18) 0%, transparent 55%),
           radial-gradient(ellipse at 80% 90%, rgba(6,182,212,0.14) 0%, transparent 55%),
           linear-gradient(160deg, #0d1f3c 0%, #0a1628 50%, #0d2137 100%);
-        position: relative;
       }
 
       /* grid texture */
@@ -494,7 +501,6 @@
 
       .nabad-bubble ul,
       .nabad-bubble ol { margin: 0 0 10px 18px; padding: 0; }
-
       .nabad-bubble li { margin: 0 0 6px; }
 
       .nabad-bubble a {
@@ -502,7 +508,6 @@
         font-weight: 700;
         text-decoration: none;
       }
-
       .nabad-bubble a:hover { text-decoration: underline; }
 
       .nabad-bubble img {
@@ -716,7 +721,7 @@
       #nabad-lightbox {
         position: fixed;
         inset: 0;
-        background: rgba(4, 8, 18, 0.92);
+        background: rgba(4,8,18,0.92);
         display: none;
         align-items: center;
         justify-content: center;
@@ -812,28 +817,20 @@
           height: 100svh;
           height: 100dvh;
           border-radius: 0;
-          padding: 0;
           background: none;
-          animation: none;
         }
 
-        #nabad-panel-glow-wrap::before { display: none; }
+        /* hide spinning border on mobile */
+        #nabad-panel-glow-wrap::before {
+          display: none;
+        }
 
-        /* mobile edge glow via ::after */
+        /* hide color halo on mobile */
         #nabad-panel-glow-wrap::after {
-          content: '';
-          position: fixed;
-          inset: 0;
-          border-radius: 0;
-          pointer-events: none;
-          z-index: 9999;
-          animation: nabadMobileWhiteCore 4s ease-in-out infinite;
+          display: none;
         }
 
-        #nabad-panel-glow-wrap.active::after {
-          animation: nabadMobileWhiteCoreActive 1.6s ease-in-out infinite;
-        }
-
+        /* mobile edge glow lives on panel itself */
         #nabad-panel {
           position: relative;
           inset: unset;
@@ -842,9 +839,22 @@
           max-width: 100vw;
           max-height: 100dvh;
           border-radius: 0;
-          box-shadow: none;
-          border: none;
           overflow: hidden;
+          animation: none !important;
+        }
+
+        /* mobile Siri edge sweep overlay */
+        #nabad-panel::after {
+          content: '';
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          z-index: 9999;
+          animation: nabadMobileWhiteCore 4s ease-in-out infinite;
+        }
+
+        #nabad-panel-glow-wrap.active #nabad-panel::after {
+          animation: nabadMobileWhiteCoreActive 1.6s ease-in-out infinite;
         }
 
         #nabad-panel::before {
@@ -987,16 +997,16 @@
 
     document.body.appendChild(root);
 
-    refs.root        = root;
-    refs.launcher    = root.querySelector('#nabad-launcher');
-    refs.panel       = root.querySelector('#nabad-panel');
-    refs.messages    = root.querySelector('#nabad-messages');
-    refs.input       = root.querySelector('#nabad-input');
-    refs.send        = root.querySelector('#nabad-send');
-    refs.badge       = root.querySelector('#nabad-selected-personality');
-    refs.typing      = root.querySelector('#nabad-typing');
-    refs.lightbox    = root.querySelector('#nabad-lightbox');
-    refs.lightboxImg = root.querySelector('#nabad-lightbox-img');
+    refs.root          = root;
+    refs.launcher      = root.querySelector('#nabad-launcher');
+    refs.panel         = root.querySelector('#nabad-panel');
+    refs.messages      = root.querySelector('#nabad-messages');
+    refs.input         = root.querySelector('#nabad-input');
+    refs.send          = root.querySelector('#nabad-send');
+    refs.badge         = root.querySelector('#nabad-selected-personality');
+    refs.typing        = root.querySelector('#nabad-typing');
+    refs.lightbox      = root.querySelector('#nabad-lightbox');
+    refs.lightboxImg   = root.querySelector('#nabad-lightbox-img');
     refs.lightboxSave  = root.querySelector('#nabad-lightbox-save');
     refs.lightboxOpen  = root.querySelector('#nabad-lightbox-open');
     refs.lightboxClose = root.querySelector('#nabad-lightbox-close');
@@ -1072,7 +1082,6 @@
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
       document.body.style.touchAction = 'none';
-
       setTimeout(() => {
         if (!state.personalityChosen && !state.messages.length) {
           renderPersonalityOnboarding();
