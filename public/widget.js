@@ -1334,25 +1334,28 @@
 
     state.sending = true;
 
-    // [FIX-4] Build the API payload BEFORE pushing the new user
-    //  message into state.messages, so the history array sent to
-    //  the API is clean and the new message is the last item.
-    const historySnapshot = state.messages.map(m => ({
-      role: m.role,
-      content: m.content
-    }));
+    // [FIX-4 CORRECTED] Include the current message as the last item
+    // so OpenAI always receives the full context including what the
+    // user just typed — without this the AI replies to old history only
+    const historySnapshot = [
+      ...state.messages.map(m => ({
+        role: m.role,
+        content: m.content
+      })),
+      { role: 'user', content: text }
+    ];
 
-    // Now render + persist the user message
+    // Now render + persist the user message in the UI
     renderMessage('user', text, true);
 
-    refs.input.value      = '';
+    refs.input.value        = '';
     refs.input.style.height = 'auto';
-    _lastScrollHeight     = 0; // reset grow cache after clear
+    _lastScrollHeight       = 0; // reset grow cache after clear
     showTyping(true);
 
     try {
       const payload = {
-        messages:    historySnapshot,  // history up to (but not including) current msg
+        messages:    historySnapshot,  // full history including current message
         personality: state.personality,
         profile: {}
       };
