@@ -1,16 +1,11 @@
 // ─────────────────────────────────────────────────────────────
 //  NabadAI — chat.js  (API Route)
-//  Fixes applied:
-//   [FIX-1]  CORS wildcard tightened to named Vercel prefixes
-//   [FIX-2]  Per-IP rate limiting added
-//   [FIX-3]  console.log gated behind NODE_ENV check
-//   [FIX-4]  readJsonSafe() helper with body-read timeout
-//   [FIX-5]  Pollinations URL now passes model=flux, enhance=true, size params
-//   [FIX-6]  businessMode suppressed when explicit personality is chosen
-//   [FIX-7]  ensureHtmlReply fallback no longer double-escapes HTML
-//   [FIX-8]  Non-existent Gemini model replaced with correct model IDs
-//   [FIX-9]  Profile fields sanitized against prompt injection
-//   [FIX-10] Request body size capped at 32kb
+//  Previous fixes: [FIX-1] through [FIX-10]
+//  New Tier 1 features:
+//   [T1-1]  Proactive Intelligence — leads with reframe on early messages
+//   [T1-4]  Memory That Feels Human — references earlier context naturally
+//   [T1-8]  Real Person Tone — opinionated, direct, founder-like voice
+//   [T1-10] Positioning Handler — crafted answer for "what makes you different"
 // ─────────────────────────────────────────────────────────────
 
 import OpenAI from 'openai';
@@ -28,7 +23,6 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000'
 ];
 
-// [FIX-1] Only allow YOUR own Vercel deployment prefixes
 const ALLOWED_VERCEL_PREFIXES = ['nabadai-chat', 'nabadai'];
 
 function isAllowedOrigin(origin = '') {
@@ -61,7 +55,7 @@ function setCors(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
-// ── [FIX-2] RATE LIMITING ─────────────────────────────────────
+// ── RATE LIMITING ─────────────────────────────────────────────
 const rateLimitMap = new Map();
 const RATE_LIMIT = { windowMs: 60_000, maxRequests: 20 };
 
@@ -80,7 +74,6 @@ function isRateLimited(ip = '') {
   entry.count++;
   rateLimitMap.set(ip, entry);
 
-  // Prune stale entries to prevent memory leak
   if (rateLimitMap.size > 500) {
     for (const [key, val] of rateLimitMap) {
       if (now > val.resetAt) rateLimitMap.delete(key);
@@ -90,10 +83,10 @@ function isRateLimited(ip = '') {
   return entry.count > RATE_LIMIT.maxRequests;
 }
 
-// ── [FIX-8] CORRECT GEMINI MODEL IDs ─────────────────────────
+// ── GEMINI MODEL IDs ──────────────────────────────────────────
 const GEMINI_TEXT_MODELS = [
-  'gemini-2.5-flash-preview-04-17',  // latest stable
-  'gemini-2.0-flash'                 // reliable fallback
+  'gemini-2.5-flash-preview-04-17',
+  'gemini-2.0-flash'
 ];
 
 const SHOW_IMAGE_DEBUG = false;
@@ -174,7 +167,7 @@ function isValidHttpUrl(value = '') {
   } catch { return false; }
 }
 
-// ── [FIX-4] FETCH WITH TIMEOUT + SAFE BODY READ ──────────────
+// ── FETCH WITH TIMEOUT ────────────────────────────────────────
 async function fetchWithTimeout(url, options = {}, timeout = 20000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
@@ -237,7 +230,6 @@ function normalizeImagePrompt(text = '') {
     .trim();
 }
 
-// ── [FIX-5] DETECT IMAGE TYPE FOR CORRECT DIMENSIONS ─────────
 function detectImageType(text = '') {
   const t = text.toLowerCase();
   if (/\b(logo|brand mark|icon)\b/.test(t))   return 'logo';
@@ -248,23 +240,22 @@ function detectImageType(text = '') {
   return 'general';
 }
 
-// [FIX-5] Enriched prompt builder — type-aware quality keywords
 function enrichImagePrompt(prompt = '', imageType = 'general') {
   const enrichments = {
     logo: [
-  'professional vector logo mark only',
-  'simple icon symbol not a building or scene',
-  'flat 2D logo design',
-  'white background',
-  'single graphic mark centered',
-  'no text unless requested',
-  'no background scene',
-  'no realistic photography',
-  'no storefront no building no people',
-  'suitable for business card and app icon',
-  'clean minimal shapes',
-  'scalable vector style'
-],
+      'professional vector logo mark only',
+      'simple icon symbol not a building or scene',
+      'flat 2D logo design',
+      'white background',
+      'single graphic mark centered',
+      'no text unless requested',
+      'no background scene',
+      'no realistic photography',
+      'no storefront no building no people',
+      'suitable for business card and app icon',
+      'clean minimal shapes',
+      'scalable vector style'
+    ],
     mockup: [
       'professional product mockup',
       'studio lighting',
@@ -317,7 +308,6 @@ function enrichImagePrompt(prompt = '', imageType = 'general') {
   };
 }
 
-// [FIX-5] Build Pollinations URL with full quality params
 function buildPollinationsUrl(prompt = '', imageType = 'general') {
   const { positive } = enrichImagePrompt(prompt, imageType);
   const finalPrompt = normalizeImagePrompt(positive);
@@ -436,7 +426,7 @@ function buildStockPhotoHtml(keyword = 'business branding') {
   return `<a href="https://unsplash.com/s/photos/${safeKeyword}" target="_blank" rel="noopener noreferrer">🖼 Search ${label} on Unsplash</a><br><a href="https://www.pexels.com/search/${safeKeyword}/" target="_blank" rel="noopener noreferrer">🖼 Search ${label} on Pexels</a>`;
 }
 
-function buildStrictFallbackPrompt(lastUserMessage = '', messages = []) {
+function buildStrictFallbackPrompt(lastUserMessage = '', messages = [], imageType = 'general') {
   const previous = extractLastImageMeta(messages);
   const explicit = getLatestExplicitImageRequest(messages);
   const baseConcept =
@@ -460,8 +450,8 @@ function buildStrictFallbackPrompt(lastUserMessage = '', messages = []) {
     ? 'Create a new variation. Keep the same subject, background family, purpose, and style. Only vary angle, crop, reflections, or small details.'
     : 'Keep the same core concept and stay very close to the original request.';
 
-  // Logo gets extra strict constraints
-  if (/logo/i.test(lastUserMessage)) {
+  // [UPDATED] Now uses imageType parameter instead of regex on lastUserMessage
+  if (imageType === 'logo') {
     return normalizeImagePrompt(
       `${baseConcept}, professional vector logo mark, flat 2D icon design, ` +
       `white background, no scene, no building, no people, no text, ` +
@@ -475,6 +465,7 @@ function buildStrictFallbackPrompt(lastUserMessage = '', messages = []) {
 
   return normalizeImagePrompt(prompt);
 }
+
 async function buildImagePromptWithGemini(messages = [], geminiApiKey = '') {
   const lastUserMessage =
     [...messages].reverse().find(m => m?.role === 'user' && typeof m?.content === 'string')
@@ -569,7 +560,6 @@ Return JSON only.
         throw new Error(`Gemini ${model} failed: ${response.status} ${errText}`);
       }
 
-      // [FIX-4] Use safe body reader with timeout
       const data = await readJsonSafe(response);
       const raw = data?.choices?.[0]?.message?.content || '';
       const parsed = tryParseJsonBlock(raw);
@@ -600,7 +590,6 @@ Return JSON only.
   throw lastError || new Error('Gemini prompt generation failed');
 }
 
-// ── OPENAI IMAGE PROMPT ENRICHMENT (replaces Gemini) ─────────
 async function buildImagePromptWithOpenAI(messages = [], openaiClient) {
   const lastUserMessage =
     [...messages].reverse().find(m => m?.role === 'user' && typeof m?.content === 'string')
@@ -674,7 +663,6 @@ Rules:
   };
 }
 
-// [FIX-5] Updated to use buildPollinationsUrl with quality params
 function buildPollinationsImageHtml(prompt, meta = {}, imageType = 'general') {
   const finalPrompt    = normalizeImagePrompt(prompt);
   const imageUrl       = buildPollinationsUrl(finalPrompt, imageType);
@@ -758,7 +746,61 @@ function resolveActivePersonality(selectedPersonality = 'auto', lastUserMessage 
   return { personalityId: override || 'auto', source: override ? 'override' : 'auto', selectedPersonality: cleanedSelected, overridePersonality: override || '' };
 }
 
-// ── [FIX-7] ensureHtmlReply — no double-escaping ──────────────
+// ── [T1-10] POSITIONING HANDLER ───────────────────────────────
+// Detects when user asks what makes Nabad different/unique/better
+// and returns a fixed crafted positioning answer instantly
+// without burning OpenAI tokens on a generic response.
+function isPositioningQuestion(text = '') {
+  return /\b(what makes you|what makes nabad|how are you different|how is nabad different|why should i use you|why nabad|what can you do|what do you do|what is nabad|who are you|what sets you apart|better than|different from|unique about|special about|compared to other|vs other|versus other)\b/i.test(text);
+}
+
+const POSITIONING_REPLY = `
+<h3>🧠 What makes Nabad different</h3>
+<p>Most AI bots answer questions. <b>Nabad challenges your thinking, builds on your ideas, and gives you structured outputs you can actually use</b> — like a founder advisor in your pocket.</p>
+<ul>
+  <li><b>Proactive, not reactive</b> — Nabad leads the conversation, spots the real problem, and reframes your thinking before just answering.</li>
+  <li><b>Multiple expert personalities</b> — Switch between Strategist, Growth Expert, Brand Builder, Offer Architect, Creative Challenger, and Straight Talk modes.</li>
+  <li><b>Visual outputs</b> — Generate images, logos, mockups, posters, and banners directly inside the chat.</li>
+  <li><b>Memory that feels human</b> — Nabad references what you said earlier and builds on it naturally, like a real advisor would.</li>
+  <li><b>Commercial intelligence</b> — Every answer is filtered through a business lens: positioning, monetization, differentiation, and growth.</li>
+</ul>
+<p><b>The short version:</b> Nabad is not a chatbot. It's the smartest business thinking partner you can have on your website — available 24/7, opinionated, and built to make your business sharper. 🎯</p>
+`;
+
+// ── [T1-1] PROACTIVE INTELLIGENCE ────────────────────────────
+// Detects if this is an early message (1st or 2nd user message)
+// so we can inject a reframe instruction into the system prompt.
+function isEarlyConversation(messages = []) {
+  const userMessages = messages.filter(m => m.role === 'user');
+  return userMessages.length <= 2;
+}
+
+// Detects broad/vague opening messages that benefit most from a reframe
+function isBroadOpeningMessage(text = '') {
+  return /\b(i want to|i need to|i am thinking|i have an idea|i have a business|help me|where do i start|how do i|what should i|i don't know|not sure|thinking about|considering|planning to|want to start|starting a|building a|launching a|growing my|improve my|struggling with)\b/i.test(text);
+}
+
+// ── [T1-4] MEMORY CONTEXT BUILDER ────────────────────────────
+// Extracts key facts mentioned by the user in earlier messages
+// and returns a formatted string to inject into the system prompt.
+function buildMemoryContext(messages = []) {
+  const userMessages = messages
+    .filter(m => m.role === 'user')
+    .slice(0, -1); // exclude the current message
+
+  if (!userMessages.length) return '';
+
+  const facts = userMessages
+    .map(m => sanitizePromptText(m.content, 300))
+    .filter(Boolean)
+    .join(' | ');
+
+  return facts
+    ? `CONVERSATION MEMORY:\nThe user has previously mentioned: ${facts}\nWhen relevant, naturally reference these earlier points in your reply — the way a real advisor who was paying attention would. Do not force references. Only use them when they genuinely add value.\n`
+    : '';
+}
+
+// ── [T1-7] ENSURE HTML REPLY — no double-escaping ────────────
 function ensureHtmlReply(reply = '') {
   const text = cleanText(reply, 8000);
   if (!text) return '<p>Sorry — I could not generate a useful response right now.</p>';
@@ -793,7 +835,6 @@ function ensureHtmlReply(reply = '') {
       }
     }
     if (current.trim()) chunks.push(current.trim());
-    // [FIX-7] Only escape chunks that contain no HTML
     return chunks.map(chunk =>
       /<[a-z]/i.test(chunk) ? `<p>${chunk}</p>` : `<p>${escapeHtml(chunk)}</p>`
     ).join('');
@@ -816,7 +857,7 @@ async function fetchWebsiteAuditContent(url = '') {
   } catch { return ''; }
 }
 
-// ── [FIX-9] PROFILE SANITIZER ─────────────────────────────────
+// ── PROFILE SANITIZER ─────────────────────────────────────────
 function sanitizeProfile(profile = {}) {
   const fields = ['name', 'business', 'industry', 'goal', 'targetAudience', 'tone'];
   const sanitized = {};
@@ -838,7 +879,6 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ reply: 'Method not allowed' });
 
-  // [FIX-2] Rate limit check
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
     || req.socket?.remoteAddress
     || 'unknown';
@@ -867,7 +907,6 @@ export default async function handler(req, res) {
       })
       .filter(m => m.content);
 
-    // [FIX-9] Sanitize profile before use
     const profile = sanitizeProfile(body.profile || {});
     const selectedPersonality = cleanText(body.personality || 'auto', 60).toLowerCase();
 
@@ -887,6 +926,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ reply: 'No message provided.' });
     }
 
+    // [T1-10] Positioning question — return crafted answer instantly
+    if (isPositioningQuestion(lastUserMessage)) {
+      return res.status(200).json({ reply: POSITIONING_REPLY });
+    }
+
     if (isStockPhotoRequest(lastUserMessage)) {
       const keyword = buildStockKeyword(lastUserMessage);
       return res.status(200).json({ reply: buildStockPhotoHtml(keyword) });
@@ -895,7 +939,7 @@ export default async function handler(req, res) {
     if (shouldGenerateImage(messages, lastUserMessage)) {
       const imageType = detectImageType(lastUserMessage);
       const previous = extractLastImageMeta(messages);
-      const fallbackPrompt = buildStrictFallbackPrompt(lastUserMessage, messages);
+      const fallbackPrompt = buildStrictFallbackPrompt(lastUserMessage, messages, imageType);
 
       let finalPrompt  = fallbackPrompt;
       let lockedBrief  = normalizeImagePrompt(
@@ -909,25 +953,24 @@ export default async function handler(req, res) {
       let canVary      = [];
 
       try {
-  if (process.env.OPENAI_API_KEY) {
-    const openaiResult = await buildImagePromptWithOpenAI(messages, openai);
-    if (openaiResult?.prompt) {
-      finalPrompt  = openaiResult.prompt;
-      lockedBrief  = openaiResult.lockedBrief || lockedBrief || finalPrompt;
-      promptSource = openaiResult.source || 'openai';
-      promptModel  = openaiResult.model || 'gpt-4o-mini';
-      mustKeep     = openaiResult.mustKeep || [];
-      canVary      = openaiResult.canVary || [];
-    }
-  }
-} catch (err) {
-  console.error('[IMAGE PROMPT ERROR] OpenAI enrichment failed:', err?.message || err);
-}
+        if (process.env.OPENAI_API_KEY) {
+          const openaiResult = await buildImagePromptWithOpenAI(messages, openai);
+          if (openaiResult?.prompt) {
+            finalPrompt  = openaiResult.prompt;
+            lockedBrief  = openaiResult.lockedBrief || lockedBrief || finalPrompt;
+            promptSource = openaiResult.source || 'openai';
+            promptModel  = openaiResult.model || 'gpt-4o-mini';
+            mustKeep     = openaiResult.mustKeep || [];
+            canVary      = openaiResult.canVary || [];
+          }
+        }
+      } catch (err) {
+        console.error('[IMAGE PROMPT ERROR] OpenAI enrichment failed:', err?.message || err);
+      }
 
       finalPrompt = normalizeImagePrompt(finalPrompt || fallbackPrompt);
       lockedBrief = normalizeImagePrompt(lockedBrief || finalPrompt);
 
-      // [FIX-3] Debug logs only in development
       if (process.env.NODE_ENV !== 'production') {
         console.log('[IMAGE DEBUG]', {
           lastUserMessage, promptSource, promptModel,
@@ -954,12 +997,10 @@ export default async function handler(req, res) {
     const personalityResolution = resolveActivePersonality(selectedPersonality, lastUserMessage);
     const personalityConfig = getPersonalityConfig(personalityResolution.personalityId);
 
-    // [FIX-6] Only inject businessMode when personality is auto
     const businessMode = personalityResolution.personalityId === 'auto'
       ? detectBusinessMode(lastUserMessage, messages)
       : { id: 'advisor', label: personalityConfig.label, temperature: 0.82, maxTokens: 520, instruction: '' };
 
-    // [FIX-3] Debug logs only in development
     if (process.env.NODE_ENV !== 'production') {
       console.log('[PERSONALITY DEBUG]', {
         selectedPersonality,
@@ -969,6 +1010,48 @@ export default async function handler(req, res) {
         businessMode: businessMode.id
       });
     }
+
+    // [T1-1] Proactive intelligence instruction
+    const proactiveInstruction = isEarlyConversation(messages) && isBroadOpeningMessage(lastUserMessage)
+      ? `
+PROACTIVE INTELLIGENCE MODE (ACTIVE):
+This is one of the user's first messages and it is broad or exploratory.
+Do NOT just answer the question directly.
+FIRST: Identify what you think the REAL underlying problem or opportunity is.
+THEN: Reframe it for the user in one sharp sentence.
+THEN: Give your answer through that reframe.
+Example openers you can use:
+- "Most people in your position focus on X — but the real leverage is usually Y."
+- "Before we go into that — here's what I think the actual problem is..."
+- "Honestly? The question you're asking is the second question. The first one is..."
+Lead with intelligence, not information.
+`
+      : '';
+
+    // [T1-4] Memory context instruction
+    const memoryInstruction = buildMemoryContext(messages);
+
+    // [T1-8] Real person tone instruction
+    const toneInstruction = `
+VOICE & TONE (ALWAYS ACTIVE):
+You are not a generic AI assistant. You are Nabad — a sharp, opinionated, commercially intelligent business advisor.
+Your voice must feel like the smartest person in the room who is also direct and occasionally cuts through the noise.
+
+Specific tone rules:
+- Lead with a point of view, not a list
+- Use phrases like:
+  "Honestly? Most people get this backwards."
+  "Here's the uncomfortable truth about that market..."
+  "This is actually a better idea than you think — here's why."
+  "The real question is not X, it's Y."
+  "Most advisors would tell you Z. I'd push back on that."
+- Never start with "Great question!" or "Certainly!" or "Of course!"
+- Never sound like a school textbook or motivational poster
+- Be concise but never shallow
+- If the user is wrong about something, say so — diplomatically but clearly
+- If their idea is strong, tell them why specifically — not just "great idea"
+- Always end with either a clear next move or a provocative question that pushes thinking forward
+`;
 
     const systemPrompt = `
 You are Nabad, an elite business strategist, growth advisor, offer architect, and creative commercial thinker.
@@ -1039,6 +1122,12 @@ ${personalityConfig.instruction}
 
 ${businessMode.instruction ? `CURRENT TASK MODE:\n${businessMode.instruction}` : ''}
 
+${proactiveInstruction}
+
+${memoryInstruction}
+
+${toneInstruction}
+
 SPECIAL RULE FOR BROAD BUSINESS QUESTIONS:
 When the user asks something broad like "I want to start a business" or "give me ideas":
 1. Give a point of view
@@ -1089,7 +1178,7 @@ ${websiteAuditContent ? `WEBSITE AUDIT CONTEXT:\n${websiteAuditContent}` : ''}
   }
 }
 
-// ── [FIX-10] Cap request body size ───────────────────────────
+// ── REQUEST BODY SIZE CAP ─────────────────────────────────────
 export const config = {
   api: {
     bodyParser: {
