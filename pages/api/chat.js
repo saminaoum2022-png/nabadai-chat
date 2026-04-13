@@ -1,14 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 //  NabadAI — chat.js  (API Route)
-//  Previous fixes: [FIX-1] through [FIX-10]
-//  Tier 1: [T1-1] [T1-4] [T1-8] [T1-10]
-//  Tier 2: [T2-2] [T2-7] [T2-L]
-//  Tier 3:
-//   [T3-FIX] isIdeaScoringRequest tightened
-//   [T3-1]   Pricing Table card
-//   [T3-2]   Offer Card
-//   [T3-3]   Positioning Matrix
-//   [T3-4]   30-Day Action Plan
+//  All Tiers 1-3 + Yes Intent Router Fix + Location Fix
 // ─────────────────────────────────────────────────────────────
 
 import OpenAI from 'openai';
@@ -70,12 +62,6 @@ function isRateLimited(ip = '') {
   }
   return entry.count > RATE_LIMIT.maxRequests;
 }
-
-// ── GEMINI MODEL IDs ──────────────────────────────────────────
-const GEMINI_TEXT_MODELS = [
-  'gemini-2.5-flash-preview-04-17',
-  'gemini-2.0-flash'
-];
 
 const SHOW_IMAGE_DEBUG = false;
 
@@ -144,22 +130,13 @@ function isValidHttpUrl(value = '') {
   } catch { return false; }
 }
 
-// ── FETCH WITH TIMEOUT ────────────────────────────────────────
+// ── FETCH UTILS ───────────────────────────────────────────────
 async function fetchWithTimeout(url, options = {}, timeout = 20000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally { clearTimeout(id); }
-}
-
-async function readJsonSafe(response, timeoutMs = 8000) {
-  return Promise.race([
-    response.json(),
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Body read timeout')), timeoutMs)
-    )
-  ]);
 }
 
 // ── IMAGE UTILS ───────────────────────────────────────────────
@@ -431,13 +408,13 @@ function detectBusinessMode(text = '', messages = []) {
 function getPersonalityConfig(selectedPersonality = 'auto') {
   const key = String(selectedPersonality || 'auto').toLowerCase();
   switch (key) {
-    case 'strategist':    return { id: 'strategist',    label: 'Strategist',         instruction: `\nSELECTED PERSONALITY: STRATEGIST\nTone: smart, structured, commercially sharp.\n- prioritize clarity, direction, sequencing\n- recommend the smartest path\n` };
-    case 'growth':        return { id: 'growth',        label: 'Growth Expert',       instruction: `\nSELECTED PERSONALITY: GROWTH EXPERT\nTone: practical, energetic, opportunity-focused.\n- focus on customers, lead generation, conversion, revenue growth\n` };
-    case 'branding':      return { id: 'branding',      label: 'Brand Builder',       instruction: `\nSELECTED PERSONALITY: BRAND BUILDER\nTone: creative, premium, perceptive, modern.\n- focus on brand perception, identity, positioning, memorability\n` };
-    case 'offer':         return { id: 'offer',         label: 'Offer Architect',     instruction: `\nSELECTED PERSONALITY: OFFER ARCHITECT\nTone: persuasive, commercial, monetization-focused.\n- focus on offer design, pricing, packaging, upsells\n` };
-    case 'creative':      return { id: 'creative',      label: 'Creative Challenger', instruction: `\nSELECTED PERSONALITY: CREATIVE CHALLENGER\nTone: bold, inventive, unconventional.\n- push beyond obvious ideas\n` };
-    case 'straight_talk': return { id: 'straight_talk', label: 'Straight Talk',       instruction: `\nSELECTED PERSONALITY: STRAIGHT TALK\nTone: direct, honest, sharp, no-fluff.\n- tell the user what is weak, risky, or unrealistic\n` };
-    default:              return { id: 'auto',          label: 'Auto',                instruction: `\nSELECTED PERSONALITY: AUTO\nAdapt naturally to the user's goal. Sound premium, commercially intelligent, and creative.\n` };
+    case 'strategist':    return { id: 'strategist',    label: 'Strategist',         instruction: `\nSELECTED PERSONALITY: STRATEGIST\nTone: smart, structured, commercially sharp.\n` };
+    case 'growth':        return { id: 'growth',        label: 'Growth Expert',       instruction: `\nSELECTED PERSONALITY: GROWTH EXPERT\nTone: practical, energetic, opportunity-focused.\n` };
+    case 'branding':      return { id: 'branding',      label: 'Brand Builder',       instruction: `\nSELECTED PERSONALITY: BRAND BUILDER\nTone: creative, premium, perceptive, modern.\n` };
+    case 'offer':         return { id: 'offer',         label: 'Offer Architect',     instruction: `\nSELECTED PERSONALITY: OFFER ARCHITECT\nTone: persuasive, commercial, monetization-focused.\n` };
+    case 'creative':      return { id: 'creative',      label: 'Creative Challenger', instruction: `\nSELECTED PERSONALITY: CREATIVE CHALLENGER\nTone: bold, inventive, unconventional.\n` };
+    case 'straight_talk': return { id: 'straight_talk', label: 'Straight Talk',       instruction: `\nSELECTED PERSONALITY: STRAIGHT TALK\nTone: direct, honest, sharp, no-fluff.\n` };
+    default:              return { id: 'auto',          label: 'Auto',                instruction: `\nSELECTED PERSONALITY: AUTO\nAdapt naturally to the user's goal.\n` };
   }
 }
 
@@ -461,7 +438,7 @@ function resolveActivePersonality(selectedPersonality = 'auto', lastUserMessage 
   return { personalityId: override || 'auto', source: override ? 'override' : 'auto', selectedPersonality: cleanedSelected, overridePersonality: override || '' };
 }
 
-// ── T1-10: POSITIONING HANDLER ────────────────────────────────
+// ── POSITIONING ───────────────────────────────────────────────
 function isPositioningQuestion(text = '') {
   return /\b(what makes you|what makes nabad|how are you different|how is nabad different|why should i use you|why nabad|what can you do|what do you do|what is nabad|who are you|what sets you apart|better than|different from|unique about|special about|compared to other|vs other|versus other)\b/i.test(text);
 }
@@ -481,7 +458,7 @@ const POSITIONING_REPLY = `
 <p><b>The short version:</b> Nabad is not a chatbot. It's the smartest business thinking partner you can have — available 24/7, opinionated, and built to make your business sharper. 🎯</p>
 `;
 
-// ── T1-1: PROACTIVE INTELLIGENCE ─────────────────────────────
+// ── PROACTIVE & MEMORY ────────────────────────────────────────
 function isEarlyConversation(messages = []) {
   return messages.filter(m => m.role === 'user').length <= 2;
 }
@@ -490,7 +467,6 @@ function isBroadOpeningMessage(text = '') {
   return /\b(i want to|i need to|i am thinking|i have an idea|i have a business|help me|where do i start|how do i|what should i|i don't know|not sure|thinking about|considering|planning to|want to start|starting a|building a|launching a|growing my|improve my|struggling with)\b/i.test(text);
 }
 
-// ── T1-4: MEMORY CONTEXT ──────────────────────────────────────
 function buildMemoryContext(messages = []) {
   const userMessages = messages.filter(m => m.role === 'user').slice(0, -1);
   if (!userMessages.length) return '';
@@ -500,7 +476,7 @@ function buildMemoryContext(messages = []) {
     : '';
 }
 
-// ── T2-L: LOCATION DETECTION ─────────────────────────────────
+// ── LOCATION ──────────────────────────────────────────────────
 function extractLocationFromMessages(messages = []) {
   const allUserText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
   const patterns = [
@@ -532,7 +508,7 @@ function hasBusinessContext(messages = []) {
   return /\b(business|startup|company|brand|service|product|offer|sell|launch|start|grow|client|customer|revenue|market|niche|idea|concept|plan|strategy|pricing|marketing|branding|agency|freelance|ecommerce|saas|app)\b/.test(userText);
 }
 
-// ── T2-2: BUSINESS SNAPSHOT ───────────────────────────────────
+// ── SNAPSHOT ──────────────────────────────────────────────────
 function hasRichBusinessContext(messages = []) {
   const userMessages = messages.filter(m => m.role === 'user');
   if (userMessages.length < 3) return false;
@@ -554,12 +530,25 @@ function snapshotAlreadyOffered(messages = []) {
   );
 }
 
-function isSnapshotConfirmation(text = '') {
-  return /\b(yes|yeah|sure|go ahead|do it|please|generate it|show me|let'?s go|ok|okay|yep|absolutely|definitely|of course|why not)\b/i.test(text);
+function isSnapshotRequest(text = '') {
+  return /\b(snapshot|business snapshot|give me a snapshot|business summary|summarize my business|business overview|assess my business|evaluate my business|review my business)\b/i.test(text);
 }
 
-function isSnapshotRequest(text = '') {
-  return /\b(snapshot|business snapshot|give me a snapshot|business summary|summarize my business|business overview|what do you think of my business|assess my business|evaluate my business|review my business)\b/i.test(text);
+// ── YES INTENT ROUTER ─────────────────────────────────────────
+const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|let's go|let's do it|do that|make it|create it|show me|generate it)$/i;
+
+function getLastOffer(msgs = []) {
+  const assistantMsgs = msgs
+    .filter(m => m.role === 'assistant')
+    .map(m => sanitizePromptText(getMessageText(m.content), 600).toLowerCase());
+  const last = assistantMsgs[assistantMsgs.length - 1] || '';
+  if (/offer card/i.test(last))                             return 'offer';
+  if (/business snapshot|quick snapshot/i.test(last))       return 'snapshot';
+  if (/30.?day action plan|action plan/i.test(last))        return 'action-plan';
+  if (/nabad score|score (this|your|the) idea/i.test(last)) return 'score';
+  if (/pricing table/i.test(last))                          return 'pricing';
+  if (/positioning matrix/i.test(last))                     return 'matrix';
+  return null;
 }
 
 async function generateBusinessSnapshot(messages = [], location = '', openaiClient) {
@@ -611,7 +600,7 @@ ${location ? `<p style="font-size:13px;color:#64748b;margin-bottom:14px;">📍 $
 </div>`;
 }
 
-// ── T2-7: NABAD SCORE — TIGHTENED [T3-FIX] ───────────────────
+// ── NABAD SCORE ───────────────────────────────────────────────
 function isIdeaScoringRequest(text = '') {
   const lower = String(text || '').toLowerCase();
   const isExplicitScoreRequest = /\b(score|rate|evaluate|assess|review|rank|give me a score|how good is|is this a good idea|is this viable|will this work|what are my chances|what do you think of my idea|thoughts on my idea)\b/i.test(lower);
@@ -646,7 +635,7 @@ async function generateNabadScore(messages = [], lastUserMessage = '', location 
   "biggest_gap": "most important thing missing",
   "bold_move": "one unexpected move to make this 10x better"
 }
-Scoring: 1-4 weak, 5-6 average, 7-8 strong, 9-10 exceptional. Be honest — do not inflate.
+Scoring: 1-4 weak, 5-6 average, 7-8 strong, 9-10 exceptional. Be honest.
 overall = weighted avg (market_demand 25%, differentiation 20%, monetization 25%, execution 15%, timing 15%)
 ${locationContext}`
       },
@@ -689,7 +678,7 @@ function buildScoreCard(data = {}) {
 ${dimensions.map(d => {
   const s = scores[d.key] || {};
   return `<div style="margin-bottom:10px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
       <span style="font-size:13px;font-weight:700;color:#0f172a;">${d.label}</span>
     </div>
     ${scoreBar(s.score)}
@@ -714,7 +703,7 @@ ${dimensions.map(d => {
 </div>`;
 }
 
-// ── T3-1: PRICING TABLE ───────────────────────────────────────
+// ── PRICING TABLE ─────────────────────────────────────────────
 function isPricingTableRequest(text = '') {
   return /\b(pricing table|price table|pricing tiers|pricing plans|pricing packages|show me pricing|create pricing|build pricing|pricing structure|service tiers|package tiers|tier pricing|how should i price|what should i charge|pricing options|compare packages|package comparison)\b/i.test(text);
 }
@@ -746,12 +735,7 @@ Return ONLY valid JSON:
   "recommendation": "which tier you recommend and why",
   "pricing_insight": "one sharp insight about the pricing strategy"
 }
-Rules:
-- Create 3 tiers (Starter, Growth, Premium) or equivalent
-- Make middle tier highlight:true — it should be the recommended one
-- Prices must be realistic for the business type and location
-- Features must be specific, not generic
-- recommendation must be direct and opinionated
+Rules: Create 3 tiers. Make middle tier highlight:true. Prices must be realistic. Features must be specific.
 ${locationContext}`
       },
       { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\nLocation: ${location || 'unknown'}\n\nGenerate pricing table. Return JSON only.` }
@@ -773,7 +757,7 @@ function buildPricingTableCard(data = {}) {
 <div data-nabad-pricing-grid>
 ${tiers.map(tier => `
 <div data-nabad-tier="${tier.highlight ? 'highlight' : 'normal'}">
-  ${tier.highlight ? `<div data-nabad-tier-badge>Recommended</div>` : ''}
+  ${tier.highlight ? `<div data-nabad-tier-badge>⭐ Recommended</div>` : ''}
   <div data-nabad-tier-name>${safe(tier.name)}</div>
   <div data-nabad-tier-price>${safe(tier.price)}</div>
   <div data-nabad-tier-period>${safe(tier.period)}</div>
@@ -790,7 +774,7 @@ ${tiers.map(tier => `
 </div>`;
 }
 
-// ── T3-2: OFFER CARD ──────────────────────────────────────────
+// ── OFFER CARD ────────────────────────────────────────────────
 function isOfferCardRequest(text = '') {
   return /\b(offer card|build my offer|create my offer|structure my offer|design my offer|package my offer|what's my offer|help me with my offer|offer breakdown|offer structure|show my offer|my service offer|craft my offer|write my offer)\b/i.test(text);
 }
@@ -817,11 +801,7 @@ Return ONLY valid JSON:
   "urgency": "reason to act now or unique advantage",
   "bold_improvement": "one way to make this offer significantly stronger"
 }
-Rules:
-- offer_name must be compelling, not generic
-- one_liner must focus on the outcome, not the features
-- deliverables must be specific and tangible
-- bold_improvement must be genuinely insightful
+Rules: offer_name must be compelling. one_liner must focus on outcome. deliverables must be specific.
 ${locationContext}`
       },
       { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\nLocation: ${location || 'unknown'}\n\nBuild offer card. Return JSON only.` }
@@ -874,7 +854,7 @@ function buildOfferCard(data = {}) {
 </div>`;
 }
 
-// ── T3-3: POSITIONING MATRIX ──────────────────────────────────
+// ── POSITIONING MATRIX ────────────────────────────────────────
 function isPositioningMatrixRequest(text = '') {
   return /\b(positioning matrix|positioning map|competitive map|market map|where do i sit|where do i stand|how do i compare|competitive positioning|market positioning|position my brand|brand positioning|plot my position|2x2|two by two|quadrant)\b/i.test(text);
 }
@@ -902,13 +882,7 @@ Return ONLY valid JSON:
   "insight": "the key strategic insight from this map",
   "opportunity": "the white space or gap the user should own",
   "recommendation": "one bold positioning move"
-}
-Rules:
-- x and y values are 0-100 percentages on the matrix
-- Make the user's brand stand out — place it in a differentiated position
-- players must include the user's brand and 3-4 realistic competitors
-- insight must be genuinely sharp and specific
-- opportunity must identify a real unclaimed position`
+}`
       },
       { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\n\nGenerate positioning matrix. Return JSON only.` }
     ],
@@ -936,45 +910,40 @@ function buildPositioningMatrixCard(data = {}) {
       <div style="position:absolute;top:${size + 4}px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:${fontSize};font-weight:${fontWeight};color:${p.is_user ? '#1e3a8a' : '#475569'};background:rgba(255,255,255,0.92);padding:1px 5px;border-radius:4px;">${safe(p.name)}</div>
     </div>`;
   }).join('');
-
   return `<div data-nabad-card="matrix">
 <h3>🗺️ ${safe(data.title)}</h3>
 <div data-nabad-matrix-wrap>
   <div data-nabad-matrix-y-top>${safe(data.y_axis?.top)}</div>
   <div data-nabad-matrix-row>
     <div data-nabad-matrix-y-label>${safe(data.y_axis?.label)}</div>
-    <div data-nabad-matrix-grid>
-      <div data-nabad-matrix-quadrant></div>
-      <div data-nabad-matrix-quadrant></div>
-      <div data-nabad-matrix-quadrant></div>
-      <div data-nabad-matrix-quadrant></div>
-      <div data-nabad-matrix-xline></div>
-      <div data-nabad-matrix-yline></div>
+    <div data-nabad-matrix-grid style="position:relative;width:100%;padding-bottom:100%;background:#f8faff;border:1px solid rgba(37,99,235,0.10);border-radius:12px;">
+      <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(37,99,235,0.15);"></div>
+      <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(37,99,235,0.15);"></div>
       ${dots}
     </div>
   </div>
   <div data-nabad-matrix-y-bottom>${safe(data.y_axis?.bottom)}</div>
   <div data-nabad-matrix-x-axis>
     <span>${safe(data.x_axis?.left)}</span>
-    <span data-nabad-matrix-x-label>${safe(data.x_axis?.label)}</span>
+    <span>${safe(data.x_axis?.label)}</span>
     <span>${safe(data.x_axis?.right)}</span>
   </div>
 </div>
 <div data-nabad-matrix-legend>
-  ${players.map(p => `<div data-nabad-matrix-legend-item>
-    <div style="width:10px;height:10px;border-radius:50%;background:${p.is_user ? '#2563eb' : '#94a3b8'};flex-shrink:0;"></div>
+  ${players.map(p => `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">
+    <div style="width:10px;height:10px;border-radius:50%;background:${p.is_user ? '#2563eb' : '#94a3b8'};flex-shrink:0;margin-top:3px;"></div>
     <span style="font-size:12px;color:#334155;"><b>${safe(p.name)}</b> — ${safe(p.description)}</span>
   </div>`).join('')}
 </div>
-<div data-nabad-matrix-insights>
-  <p><b>🔍 Key insight:</b> ${safe(data.insight)}</p>
-  <p><b>⚡ White space:</b> ${safe(data.opportunity)}</p>
-  <p><b>🎯 Bold move:</b> ${safe(data.recommendation)}</p>
+<div style="margin-top:14px;padding:12px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.14);border-radius:12px;">
+  <p style="margin:0 0 6px;font-size:13px;color:#334155;"><b>🔍 Key insight:</b> ${safe(data.insight)}</p>
+  <p style="margin:0 0 6px;font-size:13px;color:#334155;"><b>⚡ White space:</b> ${safe(data.opportunity)}</p>
+  <p style="margin:0;font-size:13px;color:#334155;"><b>🎯 Bold move:</b> ${safe(data.recommendation)}</p>
 </div>
 </div>`;
 }
 
-// ── T3-4: 30-DAY ACTION PLAN ──────────────────────────────────
+// ── 30-DAY ACTION PLAN ────────────────────────────────────────
 function isActionPlanRequest(text = '') {
   return /\b(action plan|30.?day|30 day plan|weekly plan|roadmap|step by step|next steps|what should i do|give me a plan|build me a plan|create a plan|daily plan|weekly roadmap|monthly plan|game plan|execution plan|launch plan)\b/i.test(text);
 }
@@ -1008,11 +977,7 @@ Return ONLY valid JSON:
   "success_metric": "how to know if this 30-day plan worked",
   "warning": "the most common mistake to avoid"
 }
-Rules:
-- Tasks must be specific and actionable, not vague
-- day_one_action must be something they can start in the next 2 hours
-- Each week must build on the previous one
-- warning must be genuinely useful and specific to their situation
+Rules: Tasks must be specific. day_one_action must be startable in 2 hours. Each week builds on previous.
 ${locationContext}`
       },
       { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\nLocation: ${location || 'unknown'}\n\nGenerate 30-day action plan. Return JSON only.` }
@@ -1029,38 +994,36 @@ function buildActionPlanCard(data = {}) {
   const safe = (val = '') => escapeHtml(String(val || ''));
   const weeks = Array.isArray(data.weeks) ? data.weeks : [];
   const weekColors = ['#2563eb', '#0891b2', '#7c3aed', '#059669'];
-  return `<div data-nabad-card="plan">
+  return `<div data-nabad-card="action-plan">
 <h3>📅 ${safe(data.title)}</h3>
-<p data-nabad-plan-goal>🎯 Goal: ${safe(data.goal)}</p>
-<div data-nabad-plan-weeks>
+<p style="background:rgba(37,99,235,0.06);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:700;color:#1e3a8a;margin-bottom:16px;">🎯 Goal: ${safe(data.goal)}</p>
+<div>
 ${weeks.map((w, i) => `
-<div data-nabad-plan-week>
-  <div data-nabad-plan-week-header style="border-left:3px solid ${weekColors[i] || '#2563eb'};">
-    <div data-nabad-plan-week-number style="background:${weekColors[i] || '#2563eb'};">Week ${safe(String(w.week))}</div>
+<div style="margin-bottom:14px;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding-left:10px;border-left:3px solid ${weekColors[i] || '#2563eb'};">
+    <div style="background:${weekColors[i] || '#2563eb'};color:#fff;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap;">Week ${safe(String(w.week))}</div>
     <div>
-      <div data-nabad-plan-week-theme>${safe(w.theme)}</div>
-      <div data-nabad-plan-week-focus>${safe(w.focus)}</div>
+      <div style="font-size:14px;font-weight:800;color:#0f172a;">${safe(w.theme)}</div>
+      <div style="font-size:12px;color:#64748b;">${safe(w.focus)}</div>
     </div>
   </div>
-  <ul data-nabad-plan-tasks>
-    ${(w.tasks || []).map(t => `<li>→ ${safe(t)}</li>`).join('')}
+  <ul style="margin:0;padding:0;list-style:none;">
+    ${(w.tasks || []).map(t => `<li style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;margin-bottom:5px;background:#fff;border-radius:10px;border:1px solid rgba(15,23,42,0.06);font-size:13px;color:#334155;">
+      <span style="color:#2563eb;font-weight:800;flex-shrink:0;">→</span>
+      <span>${safe(t)}</span>
+    </li>`).join('')}
   </ul>
 </div>`).join('')}
 </div>
-<div data-nabad-plan-footer>
-  <div data-nabad-plan-day-one>
-    <div data-nabad-plan-day-one-label>⚡ Start today</div>
-    <div>${safe(data.day_one_action)}</div>
-  </div>
-  <div data-nabad-plan-meta>
-    <p><b>✅ You'll know it worked when:</b> ${safe(data.success_metric)}</p>
-    <p><b>⚠️ Watch out for:</b> ${safe(data.warning)}</p>
-  </div>
+<div style="margin-top:14px;padding:14px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);border-radius:12px;">
+  <p style="margin:0 0 8px;font-size:14px;font-weight:800;color:#14532d;">⚡ Start today: ${safe(data.day_one_action)}</p>
+  <p style="margin:0 0 6px;font-size:13px;color:#334155;"><b>✅ Success looks like:</b> ${safe(data.success_metric)}</p>
+  <p style="margin:0;font-size:13px;color:#334155;"><b>⚠️ Watch out for:</b> ${safe(data.warning)}</p>
 </div>
 </div>`;
 }
 
-// ── ENSURE HTML REPLY ─────────────────────────────────────────
+// ── HTML REPLY FORMATTER ──────────────────────────────────────
 function ensureHtmlReply(reply = '') {
   const text = cleanText(reply, 8000);
   if (!text) return '<p>Sorry — I could not generate a useful response right now.</p>';
@@ -1164,43 +1127,91 @@ export default async function handler(req, res) {
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
     if (!lastUserMessage) return res.status(400).json({ reply: 'No message provided.' });
 
-    // ── Fast path handlers ────────────────────────────────────
+    const detectedLocation = extractLocationFromMessages(messages);
+
+    // ── Fast path: positioning ────────────────────────────────
     if (isPositioningQuestion(lastUserMessage))
       return res.status(200).json({ reply: POSITIONING_REPLY });
 
+    // ── Fast path: stock photos ───────────────────────────────
     if (isStockPhotoRequest(lastUserMessage))
       return res.status(200).json({ reply: buildStockPhotoHtml(buildStockKeyword(lastUserMessage)) });
 
+    // ── Fast path: image generation ───────────────────────────
     if (shouldGenerateImage(messages, lastUserMessage)) {
       const imageType = detectImageType(lastUserMessage);
       const previous = extractLastImageMeta(messages);
       const fallbackPrompt = buildStrictFallbackPrompt(lastUserMessage, messages, imageType);
       let finalPrompt = fallbackPrompt;
       let lockedBrief = normalizeImagePrompt(previous?.brief || getLatestExplicitImageRequest(messages) || cleanImageIntentPrefix(lastUserMessage)) || fallbackPrompt;
-      let promptSource = 'fallback', promptModel = 'none', mustKeep = [], canVary = [];
+      let promptSource = 'fallback', promptModel = 'none';
       try {
         if (process.env.OPENAI_API_KEY) {
           const r = await buildImagePromptWithOpenAI(messages, openai);
           if (r?.prompt) {
-            finalPrompt = r.prompt; lockedBrief = r.lockedBrief || lockedBrief || finalPrompt;
-            promptSource = r.source || 'openai'; promptModel = r.model || 'gpt-4o-mini';
-            mustKeep = r.mustKeep || []; canVary = r.canVary || [];
+            finalPrompt = r.prompt;
+            lockedBrief = r.lockedBrief || lockedBrief || finalPrompt;
+            promptSource = r.source || 'openai';
+            promptModel = r.model || 'gpt-4o-mini';
           }
         }
       } catch (err) { console.error('[IMAGE PROMPT ERROR]', err?.message || err); }
       finalPrompt = normalizeImagePrompt(finalPrompt || fallbackPrompt);
       lockedBrief = normalizeImagePrompt(lockedBrief || finalPrompt);
-      if (process.env.NODE_ENV !== 'production') console.log('[IMAGE DEBUG]', { lastUserMessage, promptSource, promptModel, lockedBrief, finalPrompt });
       return res.status(200).json({ reply: buildImageReplyHtml(finalPrompt, { lockedBrief, source: promptSource, model: promptModel }, imageType) });
     }
 
     if (!process.env.OPENAI_API_KEY)
       return res.status(500).json({ reply: 'Missing OPENAI_API_KEY on the server.' });
 
-    // ── T2-L: Location ────────────────────────────────────────
-    const detectedLocation = extractLocationFromMessages(messages);
+    // ── YES intent router ─────────────────────────────────────
+    if (YES_PATTERN.test(lastUserMessage.trim())) {
+      const lastOffer = getLastOffer(messages);
 
-    // ── T2-7: Nabad Score ─────────────────────────────────────
+      if (lastOffer === 'snapshot' && hasRichBusinessContext(messages)) {
+        try {
+          const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai);
+          return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
+        } catch (err) { console.error('[SNAPSHOT CONFIRM ERROR]', err?.message || err); }
+      }
+
+      if (lastOffer === 'offer') {
+        try {
+          const offerData = await generateOfferCard(messages, lastUserMessage, detectedLocation, openai);
+          return res.status(200).json({ reply: buildOfferCard(offerData) });
+        } catch (err) { console.error('[OFFER CONFIRM ERROR]', err?.message || err); }
+      }
+
+      if (lastOffer === 'action-plan') {
+        try {
+          const planData = await generateActionPlan(messages, lastUserMessage, detectedLocation, openai);
+          return res.status(200).json({ reply: buildActionPlanCard(planData) });
+        } catch (err) { console.error('[ACTION PLAN CONFIRM ERROR]', err?.message || err); }
+      }
+
+      if (lastOffer === 'score') {
+        try {
+          const scoreData = await generateNabadScore(messages, lastUserMessage, detectedLocation, openai);
+          return res.status(200).json({ reply: buildScoreCard(scoreData) });
+        } catch (err) { console.error('[SCORE CONFIRM ERROR]', err?.message || err); }
+      }
+
+      if (lastOffer === 'pricing') {
+        try {
+          const pricingData = await generatePricingTable(messages, lastUserMessage, detectedLocation, openai);
+          return res.status(200).json({ reply: buildPricingTableCard(pricingData) });
+        } catch (err) { console.error('[PRICING CONFIRM ERROR]', err?.message || err); }
+      }
+
+      if (lastOffer === 'matrix') {
+        try {
+          const matrixData = await generatePositioningMatrix(messages, lastUserMessage, openai);
+          return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
+        } catch (err) { console.error('[MATRIX CONFIRM ERROR]', err?.message || err); }
+      }
+    }
+
+    // ── Explicit card requests ────────────────────────────────
     if (isIdeaScoringRequest(lastUserMessage)) {
       try {
         const scoreData = await generateNabadScore(messages, lastUserMessage, detectedLocation, openai);
@@ -1208,7 +1219,6 @@ export default async function handler(req, res) {
       } catch (err) { console.error('[NABAD SCORE ERROR]', err?.message || err); }
     }
 
-    // ── T3-1: Pricing Table ───────────────────────────────────
     if (isPricingTableRequest(lastUserMessage)) {
       try {
         const pricingData = await generatePricingTable(messages, lastUserMessage, detectedLocation, openai);
@@ -1216,7 +1226,6 @@ export default async function handler(req, res) {
       } catch (err) { console.error('[PRICING TABLE ERROR]', err?.message || err); }
     }
 
-    // ── T3-2: Offer Card ──────────────────────────────────────
     if (isOfferCardRequest(lastUserMessage)) {
       try {
         const offerData = await generateOfferCard(messages, lastUserMessage, detectedLocation, openai);
@@ -1224,7 +1233,6 @@ export default async function handler(req, res) {
       } catch (err) { console.error('[OFFER CARD ERROR]', err?.message || err); }
     }
 
-    // ── T3-3: Positioning Matrix ──────────────────────────────
     if (isPositioningMatrixRequest(lastUserMessage)) {
       try {
         const matrixData = await generatePositioningMatrix(messages, lastUserMessage, openai);
@@ -1232,7 +1240,6 @@ export default async function handler(req, res) {
       } catch (err) { console.error('[MATRIX ERROR]', err?.message || err); }
     }
 
-    // ── T3-4: Action Plan ─────────────────────────────────────
     if (isActionPlanRequest(lastUserMessage)) {
       try {
         const planData = await generateActionPlan(messages, lastUserMessage, detectedLocation, openai);
@@ -1240,28 +1247,12 @@ export default async function handler(req, res) {
       } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message || err); }
     }
 
-    // ── T2-2: Snapshot ────────────────────────────────────────
     if (isSnapshotRequest(lastUserMessage)) {
       try {
         const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai);
         return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
       } catch (err) { console.error('[SNAPSHOT ERROR]', err?.message || err); }
     }
-
-    // ... everything above stays the same ...
-
-// ── "Yes" intent router — routes confirmation to correct card ─
-const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|let's go|let's do it|do that|make it|create it|show me|generate it)$/i;
-
-function getLastOffer(msgs = []) {
-  // ... the full function ...
-}
-
-if (YES_PATTERN.test(lastUserMessage.trim())) {
-  // ... all the if blocks ...
-}
-// ── End "Yes" intent router ───────────────────────────────────
-
 
     // ── Main GPT-4o reply ─────────────────────────────────────
     const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
@@ -1275,10 +1266,10 @@ if (YES_PATTERN.test(lastUserMessage.trim())) {
 
     if (process.env.NODE_ENV !== 'production') {
       console.log('[PERSONALITY DEBUG]', {
-        selectedPersonality, activePersonality: personalityConfig.id,
-        personalitySource: personalityResolution.source,
-        overridePersonality: personalityResolution.overridePersonality || '',
-        businessMode: businessMode.id, detectedLocation
+        selectedPersonality,
+        activePersonality: personalityConfig.id,
+        businessMode: businessMode.id,
+        detectedLocation
       });
     }
 
@@ -1316,7 +1307,7 @@ The user is based in: ${detectedLocation}
 `
       : '';
 
-    const snapshotInstruction = hasRichBusinessContext(messages) && !snapshotAlreadyOffered(messages) && !isSnapshotConfirmation(lastUserMessage)
+    const snapshotInstruction = hasRichBusinessContext(messages) && !snapshotAlreadyOffered(messages)
       ? `
 BUSINESS SNAPSHOT OFFER (ACTIVE):
 At the END of your reply — after your main answer — naturally say:
@@ -1348,6 +1339,7 @@ You are Nabad — sharp, opinionated, commercially intelligent.
 - Never sound like a school textbook or motivational poster
 - If the user is wrong, say so — diplomatically but clearly
 - Always end with a clear next move or a provocative question
+- Maximum 4 bullet points per reply — cut the weakest ones if you have more
 `;
 
     const systemPrompt = `
@@ -1358,8 +1350,6 @@ Your job is to help users make smarter business decisions, spot opportunities, d
 PERSONALITY: Sharp, commercially smart, creative, practical, modern, persuasive, insightful.
 Never sound like a school textbook or motivational chatbot.
 
-CORE BUSINESS MINDSET: Think through customer pain, market opportunity, positioning, business model, offer design, acquisition, conversion, brand perception, scalability, unconventional angles.
-
 HOW TO ANSWER:
 - Reply in clean HTML only. Never use Markdown.
 - Allowed tags: <p>, <b>, <strong>, <i>, <em>, <ul>, <ol>, <li>, <br>, <a>, <h3>, <h4>
@@ -1367,7 +1357,7 @@ HOW TO ANSWER:
 - Default structure:
 <h3>Main insight or recommendation</h3>
 <p>One short direct conclusion.</p>
-<ul><li>2 to 5 specific points</li></ul>
+<ul><li>2 to 4 specific points</li></ul>
 <p><b>Fresh angle:</b> one original idea.</p>
 <p><b>Next best move:</b> best immediate action.</p>
 
@@ -1383,10 +1373,6 @@ ${locationInstruction}
 ${snapshotInstruction}
 ${visualOutputsInstruction}
 ${toneInstruction}
-
-STOCK PHOTOS: Return 2 Unsplash/Pexels links when asked for free stock images.
-IMAGE REQUESTS: Do NOT output image HTML — backend handles image generation.
-BUSINESS BEHAVIOR: Always try to improve the user's idea. Suggest new angles proactively.
 
 USER PROFILE:
 ${profileText || 'No saved user profile provided.'}
