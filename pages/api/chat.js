@@ -600,6 +600,80 @@ Return JSON only.
   throw lastError || new Error('Gemini prompt generation failed');
 }
 
+// ── OPENAI IMAGE PROMPT ENRICHMENT (replaces Gemini) ─────────
+async function buildImagePromptWithOpenAI(messages = [], openaiClient) {
+  const lastUserMessage =
+    [...messages].reverse().find(m => m?.role === 'user' && typeof m?.content === 'string')
+      ?.content || '';
+
+  const previous = extractLastImageMeta(messages);
+  const explicitRequest =
+    getLatestExplicitImageRequest(messages) ||
+    normalizeImagePrompt(cleanImageIntentPrefix(lastUserMessage));
+
+  const conversation = messages
+    .slice(-10)
+    .map(m => {
+      const role = m?.role || 'user';
+      const content = typeof m?.content === 'string' ? m.content : '';
+      return `${role.toUpperCase()}: ${sanitizePromptText(content, 700)}`;
+    })
+    .join('\n');
+
+  const completion = await openaiClient.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You are an expert image brief writer for a business website.
+Convert the chat conversation into a faithful image prompt.
+Return ONLY valid JSON in this exact shape:
+{
+  "prompt": "final text-to-image prompt in English",
+  "locked_brief": "short stable concept summary",
+  "must_keep": ["item 1"],
+  "can_vary": ["item 1"],
+  "aspect_ratio": "1:1"
+}
+Rules:
+- Stay very close to the user request
+- One clear concept only
+- Be specific about subject, background, style, lighting
+- For logos: flat 2D icon, white background, no scenes, no buildings, no people
+- For mockups: studio lighting, neutral background, photorealistic render
+- For posters: bold typography, strong visual hierarchy, print quality
+- locked_brief must be short and reusable
+- prompt must be one dense specific paragraph`
+      },
+      {
+        role: 'user',
+        content: `Conversation:\n${conversation}\n\nLatest message: ${lastUserMessage}\nPrevious brief: ${previous?.brief || ''}\nExplicit request: ${explicitRequest}\n\nReturn JSON only.`
+      }
+    ],
+    temperature: 0.35,
+    max_tokens: 450
+  });
+
+  const raw = completion?.choices?.[0]?.message?.content || '';
+  const parsed = tryParseJsonBlock(raw);
+  const prompt = normalizeImagePrompt(parsed?.prompt || raw);
+  const lockedBrief = normalizeImagePrompt(
+    parsed?.locked_brief || previous?.brief || explicitRequest || prompt
+  );
+
+  if (!prompt) throw new Error('OpenAI returned empty prompt');
+
+  return {
+    prompt,
+    lockedBrief,
+    mustKeep: normalizeList(parsed?.must_keep),
+    canVary: normalizeList(parsed?.can_vary),
+    aspectRatio: parsed?.aspect_ratio || '1:1',
+    model: 'gpt-4o-mini',
+    source: 'openai'
+  };
+}
+
 // [FIX-5] Updated to use buildPollinationsUrl with quality params
 function buildPollinationsImageHtml(prompt, meta = {}, imageType = 'general') {
   const finalPrompt    = normalizeImagePrompt(prompt);
@@ -835,20 +909,20 @@ export default async function handler(req, res) {
       let canVary      = [];
 
       try {
-        if (process.env.GEMINI_API_KEY) {
-          const geminiResult = await buildImagePromptWithGemini(messages, process.env.GEMINI_API_KEY);
-          if (geminiResult?.prompt) {
-            finalPrompt  = geminiResult.prompt;
-            lockedBrief  = geminiResult.lockedBrief || lockedBrief || finalPrompt;
-            promptSource = geminiResult.source || 'gemini';
-            promptModel  = geminiResult.model || 'unknown';
-            mustKeep     = geminiResult.mustKeep || [];
-            canVary      = geminiResult.canVary || [];
-          }
-        }
-      } catch (err) {
-        console.error('[IMAGE PROMPT ERROR]', err?.message || err);
-      }
+  if (process.env.OPENAI_API_KEY) {
+    const openaiResult = await buildImagePromptWithOpenAI(messages, openai);
+    if (openaiResult?.prompt) {
+      finalPrompt  = openaiResult.prompt;
+      lockedBrief  = openaiResult.lockedBrief || lockedBrief || finalPrompt;
+      promptSource = openaiResult.source || 'openai';
+      promptModel  = openaiResult.model || 'gpt-4o-mini';
+      mustKeep     = openaiResult.mustKeep || [];
+      canVary      = openaiResult.canVary || [];
+    }
+  }
+} catch (err) {
+  console.error('[IMAGE PROMPT ERROR] OpenAI enrichment failed:', err?.message || err);
+}
 
       finalPrompt = normalizeImagePrompt(finalPrompt || fallbackPrompt);
       lockedBrief = normalizeImagePrompt(lockedBrief || finalPrompt);
