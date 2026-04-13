@@ -1,1407 +1,1098 @@
-// ─────────────────────────────────────────────────────────────
-//  NabadAI — chat.js  (API Route)
-//  All Tiers 1-3 + Yes Intent Router Fix + Location Fix
-// ─────────────────────────────────────────────────────────────
-
 import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ── CORS ─────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
   'https://nabadai.com',
   'https://www.nabadai.com',
-  'https://nabadai-chat.vercel.app',
   'http://localhost:3000',
-  'http://127.0.0.1:3000'
+  'http://localhost:3001',
+  'http://127.0.0.1:5500',
+  'http://127.0.0.1:3000',
+  'http://localhost:5500',
 ];
-const ALLOWED_VERCEL_PREFIXES = ['nabadai-chat', 'nabadai'];
+
+const ALLOWED_VERCEL_PREFIXES = ['nabadai'];
 
 function isAllowedOrigin(origin = '') {
-  if (!origin) return false;
+  if (!origin) return true;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
   try {
-    const url = new URL(origin);
-    const hostname = url.hostname.toLowerCase();
-    if (ALLOWED_ORIGINS.includes(origin)) return true;
-    if (hostname === 'nabadai.com' || hostname.endsWith('.nabadai.com')) return true;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
-    if (hostname.endsWith('.vercel.app')) {
-      const subdomain = hostname.replace('.vercel.app', '');
-      return ALLOWED_VERCEL_PREFIXES.some(
-        p => subdomain === p || subdomain.startsWith(`${p}-`)
-      );
-    }
-    return false;
+    const host = new URL(origin).hostname;
+    return ALLOWED_VERCEL_PREFIXES.some(p => host.startsWith(p) && host.endsWith('.vercel.app'));
   } catch { return false; }
 }
 
 function setCors(req, res) {
   const origin = req.headers.origin || '';
   if (isAllowedOrigin(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'null');
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
 }
 
-// ── RATE LIMITING ─────────────────────────────────────────────
+// ── Rate Limiting ─────────────────────────────────────────────────────────────
 const rateLimitMap = new Map();
 const RATE_LIMIT = { windowMs: 60_000, maxRequests: 20 };
-
 function isRateLimited(ip = '') {
   const now = Date.now();
-  const entry = rateLimitMap.get(ip) || { count: 0, resetAt: now + RATE_LIMIT.windowMs };
-  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + RATE_LIMIT.windowMs; }
+  const entry = rateLimitMap.get(ip) || { count: 0, start: now };
+  if (now - entry.start > RATE_LIMIT.windowMs) { rateLimitMap.set(ip, { count: 1, start: now }); return false; }
+  if (entry.count >= RATE_LIMIT.maxRequests) return true;
   entry.count++;
   rateLimitMap.set(ip, entry);
-  if (rateLimitMap.size > 500) {
-    for (const [key, val] of rateLimitMap) {
-      if (now > val.resetAt) rateLimitMap.delete(key);
-    }
-  }
-  return entry.count > RATE_LIMIT.maxRequests;
-}
-
-const SHOW_IMAGE_DEBUG = false;
-
-// ── TEXT UTILS ────────────────────────────────────────────────
-function getMessageText(content) {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map(part => {
-        if (typeof part === 'string') return part;
-        if (typeof part?.text === 'string') return part.text;
-        if (typeof part?.content === 'string') return part.content;
-        return '';
-      })
-      .filter(Boolean).join('\n');
-  }
-  if (content == null) return '';
-  return String(content);
-}
-
-function cleanText(text = '', maxLen = 4000) {
-  return String(text ?? '')
-    .replace(/\u0000/g, ' ').replace(/\r/g, '')
-    .replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n')
-    .trim().slice(0, maxLen);
-}
-
-function sanitizePromptText(text = '', maxLen = 1400) {
-  return String(text ?? '')
-    .replace(/<img[\s\S]*?>/gi, ' ').replace(/<[^>]*>/g, ' ')
-    .replace(/https?:\/\/\S+/gi, ' ').replace(/[`*_#~]/g, ' ')
-    .replace(/\s+/g, ' ').trim().slice(0, maxLen);
-}
-
-function escapeHtml(text = '') {
-  return String(text)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function decodeMaybe(text = '') {
-  try { return decodeURIComponent(text); }
-  catch { return text || ''; }
-}
-
-function tryParseJsonBlock(text = '') {
-  const match = String(text || '').match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try { return JSON.parse(match[0]); }
-  catch { return null; }
-}
-
-function normalizeList(arr = []) {
-  if (!Array.isArray(arr)) return [];
-  return arr
-    .map(item => sanitizePromptText(String(item || ''), 120))
-    .map(item => item.replace(/\s+/g, ' ').trim())
-    .filter(Boolean).slice(0, 10);
-}
-
-function isValidHttpUrl(value = '') {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch { return false; }
-}
-
-// ── FETCH UTILS ───────────────────────────────────────────────
-async function fetchWithTimeout(url, options = {}, timeout = 20000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally { clearTimeout(id); }
-}
-
-// ── IMAGE UTILS ───────────────────────────────────────────────
-function extractFirstUrl(text = '') {
-  const match = String(text || '').match(/https?:\/\/[^\s<>"']+/i);
-  return match ? match[0] : '';
-}
-
-function isStockPhotoRequest(text = '') {
-  return /\b(stock photo|stock photos|free stock|free photos|free images|inspiration images|reference images|photo references|image references|unsplash|pexels)\b/i.test(text);
-}
-
-function isImageRequest(text = '') {
-  return /\b(generate|create|make|show|draw|design|render)\b.*\b(image|photo|picture|visual|logo|poster|banner|flyer|mockup|illustration|ad|advert|campaign|cover)\b|\b(image|photo|picture|visual|logo|poster|banner|flyer|mockup|illustration|ad|advert|campaign|cover)\b/i.test(text);
-}
-
-function isRegenerationRequest(text = '') {
-  return /\b(one more|again|another one|another version|new version|regenerate|redo|retry|same again|same one|variation|variant)\b/i.test(text);
-}
-
-function isImageModificationRequest(text = '') {
-  return /\b(same|this|that|it)\b.*\b(darker|lighter|brighter|premium|luxury|luxurious|closer|zoom|angle|background|color|colour|lighting|reflection|shadow|gold|silver|bigger|smaller|more|minimal|cleaner|simpler|richer|warmer|cooler|with|without)\b/i.test(text);
-}
-
-function cleanImageIntentPrefix(text = '') {
-  return String(text || '')
-    .replace(/^\s*(please\s+)?(generate|create|make|show|draw|design|render)\s+(me\s+)?(an?\s+)?(image|photo|picture|visual|logo|poster|banner|flyer|mockup|illustration|ad|advert|campaign|cover)\s*(of|for)?\s*/i, '')
-    .trim();
-}
-
-function unwrapPromptText(text = '') {
-  let value = String(text || '').trim();
-  const pollinationsUrlMatch = value.match(/image\.pollinations\.ai\/prompt\/([^"'\s<]+)/i);
-  if (pollinationsUrlMatch?.[1]) return decodeMaybe(pollinationsUrlMatch[1]);
-  value = value.replace(/<img[\s\S]*?>/gi, ' ').trim();
-  return value;
-}
-
-function normalizeImagePrompt(text = '') {
-  return sanitizePromptText(unwrapPromptText(text), 1400)
-    .replace(/\s+/g, ' ').replace(/^["'`]+|["'`]+$/g, '').trim();
-}
-
-function detectImageType(text = '') {
-  const t = text.toLowerCase();
-  if (/\b(logo|brand mark|icon)\b/.test(t))             return 'logo';
-  if (/\b(mockup|product shot|product photo)\b/.test(t)) return 'mockup';
-  if (/\b(poster|flyer)\b/.test(t))                     return 'poster';
-  if (/\b(banner|cover|header)\b/.test(t))              return 'banner';
-  if (/\b(social|instagram|facebook|post)\b/.test(t))   return 'social';
-  return 'general';
-}
-
-function enrichImagePrompt(prompt = '', imageType = 'general') {
-  const enrichments = {
-    logo: ['professional vector logo mark only','simple icon symbol not a building or scene','flat 2D logo design','white background','single graphic mark centered','no text unless requested','no background scene','no realistic photography','no storefront no building no people','suitable for business card and app icon','clean minimal shapes','scalable vector style'],
-    mockup: ['professional product mockup','studio lighting','clean neutral background','photorealistic render','sharp details','commercial photography style','centered product placement','high resolution'],
-    poster: ['professional graphic design poster','bold visual hierarchy','high resolution print quality','strong focal point','clean layout'],
-    banner: ['professional wide banner design','clean layout','high resolution','strong visual hierarchy','commercial quality'],
-    social: ['social media graphic','eye-catching design','clear focal point','modern aesthetic','high resolution square format'],
-    general: ['professional quality','clean composition','commercial photography style','high resolution']
-  };
-  const negativeKeywords = ['blurry','low quality','watermark','signature','text errors','distorted','deformed','amateur','pixelated','noisy','oversaturated','extra limbs'].join(', ');
-  const keywords = enrichments[imageType] || enrichments.general;
-  return { positive: `${prompt}, ${keywords.join(', ')}`, negative: negativeKeywords };
-}
-
-function buildPollinationsUrl(prompt = '', imageType = 'general') {
-  const { positive } = enrichImagePrompt(prompt, imageType);
-  const finalPrompt = normalizeImagePrompt(positive);
-  const sizeMap = {
-    logo: { width: 1024, height: 1024 }, mockup: { width: 1024, height: 1024 },
-    poster: { width: 768, height: 1024 }, banner: { width: 1200, height: 628 },
-    social: { width: 1080, height: 1080 }, general: { width: 1024, height: 1024 }
-  };
-  const { width, height } = sizeMap[imageType] || sizeMap.general;
-  const seed = Math.floor(Math.random() * 999999);
-  const params = new URLSearchParams({
-    model: 'flux', width: String(width), height: String(height),
-    enhance: 'true', nologo: 'true', seed: String(seed)
-  });
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?${params.toString()}`;
-}
-
-function extractLastImageMeta(messages = []) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const content = typeof messages[i]?.content === 'string' ? messages[i].content : '';
-    if (!content) continue;
-    const briefMatch     = content.match(/data-nabad-brief="([^"]+)"/i);
-    const promptMatch    = content.match(/data-nabad-prompt="([^"]+)"/i);
-    const sourceMatch    = content.match(/data-nabad-source="([^"]+)"/i);
-    const modelMatch     = content.match(/data-nabad-model="([^"]+)"/i);
-    const urlPromptMatch = content.match(/image\.pollinations\.ai\/prompt\/([^"'\s<&]+)/i);
-    if (briefMatch || promptMatch || urlPromptMatch ||
-      /img\s+src=/i.test(content) || /Generated image/i.test(content)) {
-      const prompt = decodeMaybe(promptMatch?.[1] || urlPromptMatch?.[1] || '');
-      const brief  = decodeMaybe(briefMatch?.[1] || prompt || '');
-      return { prompt, brief, source: decodeMaybe(sourceMatch?.[1] || ''), model: decodeMaybe(modelMatch?.[1] || '') };
-    }
-  }
-  return null;
-}
-
-function conversationRecentlyHadImage(messages = []) {
-  return messages.slice(-12).some(m => {
-    const content = typeof m?.content === 'string' ? m.content : '';
-    return /<img\s/i.test(content) || /img\s+src=/i.test(content) ||
-      /image\.pollinations\.ai\/prompt\//i.test(content) ||
-      /data-nabad-brief=/i.test(content) || /Generated image/i.test(content);
-  });
-}
-
-function getLatestExplicitImageRequest(messages = []) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    const content = typeof m?.content === 'string' ? m.content : '';
-    if (m?.role === 'user' && isImageRequest(content) &&
-      !isStockPhotoRequest(content) && !isRegenerationRequest(content)) {
-      return normalizeImagePrompt(cleanImageIntentPrefix(content));
-    }
-  }
-  const lastMeta = extractLastImageMeta(messages);
-  return normalizeImagePrompt(lastMeta?.brief || lastMeta?.prompt || '');
-}
-
-function shouldGenerateImage(messages = [], lastUserMessage = '') {
-  if (!lastUserMessage) return false;
-  if (isStockPhotoRequest(lastUserMessage)) return false;
-  if (isImageRequest(lastUserMessage)) return true;
-  const hasImageContext =
-    !!extractLastImageMeta(messages) ||
-    conversationRecentlyHadImage(messages) ||
-    !!getLatestExplicitImageRequest(messages);
-  if (hasImageContext && isRegenerationRequest(lastUserMessage)) return true;
-  if (hasImageContext && isImageModificationRequest(lastUserMessage)) return true;
   return false;
 }
 
-function buildStockKeyword(text = '') {
-  const cleaned = sanitizePromptText(
-    String(text || '')
-      .replace(/\b(show|give|find|send|need|want|me|some|free|stock|photos?|images?|references?|reference|inspiration|pictures?)\b/gi, ' ')
-      .replace(/\bfor\b/gi, ' ').replace(/\s+/g, ' ').trim(), 60
-  );
-  return cleaned || 'business branding';
-}
+// ── Model IDs ─────────────────────────────────────────────────────────────────
+const GEMINI_TEXT_MODELS = ['gemini-2.0-flash', 'gemini-1.5-pro'];
+const SHOW_IMAGE_DEBUG = false;
 
-function buildStockPhotoHtml(keyword = 'business branding') {
-  const safeKeyword = encodeURIComponent(keyword);
-  const label = escapeHtml(keyword);
-  return `<a href="https://unsplash.com/s/photos/${safeKeyword}" target="_blank" rel="noopener noreferrer">🖼 Search ${label} on Unsplash</a><br><a href="https://www.pexels.com/search/${safeKeyword}/" target="_blank" rel="noopener noreferrer">🖼 Search ${label} on Pexels</a>`;
-}
-
-function buildStrictFallbackPrompt(lastUserMessage = '', messages = [], imageType = 'general') {
-  const previous = extractLastImageMeta(messages);
-  const explicit = getLatestExplicitImageRequest(messages);
-  const baseConcept =
-    normalizeImagePrompt(previous?.brief || explicit || cleanImageIntentPrefix(lastUserMessage)) ||
-    'a premium professional business visual';
-  const lower = String(lastUserMessage || '').toLowerCase();
-  const changes = [];
-  if (/dark/.test(lower))                       changes.push('darker mood with deeper shadows');
-  if (/light|bright/.test(lower))               changes.push('cleaner brighter studio lighting');
-  if (/premium|luxury|luxurious/.test(lower))   changes.push('more premium luxurious finish');
-  if (/closer|close-up|zoom/.test(lower))       changes.push('closer crop and tighter framing');
-  if (/angle|side|top|perspective/.test(lower)) changes.push('different camera angle');
-  if (/minimal|clean/.test(lower))              changes.push('cleaner more minimal composition');
-  if (/gold/.test(lower))                       changes.push('richer gold accents');
-  if (/silver/.test(lower))                     changes.push('refined silver accents');
-  if (/without\b/.test(lower))                  changes.push('remove any optional extra elements');
-  const variationInstruction = isRegenerationRequest(lastUserMessage)
-    ? 'Create a new variation. Keep the same subject, background family, purpose, and style.'
-    : 'Keep the same core concept and stay very close to the original request.';
-  if (imageType === 'logo') {
-    return normalizeImagePrompt(
-      `${baseConcept}, professional vector logo mark, flat 2D icon design, ` +
-      `white background, no scene, no building, no people, no text, ` +
-      `simple centered symbol, scalable, clean minimal shapes`
-    );
+// ── Text Utilities ────────────────────────────────────────────────────────────
+function getMessageText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    const textPart = content.find(p => p.type === 'text');
+    return textPart ? textPart.text : '';
   }
-  return normalizeImagePrompt(
-    `${baseConcept}. ${variationInstruction} ${
-      changes.length ? `Change only: ${changes.join(', ')}. ` : ''
-    }Single clear concept, no unrelated props.`
-  );
+  return '';
+}
+function cleanText(val = '', maxLen = 300) {
+  if (typeof val !== 'string') return '';
+  return val.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
+}
+function sanitizePromptText(text = '') {
+  return text.replace(/[<>{}|\\^`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 900);
+}
+function escapeHtml(str = '') {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function decodeMaybe(text = '') {
+  try { return decodeURIComponent(text); } catch { return text; }
+}
+function tryParseJsonBlock(text = '') {
+  try {
+    const match = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    const raw = match[1] !== undefined ? match[1] : match[0];
+    return JSON.parse(raw.trim());
+  } catch (e) { console.error('[JSON PARSE ERROR]', e?.message); return null; }
+}
+function normalizeList(val) {
+  if (Array.isArray(val)) return val.map(String).filter(Boolean);
+  if (typeof val === 'string') return val.split(/\n|,/).map(s => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
+  return [];
+}
+function isValidHttpUrl(str = '') {
+  try { const u = new URL(str); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; }
+}
+function extractFirstUrl(text = '') {
+  const m = text.match(/https?:\/\/[^\s"'>)]+/);
+  return m ? m[0] : '';
 }
 
-async function buildImagePromptWithOpenAI(messages = [], openaiClient) {
-  const lastUserMessage =
-    [...messages].reverse().find(m => m?.role === 'user' && typeof m?.content === 'string')?.content || '';
-  const previous = extractLastImageMeta(messages);
-  const explicitRequest =
-    getLatestExplicitImageRequest(messages) ||
-    normalizeImagePrompt(cleanImageIntentPrefix(lastUserMessage));
-  const conversation = messages.slice(-10)
-    .map(m => `${(m?.role || 'user').toUpperCase()}: ${sanitizePromptText(m?.content || '', 700)}`)
-    .join('\n');
-  const completion = await openaiClient.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: `You are an expert image brief writer. Convert the chat into a faithful image prompt.
-Return ONLY valid JSON:
-{
-  "prompt": "final text-to-image prompt in English",
-  "locked_brief": "short stable concept summary",
-  "must_keep": ["item 1"],
-  "can_vary": ["item 1"],
-  "aspect_ratio": "1:1"
+// ── Fetch Helpers ─────────────────────────────────────────────────────────────
+async function fetchWithTimeout(url, options = {}, timeout = 20000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeout);
+  try { return await fetch(url, { ...options, signal: ctrl.signal }); }
+  finally { clearTimeout(id); }
 }
-Rules: Stay close to user request. One clear concept. Specific about subject/background/style/lighting.
-For logos: flat 2D icon, white background, no scenes. locked_brief short and reusable.`
-      },
-      {
-        role: 'user',
-        content: `Conversation:\n${conversation}\n\nLatest: ${lastUserMessage}\nPrevious brief: ${previous?.brief || ''}\nExplicit request: ${explicitRequest}\n\nReturn JSON only.`
-      }
-    ],
-    temperature: 0.35, max_tokens: 450
-  });
-  const raw = completion?.choices?.[0]?.message?.content || '';
-  const parsed = tryParseJsonBlock(raw);
-  const prompt = normalizeImagePrompt(parsed?.prompt || raw);
-  const lockedBrief = normalizeImagePrompt(parsed?.locked_brief || previous?.brief || explicitRequest || prompt);
-  if (!prompt) throw new Error('OpenAI returned empty prompt');
-  return {
-    prompt, lockedBrief,
-    mustKeep: normalizeList(parsed?.must_keep),
-    canVary: normalizeList(parsed?.can_vary),
-    aspectRatio: parsed?.aspect_ratio || '1:1',
-    model: 'gpt-4o-mini', source: 'openai'
+async function readJsonSafe(response, timeoutMs = 8000) {
+  const text = await Promise.race([
+    response.text(),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('JSON read timeout')), timeoutMs))
+  ]);
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+// ── Website Audit ─────────────────────────────────────────────────────────────
+async function fetchWebsiteAuditContent(url = '') {
+  if (!isValidHttpUrl(url)) return '';
+  try {
+    const res = await fetchWithTimeout(`https://r.jina.ai/${encodeURIComponent(url)}`, {
+      headers: { Accept: 'text/plain', 'User-Agent': 'NabadBot/1.0' }
+    }, 12000);
+    if (!res.ok) return '';
+    const text = await res.text();
+    return text.slice(0, 3000);
+  } catch { return ''; }
+}
+
+// ── Image Utilities ───────────────────────────────────────────────────────────
+function isStockPhotoRequest(text = '') {
+  return /\b(stock\s*photo|stock\s*image|real\s*(photo|picture|image)|actual\s*(photo|picture|image)|photograph of|photo of a real)\b/i.test(text);
+}
+function isImageRequest(text = '') {
+  return /\b(generate|create|make|draw|design|build|produce|show)\b.{0,40}\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b/i.test(text)
+    || /\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b.{0,30}\b(generate|create|make|draw|design|for me|please)\b/i.test(text);
+}
+function isRegenerationRequest(text = '') {
+  return /\b(regenerate|redo|try again|another version|different version|new version)\b.{0,30}\b(image|logo|picture|visual|photo|banner|icon)\b/i.test(text)
+    || /\b(regenerate|redo|new one|try again)\b$/i.test(text);
+}
+function isImageModificationRequest(text = '') {
+  return /\b(change|update|modify|make it|make the|adjust|tweak|alter)\b.{0,40}\b(image|logo|picture|visual|banner|icon|color|style|background)\b/i.test(text);
+}
+function cleanImageIntentPrefix(text = '') {
+  return text.replace(/^(generate|create|make|draw|design|build|produce|show)\s+(me\s+)?(a\s+|an\s+)?/i, '').trim();
+}
+function unwrapPromptText(content) {
+  const raw = getMessageText(content);
+  return decodeMaybe(cleanText(raw, 1200));
+}
+function normalizeImagePrompt(text = '') {
+  return text.replace(/[^\w\s,.\-()!?'":@#&]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 900);
+}
+function detectImageType(text = '') {
+  const t = text.toLowerCase();
+  if (/\b(logo|brand\s*mark|wordmark)\b/.test(t)) return 'logo';
+  if (/\b(banner|cover|header)\b/.test(t)) return 'banner';
+  if (/\b(icon|favicon)\b/.test(t)) return 'icon';
+  if (/\b(illustration|drawing|art)\b/.test(t)) return 'illustration';
+  if (/\b(mockup|product shot)\b/.test(t)) return 'mockup';
+  return 'image';
+}
+function enrichImagePrompt(rawPrompt = '', type = 'image') {
+  const base = sanitizePromptText(rawPrompt);
+  const suffixes = {
+    logo: ', clean vector logo, minimal, professional, white background, sharp edges',
+    banner: ', wide format banner, professional design, vibrant colors',
+    icon: ', flat icon design, simple, clean, scalable',
+    illustration: ', digital illustration, detailed, vibrant',
+    mockup: ', product mockup, realistic, studio lighting',
+    image: ', high quality, detailed, professional'
   };
+  return base + (suffixes[type] || suffixes.image);
+}
+function buildPollinationsUrl(prompt = '', options = {}) {
+  const { width = 1024, height = 1024, seed, model = 'flux', nologo = true } = options;
+  const encoded = encodeURIComponent(normalizeImagePrompt(prompt));
+  let url = `https://image.pollinations.ai/prompt/${encoded}?width=${width}&height=${height}&model=${model}`;
+  if (nologo) url += '&nologo=true';
+  if (seed !== undefined) url += `&seed=${seed}`;
+  return url;
+}
+function extractLastImageMeta(messages = []) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const text = getMessageText(messages[i].content);
+    const urlMatch = text.match(/https?:\/\/image\.pollinations\.ai\/prompt\/([^\s"'<]+)/);
+    if (urlMatch) return { url: urlMatch[0], prompt: decodeURIComponent(urlMatch[1].split('?')[0] || '') };
+  }
+  return null;
+}
+function conversationRecentlyHadImage(messages = [], lookback = 6) {
+  return messages.slice(-lookback).some(m =>
+    /image\.pollinations\.ai/.test(getMessageText(m.content))
+  );
+}
+function getLatestExplicitImageRequest(messages = []) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user' && isImageRequest(getMessageText(messages[i].content)))
+      return getMessageText(messages[i].content);
+  }
+  return '';
+}
+function shouldGenerateImage(text = '', messages = []) {
+  if (isImageRequest(text)) return true;
+  if (isRegenerationRequest(text) && conversationRecentlyHadImage(messages)) return true;
+  if (isImageModificationRequest(text) && conversationRecentlyHadImage(messages)) return true;
+  return false;
+}
+function buildStockKeyword(prompt = '') {
+  const cleaned = prompt.replace(/stock\s*(photo|image)/gi, '').replace(/real\s*(photo|picture|image)/gi, '').trim();
+  return encodeURIComponent(cleaned.slice(0, 80));
+}
+function buildStockPhotoHtml(prompt = '') {
+  const kw = buildStockKeyword(prompt);
+  const unsplashUrl = `https://source.unsplash.com/1024x768/?${kw}`;
+  return `<div class="nabad-image-wrap"><img src="${unsplashUrl}" alt="${escapeHtml(prompt.slice(0, 80))}" class="nabad-gen-image" loading="lazy" /><p class="nabad-image-caption">📷 Stock photo for: ${escapeHtml(prompt.slice(0, 80))}</p></div>`;
+}
+async function buildStrictFallbackPrompt(userText = '') {
+  return `Minimalist professional illustration: ${sanitizePromptText(userText).slice(0, 200)}, clean design, white background, no text`;
+}
+async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiClient) {
+  try {
+    const historyContext = messages.slice(-4).map(m => `${m.role}: ${getMessageText(m.content).slice(0, 200)}`).join('\n');
+    const resp = await openaiClient.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: 'You are an expert AI image prompt writer. Given a user request and conversation history, write a vivid, detailed image generation prompt (max 120 words). Focus on visual details, style, lighting, composition. No quotation marks.' },
+        { role: 'user', content: `Conversation:\n${historyContext}\n\nUser request: ${userText}\n\nWrite the image prompt:` }
+      ],
+      max_tokens: 180, temperature: 0.8
+    });
+    return resp.choices?.[0]?.message?.content?.trim() || userText;
+  } catch { return userText; }
+}
+function buildPollinationsImageHtml(imageUrl = '', altText = '', caption = '') {
+  return `<div class="nabad-image-wrap"><img src="${imageUrl}" alt="${escapeHtml(altText.slice(0, 100))}" class="nabad-gen-image" loading="lazy" onerror="this.parentElement.innerHTML='<p style=color:#e74c3c>Image generation failed — try again.</p>'" />${caption ? `<p class="nabad-image-caption">${escapeHtml(caption)}</p>` : ''}</div>`;
+}
+function buildImageReplyHtml(imageUrl = '', promptText = '', imageType = 'image') {
+  const labels = { logo: '🎨 Your logo is ready', banner: '🖼️ Banner created', icon: '✨ Icon generated', illustration: '🎭 Illustration ready', mockup: '📦 Mockup generated', image: '🖼️ Image generated' };
+  const label = labels[imageType] || labels.image;
+  return `<p><strong>${label}</strong></p>${buildPollinationsImageHtml(imageUrl, promptText, promptText.slice(0, 80))}`;
 }
 
-function buildPollinationsImageHtml(prompt, meta = {}, imageType = 'general') {
-  const finalPrompt   = normalizeImagePrompt(prompt);
-  const imageUrl      = buildPollinationsUrl(finalPrompt, imageType);
-  const encodedBrief  = encodeURIComponent(meta.lockedBrief || finalPrompt);
-  const encodedSource = encodeURIComponent(meta.source || 'fallback');
-  const encodedModel  = encodeURIComponent(meta.model || 'none');
-  const encodedPrompt = encodeURIComponent(finalPrompt);
-  return `<img src="${imageUrl}" alt="Generated image" data-nabad-brief="${encodedBrief}" data-nabad-source="${encodedSource}" data-nabad-model="${encodedModel}" data-nabad-prompt="${encodedPrompt}">`;
-}
-
-function buildImageReplyHtml(prompt, meta = {}, imageType = 'general') {
-  const debugHtml = SHOW_IMAGE_DEBUG
-    ? `<div style="font-size:12px;color:#667;margin-bottom:8px;"><b>Debug:</b> source=${escapeHtml(meta.source || 'fallback')} | model=${escapeHtml(meta.model || 'none')}</div>`
-    : '';
-  return `${debugHtml}${buildPollinationsImageHtml(prompt, meta, imageType)}`;
-}
-
-// ── BUSINESS MODE & PERSONALITY ───────────────────────────────
+// ── Business Mode & Personality ───────────────────────────────────────────────
 function detectBusinessMode(text = '', messages = []) {
-  const fullText = `${text} ${messages.slice(-6).map(m => m?.content || '').join(' ')}`.toLowerCase();
-  if (/\b(brand|branding|logo|identity|visual identity|packaging|name|slogan|tagline|rebrand|positioning)\b/.test(fullText))
-    return { id: 'branding', label: 'Branding', temperature: 0.82, maxTokens: 700, instruction: `\nCURRENT MODE: BRANDING\nFocus on brand clarity, positioning, naming, identity, perception, premium feel.\n` };
-  if (/\b(grow|growth|marketing|sales|funnel|lead|leads|ads|advertising|campaign|seo|content|social media|conversion|traffic|reach|audience)\b/.test(fullText))
-    return { id: 'growth', label: 'Growth', temperature: 0.84, maxTokens: 700, instruction: `\nCURRENT MODE: GROWTH\nFocus on customer acquisition, channel strategy, conversion, and scalable growth.\n` };
-  if (/\b(offer|service package|package|pricing|proposal|upsell|bundle|retainer|productized|value proposition|what should i sell|monetize|monetise)\b/.test(fullText))
-    return { id: 'offer', label: 'Offer', temperature: 0.83, maxTokens: 700, instruction: `\nCURRENT MODE: OFFER\nFocus on designing strong offers, pricing logic, perceived value, and packaging.\n` };
-  if (/\b(idea|ideas|brainstorm|creative|unique|different|unusual|out of the box|innovative|concept|concepts)\b/.test(fullText))
-    return { id: 'creative', label: 'Creative Ideas', temperature: 0.9, maxTokens: 700, instruction: `\nCURRENT MODE: CREATIVE IDEAS\nThink expansively but commercially. Suggest fresh, original, monetizable angles.\n` };
-  if (/\b(strategy|strategic|launch|business plan|roadmap|niche|market|audience|target market|business model|position|positioning|plan|direction|start a business|startup)\b/.test(fullText))
-    return { id: 'strategy', label: 'Strategy', temperature: 0.8, maxTokens: 700, instruction: `\nCURRENT MODE: STRATEGY\nFocus on choosing the right market, angle, business model, positioning, and strategic path.\n` };
-  return { id: 'advisor', label: 'Business Advisor', temperature: 0.82, maxTokens: 700, instruction: `\nCURRENT MODE: BUSINESS ADVISOR\nAct like a commercially smart founder advisor.\n` };
+  const t = (text + ' ' + messages.slice(-3).map(m => getMessageText(m.content)).join(' ')).toLowerCase();
+  if (/\b(logo|brand|visual|design|color|font|identity)\b/.test(t)) return { id: 'branding', label: 'Brand Strategist', temperature: 0.88, maxTokens: 650, instruction: '' };
+  if (/\b(ad|campaign|post|content|social|instagram|tiktok|linkedin|email|seo)\b/.test(t)) return { id: 'marketing', label: 'Marketing Expert', temperature: 0.85, maxTokens: 700, instruction: '' };
+  if (/\b(revenue|growth|scale|customer|acquisition|funnel|conversion|sales)\b/.test(t)) return { id: 'growth', label: 'Growth Strategist', temperature: 0.82, maxTokens: 700, instruction: '' };
+  if (/\b(offer|package|product|service|upsell|bundle|subscription|pricing)\b/.test(t)) return { id: 'offer', label: 'Offer Architect', temperature: 0.80, maxTokens: 650, instruction: '' };
+  return { id: 'advisor', label: 'Business Advisor', temperature: 0.82, maxTokens: 700, instruction: '' };
 }
 
-function getPersonalityConfig(selectedPersonality = 'auto') {
-  const key = String(selectedPersonality || 'auto').toLowerCase();
-  switch (key) {
-    case 'strategist':    return { id: 'strategist',    label: 'Strategist',         instruction: `\nSELECTED PERSONALITY: STRATEGIST\nTone: smart, structured, commercially sharp.\n` };
-    case 'growth':        return { id: 'growth',        label: 'Growth Expert',       instruction: `\nSELECTED PERSONALITY: GROWTH EXPERT\nTone: practical, energetic, opportunity-focused.\n` };
-    case 'branding':      return { id: 'branding',      label: 'Brand Builder',       instruction: `\nSELECTED PERSONALITY: BRAND BUILDER\nTone: creative, premium, perceptive, modern.\n` };
-    case 'offer':         return { id: 'offer',         label: 'Offer Architect',     instruction: `\nSELECTED PERSONALITY: OFFER ARCHITECT\nTone: persuasive, commercial, monetization-focused.\n` };
-    case 'creative':      return { id: 'creative',      label: 'Creative Challenger', instruction: `\nSELECTED PERSONALITY: CREATIVE CHALLENGER\nTone: bold, inventive, unconventional.\n` };
-    case 'straight_talk': return { id: 'straight_talk', label: 'Straight Talk',       instruction: `\nSELECTED PERSONALITY: STRAIGHT TALK\nTone: direct, honest, sharp, no-fluff.\n` };
-    default:              return { id: 'auto',          label: 'Auto',                instruction: `\nSELECTED PERSONALITY: AUTO\nAdapt naturally to the user's goal.\n` };
+const PERSONALITY_CONFIGS = {
+  strategist: {
+    id: 'strategist',
+    label: '🧠 Strategist',
+    temperature: 0.78,
+    maxTokens: 750,
+    instruction: `You are a precise strategic thinker. Lead with frameworks and structured recommendations.
+TONE: Analytical, confident, no fluff.
+LENGTH: Max 150 words. Use structured lists only when presenting frameworks or comparisons.
+NEVER open with a heading. Open with one sharp insight sentence.
+End with a direct question or "Strategic move:".`
+  },
+  growth: {
+    id: 'growth',
+    label: '📈 Growth',
+    temperature: 0.85,
+    maxTokens: 700,
+    instruction: `You focus on growth levers: acquisition, retention, revenue expansion.
+TONE: Energetic, metric-driven, no corporate speak.
+LENGTH: Max 120 words. Lead with the biggest growth lever. Max 3 bullet points.
+Never list tactics without explaining WHY they work for this specific business.
+End with a growth-focused question or "Growth move:".`
+  },
+  branding: {
+    id: 'branding',
+    label: '🎨 Branding',
+    temperature: 0.88,
+    maxTokens: 650,
+    instruction: `You focus on brand positioning, identity, and storytelling.
+TONE: Creative, visual, emotionally intelligent. Speak in images and feelings.
+LENGTH: Max 100 words. No bullet lists unless comparing brand options.
+Use vivid language. Make them feel the brand, not just understand it.
+End with a brand-focused question or provocation.`
+  },
+  offer: {
+    id: 'offer',
+    label: '💰 Offer',
+    temperature: 0.80,
+    maxTokens: 650,
+    instruction: `You focus on offer construction, pricing psychology, and value stacking.
+TONE: Persuasive, direct, commercially sharp.
+LENGTH: Max 130 words. Use bullet points only for listing deliverables or value stack items.
+Always anchor price to value, not cost. Challenge commodity thinking.
+End with "Offer move:" or a pricing-focused question.`
+  },
+  creative: {
+    id: 'creative',
+    label: '🎭 Creative',
+    temperature: 0.92,
+    maxTokens: 700,
+    instruction: `You are bold, imaginative, and unexpected. Challenge conventional thinking.
+TONE: Unconventional, energetic, surprising. Think like an artist who understands business.
+LENGTH: Max 90 words. No bullet points. Ever. Write in flowing sentences.
+Say the thing nobody else would say. Reframe the problem completely.
+End with a provocative question or unexpected angle.`
+  },
+  straight_talk: {
+    id: 'straight_talk',
+    label: '⚡ Straight Talk',
+    temperature: 0.75,
+    maxTokens: 600,
+    instruction: `You are brutally direct. No fluff. No pleasantries. No lists.
+TONE: Blunt, honest, zero corporate speak. Like a no-nonsense mentor.
+LENGTH: Max 60 words. Hard limit. If you can say it in 2 sentences, use 2 sentences.
+No bullet points. No headings. Just plain truth in plain sentences.
+End with one direct question or nothing at all.`
+  },
+  auto: {
+    id: 'auto',
+    label: '🤖 Auto',
+    temperature: 0.82,
+    maxTokens: 700,
+    instruction: `You are a real founder who has built and scaled businesses.
+TONE: Direct, warm, sharp. Like a smart friend giving real advice over coffee.
+LENGTH: Match the complexity of the question.
+- Simple question → max 3 sentences, no lists.
+- Advice request → max 4 bullets OR 2 short paragraphs. Never both.
+- Complex strategy → max 6 bullets, one heading max.
+Never exceed 120 words unless a detailed plan was explicitly requested.
+Never open with a heading. Open with a real sentence.
+Never use: "Absolutely", "Great question", "Of course", "Certainly", "Sure!", "Happy to help".
+End with a direct question, provocation, or "Next move:".`
   }
-}
+};
 
+function getPersonalityConfig(id = 'auto') {
+  return PERSONALITY_CONFIGS[id] || PERSONALITY_CONFIGS.auto;
+}
 function detectToneOverride(text = '') {
-  const v = String(text || '').toLowerCase();
-  if (/\b(be direct|be more direct|be brutally honest|straight talk|no fluff|be blunt|tell me the truth|be real)\b/i.test(v)) return 'straight_talk';
-  if (/\b(be more creative|think outside the box|be bold|challenge me|push me|fresh ideas|unexpected ideas|creative mode)\b/i.test(v)) return 'creative';
-  if (/\b(focus on growth|growth mode|marketing mode|sales mode|lead generation|customer acquisition)\b/i.test(v)) return 'growth';
-  if (/\b(brand mode|branding mode|think like a brand strategist|focus on branding|brand expert)\b/i.test(v)) return 'branding';
-  if (/\b(offer mode|pricing mode|monetization mode|help me monetize|focus on pricing|design my offer)\b/i.test(v)) return 'offer';
-  if (/\b(strategy mode|be strategic|think like a strategist|focus on strategy|strategic mode)\b/i.test(v)) return 'strategist';
-  return '';
+  const t = text.toLowerCase();
+  if (/\b(be\s+direct|straight\s+talk|no\s+fluff|be\s+blunt|just\s+tell\s+me)\b/.test(t)) return 'straight_talk';
+  if (/\b(think\s+creatively|be\s+creative|outside\s+the\s+box|bold\s+ideas)\b/.test(t)) return 'creative';
+  if (/\b(growth|scale|grow\s+faster|acquisition)\b/.test(t)) return 'growth';
+  return null;
 }
-
 function resolveActivePersonality(selectedPersonality = 'auto', lastUserMessage = '') {
-  const cleanedSelected = String(selectedPersonality || 'auto').toLowerCase();
   const override = detectToneOverride(lastUserMessage);
-  if (cleanedSelected !== 'auto') {
-    return { personalityId: override || cleanedSelected, source: override ? 'override' : 'selected', selectedPersonality: cleanedSelected, overridePersonality: override || '' };
-  }
-  return { personalityId: override || 'auto', source: override ? 'override' : 'auto', selectedPersonality: cleanedSelected, overridePersonality: override || '' };
+  if (override) return { personalityId: override, source: 'tone-override', overridePersonality: override };
+  if (selectedPersonality && selectedPersonality !== 'auto') return { personalityId: selectedPersonality, source: 'user-selected' };
+  return { personalityId: 'auto', source: 'auto' };
 }
 
-// ── POSITIONING ───────────────────────────────────────────────
+// ── Positioning ───────────────────────────────────────────────────────────────
 function isPositioningQuestion(text = '') {
-  return /\b(what makes you|what makes nabad|how are you different|how is nabad different|why should i use you|why nabad|what can you do|what do you do|what is nabad|who are you|what sets you apart|better than|different from|unique about|special about|compared to other|vs other|versus other)\b/i.test(text);
+  return /\b(what (are|is) (you|nabad)|who (are|is) (you|nabad)|tell me about (yourself|nabad)|what can (you|nabad) do|how (are you|is nabad) different|compare (you|nabad)|vs (chatgpt|gpt|claude|gemini)|better than)\b/i.test(text);
+}
+const POSITIONING_REPLY = `<p><strong>NabadAI isn't a chatbot. It's your business co-founder.</strong></p><p>While other AI tools answer questions, Nabad builds your strategy. It knows your market, challenges your assumptions, and helps you move — not just think.</p><ul><li>🎯 <strong>Business-first</strong> — every response is filtered through a founder lens</li><li>⚡ <strong>Opinionated</strong> — Nabad tells you what it actually thinks, not what sounds safe</li><li>🧠 <strong>Context-aware</strong> — remembers your business details across the conversation</li><li>🛠️ <strong>Action-oriented</strong> — ends with moves, not maybes</li></ul><p>Think less "AI assistant" and more "co-founder who's done this before."</p>`;
+
+// ── Proactive Intelligence ────────────────────────────────────────────────────
+function buildProactiveIntelligence(messages = [], lastUserMessage = '') {
+  const msgCount = messages.filter(m => m.role === 'user').length;
+  if (msgCount < 2) return '';
+  const allText = messages.map(m => getMessageText(m.content).toLowerCase()).join(' ');
+  const insights = [];
+  if (/social media|instagram|tiktok|content/.test(allText) && !/paid|ads|sponsor/.test(allText)) insights.push('Consider whether paid amplification would accelerate what organic content is building.');
+  if (/freelan|agency|service/.test(allText) && !/retainer|recurring/.test(allText)) insights.push('Retainer-based pricing could stabilize cash flow vs. project-based work.');
+  if (/product|launch|mvp/.test(allText) && !/waitlist|pre.?launch|pre.?sell/.test(allText)) insights.push('A pre-launch waitlist could validate demand before full investment.');
+  return insights.length ? `\n\nProactive intelligence (weave into reply if relevant, do not list verbatim): ${insights.join(' | ')}` : '';
 }
 
-const POSITIONING_REPLY = `
-<h3>🧠 What makes Nabad different</h3>
-<p>Most AI bots answer questions. <b>Nabad challenges your thinking, builds on your ideas, and gives you structured outputs you can actually use</b> — like a founder advisor in your pocket.</p>
-<ul>
-  <li><b>Proactive, not reactive</b> — Nabad leads the conversation, spots the real problem, and reframes your thinking before just answering.</li>
-  <li><b>Multiple expert personalities</b> — Switch between Strategist, Growth Expert, Brand Builder, Offer Architect, Creative Challenger, and Straight Talk modes.</li>
-  <li><b>Visual outputs</b> — Generate images, logos, mockups, pricing tables, offer cards, positioning matrices, and 30-day action plans directly inside the chat.</li>
-  <li><b>Memory that feels human</b> — Nabad references what you said earlier and builds on it naturally.</li>
-  <li><b>Business Snapshot</b> — A structured card with your opportunity, risk, and top recommendation when Nabad knows enough about your business.</li>
-  <li><b>Nabad Score</b> — Get your business idea rated across 5 dimensions instantly.</li>
-  <li><b>Location-aware advice</b> — Nabad factors in your country for legal, cost, and market-specific guidance.</li>
-</ul>
-<p><b>The short version:</b> Nabad is not a chatbot. It's the smartest business thinking partner you can have — available 24/7, opinionated, and built to make your business sharper. 🎯</p>
-`;
-
-// ── PROACTIVE & MEMORY ────────────────────────────────────────
-function isEarlyConversation(messages = []) {
-  return messages.filter(m => m.role === 'user').length <= 2;
-}
-
-function isBroadOpeningMessage(text = '') {
-  return /\b(i want to|i need to|i am thinking|i have an idea|i have a business|help me|where do i start|how do i|what should i|i don't know|not sure|thinking about|considering|planning to|want to start|starting a|building a|launching a|growing my|improve my|struggling with)\b/i.test(text);
-}
-
+// ── Memory Context ────────────────────────────────────────────────────────────
 function buildMemoryContext(messages = []) {
-  const userMessages = messages.filter(m => m.role === 'user').slice(0, -1);
-  if (!userMessages.length) return '';
-  const facts = userMessages.map(m => sanitizePromptText(m.content, 300)).filter(Boolean).join(' | ');
-  return facts
-    ? `CONVERSATION MEMORY:\nThe user has previously mentioned: ${facts}\nWhen relevant, naturally reference these earlier points — only when they genuinely add value.\n`
-    : '';
+  const userMsgs = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content).toLowerCase());
+  const combined = userMsgs.join(' ');
+  const facts = [];
+  const industryMatch = combined.match(/\b(agency|restaurant|cafe|gym|clinic|salon|ecommerce|saas|consulting|coaching|retail)\b/);
+  if (industryMatch) facts.push(`Industry: ${industryMatch[1]}`);
+  const revenueMatch = combined.match(/\$[\d,]+\s*(\/month|per month|monthly|\/mo)?|\b[\d,]+\s*(aed|sar|egp|usd|gbp|eur)\b/i);
+  if (revenueMatch) facts.push(`Revenue mentioned: ${revenueMatch[0]}`);
+  const clientMatch = combined.match(/(\d+)\s*(clients?|customers?|accounts?)/i);
+  if (clientMatch) facts.push(`Clients: ${clientMatch[0]}`);
+  const goalMatch = combined.match(/\b(scale|grow|reach|hit|achieve)\b.{0,40}\b(\$[\d,]+|[\d,]+k|10k|20k|50k|100k)\b/i);
+  if (goalMatch) facts.push(`Goal: ${goalMatch[0]}`);
+  return facts.length ? `\n\nConversation memory (reference naturally, never repeat verbatim): ${facts.join(' | ')}` : '';
 }
 
-// ── LOCATION ──────────────────────────────────────────────────
+// ── Location Detection ────────────────────────────────────────────────────────
 function extractLocationFromMessages(messages = []) {
-  const allUserText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
+  const text = messages.map(m => getMessageText(m.content)).join(' ');
   const patterns = [
-    /\b(?:i'?m|i am|based|located|living|from|in)\s+(?:in\s+)?([A-Z][a-zA-Z\s]{2,30}?)(?:\s*[,.]|\s+(?:and|so|but|the|my|we|our|for|to|a|an)\b)/i,
-    /\b(?:from|in)\s+([A-Z][a-zA-Z\s]{2,20}?)(?:\s*[,.]|$)/im,
-    /\b(UAE|UK|US|USA|KSA|Saudi Arabia|Dubai|Abu Dhabi|London|New York|Canada|Australia|Germany|France|Egypt|Jordan|Qatar|Bahrain|Kuwait|Oman|Lebanon|Morocco|Tunisia|Singapore|India|Pakistan)\b/i
+    /\b(based in|located in|from|in|i'm in|we're in)\s+([A-Za-z\s]{2,30}(?:UAE|KSA|UK|US|USA|Egypt|Jordan|Kuwait|Bahrain|Oman|Qatar|Saudi|Dubai|Abu Dhabi|Riyadh|Cairo|London|New York|Lagos))/i,
+    /\b(Dubai|Abu Dhabi|Sharjah|Riyadh|Jeddah|Cairo|Amman|Kuwait City|Manama|Muscat|Doha|London|New York|Lagos|Nairobi|Karachi|Lahore)\b/i
   ];
-  for (const pattern of patterns) {
-    const match = allUserText.match(pattern);
-    if (match) {
-      const location = (match[1] || match[0] || '').trim();
-      if (location.length > 1 && location.length < 40) return location;
-    }
-  }
+  for (const p of patterns) { const m = text.match(p); if (m) return m[2] || m[1] || m[0]; }
   return '';
 }
-
-function locationAlreadyAsked(messages = []) {
-  return messages.some(m =>
-    m.role === 'assistant' &&
-    /where are you based|which country|what country|your location|where you('re| are) located/i.test(
-      sanitizePromptText(m.content, 500)
-    )
-  );
+function buildLocationContext(location = '') {
+  if (!location) return '';
+  const loc = location.toLowerCase();
+  const contexts = {
+    dubai: 'Dubai/UAE context: VAT 5%, free zones available, strong expat market, high competition in services, Arabic & English markets.',
+    'abu dhabi': 'Abu Dhabi/UAE context: Government-heavy economy, strong B2G opportunities, VAT 5%, Emiratization policies relevant for hiring.',
+    riyadh: 'Saudi Arabia context: VAT 15%, Vision 2030 driving new sectors, large youth population, social media penetration is very high.',
+    cairo: 'Egypt context: Price-sensitive market, USD-based pricing can be premium, strong freelance economy, Arabic content performs well.',
+    london: 'UK context: VAT 20%, competitive market, strong startup ecosystem, IR35 regulations if hiring contractors.',
+    lagos: 'Nigeria context: Naira volatility, USD pricing preferred by many businesses, large youth market, mobile-first consumers.'
+  };
+  for (const [key, ctx] of Object.entries(contexts)) {
+    if (loc.includes(key)) return `\n\nLocation context: ${ctx}`;
+  }
+  return `\n\nLocation context: User is based in ${location}. Tailor advice to local market conditions where relevant.`;
 }
-
-function hasBusinessContext(messages = []) {
-  const userText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ').toLowerCase();
-  return /\b(business|startup|company|brand|service|product|offer|sell|launch|start|grow|client|customer|revenue|market|niche|idea|concept|plan|strategy|pricing|marketing|branding|agency|freelance|ecommerce|saas|app)\b/.test(userText);
+function hasBusinessContext(text = '') {
+  return /\b(business|startup|agency|product|service|client|revenue|launch|idea|offer|brand|market|customer|pricing|scale|grow)\b/i.test(text);
 }
-
-// ── SNAPSHOT ──────────────────────────────────────────────────
 function hasRichBusinessContext(messages = []) {
-  const userMessages = messages.filter(m => m.role === 'user');
-  if (userMessages.length < 3) return false;
-  const userText = userMessages.map(m => m.content).join(' ').toLowerCase();
-  const signals = [
-    /\b(business|startup|company|brand|agency|freelance|product|service|saas|app|ecommerce|store|shop)\b/.test(userText),
-    /\b(sell|selling|offer|offers|price|pricing|revenue|income|monetize|charge|package|subscription)\b/.test(userText),
-    /\b(customer|client|audience|market|niche|target|buyer|user|consumer)\b/.test(userText),
-    /\b(goal|plan|strategy|launch|grow|scale|improve|build|start|struggling|problem|challenge)\b/.test(userText),
-    /\b(idea|concept|vision|direction|roadmap|positioning|differentiation|competition|competitor)\b/.test(userText)
+  const userMsgs = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content).toLowerCase());
+  const combined = userMsgs.join(' ');
+  const checks = [
+    /\b(agency|startup|business|product|service|brand)\b/.test(combined),
+    /\b(client|customer|revenue|\$|income|pay)\b/.test(combined),
+    /\b(problem|struggle|challenge|stuck|issue)\b/.test(combined)
   ];
-  return signals.filter(Boolean).length >= 3;
+  return checks.filter(Boolean).length >= 2;
+}
+function locationAlreadyAsked(messages = []) {
+  return messages.some(m => m.role === 'assistant' && /where are you based|what city|which country|your location/i.test(getMessageText(m.content)));
 }
 
+// ── Business Snapshot ─────────────────────────────────────────────────────────
 function snapshotAlreadyOffered(messages = []) {
-  return messages.some(m =>
-    m.role === 'assistant' &&
-    /business snapshot|want me to put together|quick snapshot/i.test(sanitizePromptText(m.content, 500))
-  );
+  return messages.some(m => m.role === 'assistant' && /business snapshot/i.test(getMessageText(m.content)));
+}
+function shouldOfferSnapshot(messages = []) {
+  const userMsgs = messages.filter(m => m.role === 'user');
+  if (userMsgs.length < 3) return false;
+  if (snapshotAlreadyOffered(messages)) return false;
+  return hasRichBusinessContext(messages);
+}
+async function generateBusinessSnapshot(messages = [], location = '', openaiClient) {
+  const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
+  const prompt = `Based on this business conversation, create a concise Business Snapshot JSON with these exact fields:
+{
+  "businessType": "one-line description",
+  "stage": "idea/early/growing/scaling",
+  "biggestOpportunity": "specific, actionable opportunity in 2-3 sentences",
+  "keyRisk": "the most critical risk to address in 2-3 sentences",
+  "boldRecommendation": "one bold, specific recommendation in 2-3 sentences",
+  "quickWins": ["win1", "win2", "win3"],
+  "metrics": {"current": "current state", "target": "realistic 90-day target"}
+}
+Context: ${context.slice(0, 2000)}
+Location: ${location || 'not specified'}`;
+  const resp = await openaiClient.chat.completions.create({
+    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
+    max_tokens: 600, temperature: 0.7
+  });
+  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+}
+function buildSnapshotCard(data = {}, location = '') {
+  const esc = escapeHtml;
+  const quickWins = normalizeList(data.quickWins || []).slice(0, 3).map(w => `<li>${esc(w)}</li>`).join('');
+  return `<div data-nabad-card="snapshot" style="background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+    <span style="font-size:24px">📊</span>
+    <div><strong style="font-size:16px">Business Snapshot</strong>${location ? `<br><span style="font-size:11px;opacity:.7">📍 ${esc(location)}</span>` : ''}</div>
+  </div>
+  <div style="background:rgba(255,255,255,.08);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:4px">Biggest Opportunity</div>
+    <div style="font-size:14px;line-height:1.5">${esc(data.biggestOpportunity || 'Analysing your opportunity...')}</div>
+  </div>
+  <div style="background:rgba(255,100,100,.12);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:4px">Key Risk</div>
+    <div style="font-size:14px;line-height:1.5">${esc(data.keyRisk || 'Risk analysis in progress...')}</div>
+  </div>
+  <div style="background:rgba(100,255,150,.12);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:4px">Bold Recommendation</div>
+    <div style="font-size:14px;line-height:1.5">${esc(data.boldRecommendation || 'Generating recommendation...')}</div>
+  </div>
+  ${quickWins ? `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:8px">Quick Wins</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8">${quickWins}</ul></div>` : ''}
+  ${data.metrics ? `<div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px"><div style="background:rgba(255,255,255,.06);border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;opacity:.6;margin-bottom:4px">NOW</div><div style="font-size:13px">${esc(data.metrics.current || '')}</div></div><div style="background:rgba(100,200,255,.12);border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;opacity:.6;margin-bottom:4px">90-DAY TARGET</div><div style="font-size:13px">${esc(data.metrics.target || '')}</div></div></div>` : ''}
+</div>`;
 }
 
-function isSnapshotRequest(text = '') {
-  return /\b(snapshot|business snapshot|give me a snapshot|business summary|summarize my business|business overview|assess my business|evaluate my business|review my business)\b/i.test(text);
+// ── Nabad Score ───────────────────────────────────────────────────────────────
+function isIdeaScoringRequest(text = '') {
+  return /\b(score|rate|evaluate|assess|rank|grade|analyse|analyze)\b.{0,40}\b(idea|concept|business|startup|this|it)\b/i.test(text)
+    || /\b(how (good|strong|viable|solid) is)\b.{0,30}\b(idea|concept|business|this)\b/i.test(text)
+    || /\bnabad score\b/i.test(text);
+}
+async function generateNabadScore(messages = [], openaiClient) {
+  const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
+  const prompt = `Analyse this business idea and return a JSON Nabad Score:
+{
+  "ideaSummary": "one-line summary of the business idea",
+  "scores": {
+    "marketDemand": {"score": 75, "comment": "explanation"},
+    "differentiation": {"score": 68, "comment": "explanation"},
+    "monetization": {"score": 80, "comment": "explanation"},
+    "executionDifficulty": {"score": 55, "comment": "lower is easier"},
+    "timing": {"score": 72, "comment": "explanation"}
+  },
+  "overallScore": 70,
+  "verdict": "one bold sentence verdict",
+  "topStrength": "biggest strength",
+  "biggestRisk": "biggest risk",
+  "recommendation": "what to do next"
+}
+Context: ${context.slice(0, 2000)}`;
+  const resp = await openaiClient.chat.completions.create({
+    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
+    max_tokens: 700, temperature: 0.7
+  });
+  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+}
+function buildScoreCard(data = {}) {
+  const esc = escapeHtml;
+  const scores = data.scores || {};
+  const scoreItems = [
+    { key: 'marketDemand', label: 'Market Demand', icon: '📊' },
+    { key: 'differentiation', label: 'Differentiation', icon: '🎯' },
+    { key: 'monetization', label: 'Monetization', icon: '💰' },
+    { key: 'executionDifficulty', label: 'Execution Ease', icon: '⚙️' },
+    { key: 'timing', label: 'Timing', icon: '⏱️' }
+  ].filter(item => scores[item.key]);
+  const overall = data.overallScore || 0;
+  const scoreColor = overall >= 75 ? '#2ecc71' : overall >= 55 ? '#f39c12' : '#e74c3c';
+  const bars = scoreItems.map(item => {
+    const s = scores[item.key]; const pct = Math.min(100, Math.max(0, s.score || 0));
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:13px">${item.icon} ${esc(item.label)}</span>
+        <span style="font-size:13px;font-weight:700;color:${pct>=70?'#2ecc71':pct>=50?'#f39c12':'#e74c3c'}">${pct}</span>
+      </div>
+      <div style="background:rgba(255,255,255,.1);border-radius:99px;height:6px;overflow:hidden">
+        <div data-score="${pct}" style="height:100%;border-radius:99px;background:${pct>=70?'#2ecc71':pct>=50?'#f39c12':'#e74c3c'};width:${pct}%"></div>
+      </div>
+      ${s.comment ? `<div style="font-size:11px;opacity:.65;margin-top:3px">${esc(s.comment)}</div>` : ''}
+    </div>`;
+  }).join('');
+  return `<div data-nabad-card="score" style="background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  <div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:48px;font-weight:800;color:${scoreColor}">${overall}</div>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;opacity:.6">Nabad Score</div>
+    ${data.ideaSummary ? `<div style="font-size:13px;opacity:.8;margin-top:6px;font-style:italic">${esc(data.ideaSummary)}</div>` : ''}
+  </div>
+  ${bars}
+  ${data.verdict ? `<div style="background:rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-top:16px;font-size:14px;font-weight:600;text-align:center">${esc(data.verdict)}</div>` : ''}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+    ${data.topStrength ? `<div style="background:rgba(46,204,113,.12);border-radius:8px;padding:10px"><div style="font-size:10px;opacity:.6;margin-bottom:4px">💪 TOP STRENGTH</div><div style="font-size:12px">${esc(data.topStrength)}</div></div>` : ''}
+    ${data.biggestRisk ? `<div style="background:rgba(231,76,60,.12);border-radius:8px;padding:10px"><div style="font-size:10px;opacity:.6;margin-bottom:4px">⚠️ BIGGEST RISK</div><div style="font-size:12px">${esc(data.biggestRisk)}</div></div>` : ''}
+  </div>
+  ${data.recommendation ? `<div style="margin-top:12px;padding:12px;background:rgba(52,152,219,.15);border-radius:8px;border-left:3px solid #3498db"><div style="font-size:11px;opacity:.6;margin-bottom:4px">🚀 NEXT MOVE</div><div style="font-size:13px">${esc(data.recommendation)}</div></div>` : ''}
+</div>`;
 }
 
-// ── YES INTENT ROUTER ─────────────────────────────────────────
-const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|let's go|let's do it|do that|make it|create it|show me|generate it)$/i;
+// ── Pricing Table ─────────────────────────────────────────────────────────────
+function isPricingTableRequest(text = '') {
+  return /\b(pricing table|price table|pricing plan|pricing tier|tier(ed)? pricing|package price|service price|how much (should|do|to) (i |we )?charge|price my (service|offer|package|product))\b/i.test(text)
+    || /\b(create|build|show|give|make|design)\b.{0,30}\b(pricing|price plan|packages?)\b/i.test(text);
+}
+async function generatePricingTable(messages = [], location = '', openaiClient) {
+  const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
+  const prompt = `Create a professional pricing table JSON for this business:
+{
+  "title": "Service Pricing",
+  "subtitle": "Choose the plan that fits your needs",
+  "currency": "USD",
+  "tiers": [
+    {
+      "name": "Starter",
+      "price": "500",
+      "period": "month",
+      "description": "Perfect for getting started",
+      "features": ["Feature 1", "Feature 2", "Feature 3"],
+      "cta": "Get Started",
+      "highlighted": false
+    },
+    {
+      "name": "Growth",
+      "price": "1200",
+      "period": "month",
+      "description": "For growing businesses",
+      "features": ["Everything in Starter", "Feature 4", "Feature 5", "Feature 6"],
+      "cta": "Most Popular",
+      "highlighted": true
+    },
+    {
+      "name": "Scale",
+      "price": "2500",
+      "period": "month",
+      "description": "Full-service solution",
+      "features": ["Everything in Growth", "Feature 7", "Feature 8", "Feature 9", "Feature 10"],
+      "cta": "Let's Scale",
+      "highlighted": false
+    }
+  ]
+}
+Use realistic pricing for their market. Location: ${location || 'not specified'}.
+Context: ${context.slice(0, 1500)}`;
+  const resp = await openaiClient.chat.completions.create({
+    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
+    max_tokens: 800, temperature: 0.75
+  });
+  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+}
+function buildPricingTableCard(data = {}) {
+  const esc = escapeHtml;
+  const tiers = Array.isArray(data.tiers) ? data.tiers : [];
+  const currency = data.currency || 'USD';
+  const symbols = { USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SAR: 'SAR ', EGP: 'EGP ' };
+  const sym = symbols[currency] || '$';
+  const tierHtml = tiers.map(tier => {
+    const features = normalizeList(tier.features || []).map(f => `<tr><td style="padding:6px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.06)">✓ ${esc(f)}</td></tr>`).join('');
+    return `<div style="flex:1;min-width:200px;background:${tier.highlighted ? 'linear-gradient(135deg,#6c5ce7,#a855f7)' : 'rgba(255,255,255,.05)'};border-radius:12px;padding:20px;border:${tier.highlighted ? '2px solid #a855f7' : '1px solid rgba(255,255,255,.1)'};position:relative">
+      ${tier.highlighted ? '<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#a855f7;color:#fff;font-size:11px;font-weight:700;padding:3px 14px;border-radius:99px;white-space:nowrap">⭐ POPULAR</div>' : ''}
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">${esc(tier.name || '')}</div>
+      <div style="margin:10px 0"><span style="font-size:28px;font-weight:800">${sym}${esc(String(tier.price || ''))}</span><span style="font-size:12px;opacity:.6">/${tier.period || 'mo'}</span></div>
+      <div style="font-size:12px;opacity:.7;margin-bottom:12px">${esc(tier.description || '')}</div>
+      <table style="width:100%;border-collapse:collapse"><tbody>${features}</tbody></table>
+      <div style="margin-top:14px;text-align:center"><span style="display:inline-block;background:${tier.highlighted ? 'rgba(255,255,255,.25)' : 'rgba(168,85,247,.3)'};color:#fff;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">${esc(tier.cta || 'Choose Plan')}</span></div>
+    </div>`;
+  }).join('');
+  return `<div data-nabad-card="pricing" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  <div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:20px;font-weight:700">${esc(data.title || 'Pricing Plans')}</div>
+    ${data.subtitle ? `<div style="font-size:13px;opacity:.7;margin-top:4px">${esc(data.subtitle)}</div>` : ''}
+  </div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">${tierHtml}</div>
+</div>`;
+}
+
+// ── Offer Card ────────────────────────────────────────────────────────────────
+function isOfferCardRequest(text = '') {
+  return /\b(offer card|build (me )?(an? )?offer|create (an? )?offer|design (an? )?offer|make (an? )?offer card|structure (my |the |this )?offer)\b/i.test(text)
+    || /\b(flagship (offer|package|product)|signature (offer|package|service)|premium (offer|package))\b.{0,30}\b(card|build|create|design)\b/i.test(text)
+    || /\b(build|create|design|make)\b.{0,30}\b(flagship|signature|premium)\b.{0,30}\b(offer|package|service)\b/i.test(text);
+}
+async function generateOfferCard(messages = [], location = '', openaiClient) {
+  const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
+  const prompt = `Create an irresistible offer card JSON for this business:
+{
+  "offerName": "The Offer Name",
+  "tagline": "Compelling one-line value proposition",
+  "price": "3500",
+  "currency": "USD",
+  "period": "one-time",
+  "duration": "90 days",
+  "targetClient": "Who this is for",
+  "transformation": "The main transformation/outcome",
+  "inclusions": ["Deliverable 1", "Deliverable 2", "Deliverable 3", "Deliverable 4", "Deliverable 5"],
+  "bonuses": ["Bonus 1", "Bonus 2"],
+  "guarantee": "30-day satisfaction guarantee",
+  "urgency": "Only 3 spots available this month",
+  "tags": ["Personal Branding", "Executive", "Premium"]
+}
+Location: ${location || 'not specified'}. Context: ${context.slice(0, 1500)}`;
+  const resp = await openaiClient.chat.completions.create({
+    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
+    max_tokens: 700, temperature: 0.8
+  });
+  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+}
+function buildOfferCard(data = {}) {
+  const esc = escapeHtml;
+  const symbols = { USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SAR: 'SAR ', EGP: 'EGP ' };
+  const sym = symbols[data.currency || 'USD'] || '$';
+  const inclusions = normalizeList(data.inclusions || []).map(i => `<li style="padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.06)">✅ ${esc(i)}</li>`).join('');
+  const bonuses = normalizeList(data.bonuses || []).map(b => `<li style="padding:5px 0;font-size:13px">🎁 ${esc(b)}</li>`).join('');
+  const tags = normalizeList(data.tags || []).map(t => `<span style="background:rgba(255,255,255,.12);padding:3px 10px;border-radius:99px;font-size:11px">${esc(t)}</span>`).join(' ');
+  return `<div data-nabad-card="offer" style="background:linear-gradient(135deg,#1a0a00,#2d1200,#3d1f00);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit;border:1px solid rgba(255,165,0,.25)">
+  <div style="text-align:center;margin-bottom:16px">
+    ${tags ? `<div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center">${tags}</div>` : ''}
+    <div style="font-size:22px;font-weight:800;line-height:1.2">${esc(data.offerName || 'Your Offer')}</div>
+    ${data.tagline ? `<div style="font-size:13px;opacity:.75;margin-top:6px;font-style:italic">${esc(data.tagline)}</div>` : ''}
+    ${data.targetClient ? `<div style="font-size:12px;margin-top:6px;padding:4px 12px;background:rgba(255,165,0,.15);border-radius:99px;display:inline-block">👤 ${esc(data.targetClient)}</div>` : ''}
+  </div>
+  <div style="background:linear-gradient(135deg,rgba(255,165,0,.2),rgba(255,140,0,.1));border-radius:12px;padding:16px;text-align:center;margin-bottom:16px;border:1px solid rgba(255,165,0,.3)">
+    <div style="font-size:40px;font-weight:800;color:#ffa500">${sym}${esc(String(data.price || ''))}</div>
+    <div style="font-size:12px;opacity:.7">${esc(data.period || '')}${data.duration ? ` · ${esc(data.duration)}` : ''}</div>
+    ${data.transformation ? `<div style="font-size:13px;margin-top:8px;opacity:.85">🎯 ${esc(data.transformation)}</div>` : ''}
+  </div>
+  ${inclusions ? `<div style="margin-bottom:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:8px">What's Included</div><ul style="margin:0;padding:0;list-style:none">${inclusions}</ul></div>` : ''}
+  ${bonuses ? `<div style="margin-bottom:12px;background:rgba(255,215,0,.08);border-radius:10px;padding:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:6px">Bonuses</div><ul style="margin:0;padding:0;list-style:none">${bonuses}</ul></div>` : ''}
+  ${data.guarantee ? `<div style="font-size:12px;opacity:.7;text-align:center;margin-top:8px">🛡️ ${esc(data.guarantee)}</div>` : ''}
+  ${data.urgency ? `<div style="margin-top:12px;background:rgba(255,0,0,.1);border-radius:8px;padding:10px;text-align:center;font-size:12px;font-weight:600;color:#ff6b6b">⚡ ${esc(data.urgency)}</div>` : ''}
+</div>`;
+}
+
+// ── Positioning Matrix ────────────────────────────────────────────────────────
+function isPositioningMatrixRequest(text = '') {
+  return /\b(positioning matrix|competitive matrix|position (me|us|my brand)|compare (me|us) to|vs\b.{0,50}\b(competitor|agency|freelancer|brand)|market position|where do (i|we) sit|differentiat(e|ion) map)\b/i.test(text)
+    || /\b(show|create|build|make|generate)\b.{0,30}\b(positioning|competitive|market|matrix)\b/i.test(text);
+}
+async function generatePositioningMatrix(messages = [], location = '', openaiClient) {
+  const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
+  const prompt = `Create a positioning matrix JSON for this business:
+{
+  "title": "Market Positioning Map",
+  "xAxis": {"label": "Price", "low": "Low Cost", "high": "Premium"},
+  "yAxis": {"label": "Specialization", "low": "Generalist", "high": "Specialist"},
+  "entities": [
+    {"name": "You", "x": 75, "y": 80, "quadrant": "sweet-spot", "description": "Your position"},
+    {"name": "Competitor A", "x": 30, "y": 40, "quadrant": "avoid", "description": "Their position"},
+    {"name": "Competitor B", "x": 70, "y": 30, "quadrant": "differentiate", "description": "Their position"},
+    {"name": "Competitor C", "x": 25, "y": 75, "quadrant": "niche", "description": "Their position"}
+  ],
+  "insight": "Strategic insight about your positioning",
+  "recommendation": "What to do to strengthen your position"
+}
+Context: ${context.slice(0, 1500)}`;
+  const resp = await openaiClient.chat.completions.create({
+    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
+    max_tokens: 700, temperature: 0.75
+  });
+  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+}
+function buildPositioningMatrixCard(data = {}) {
+  const esc = escapeHtml;
+  const entities = Array.isArray(data.entities) ? data.entities : [];
+  const quadrantColors = { 'sweet-spot': '#2ecc71', 'differentiate': '#3498db', 'niche': '#f39c12', 'avoid': '#e74c3c' };
+  const quadrantLabels = { 'sweet-spot': 'Sweet Spot', 'differentiate': 'Differentiate', 'niche': 'Niche', 'avoid': 'Crowded' };
+  const entityDots = entities.map(e => {
+    const color = quadrantColors[e.quadrant] || '#95a5a6';
+    const isYou = e.name === 'You';
+    return `<div style="position:absolute;left:${e.x}%;top:${100 - e.y}%;transform:translate(-50%,-50%);z-index:2">
+      <div style="width:${isYou ? 16 : 12}px;height:${isYou ? 16 : 12}px;border-radius:50%;background:${color};border:${isYou ? '3px solid #fff' : '2px solid rgba(255,255,255,.4)'};box-shadow:0 0 ${isYou ? 10 : 6}px ${color}"></div>
+      <div style="position:absolute;top:${isYou ? -22 : -20}px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:${isYou ? 12 : 11}px;font-weight:${isYou ? 700 : 500};color:${color}">${esc(e.name)}</div>
+    </div>`;
+  }).join('');
+  const legendItems = Object.entries(quadrantColors).map(([key, color]) =>
+    `<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:50%;background:${color}"></div><span style="font-size:11px;opacity:.8">${quadrantLabels[key]}</span></div>`
+  ).join('');
+  return `<div data-nabad-card="matrix" style="background:linear-gradient(135deg,#0d0d1a,#1a1a2e);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  <div style="text-align:center;margin-bottom:16px"><div style="font-size:18px;font-weight:700">${esc(data.title || 'Positioning Matrix')}</div></div>
+  <div style="position:relative;width:100%;padding-top:100%;max-width:320px;margin:0 auto">
+    <div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px">
+      ${['niche', 'sweet-spot', 'avoid', 'differentiate'].map((q, i) =>
+        `<div data-quadrant="${q}" style="background:${quadrantColors[q]}18;border-radius:${[8,8,8,8][i]}px;border:1px solid ${quadrantColors[q]}30"></div>`
+      ).join('')}
+    </div>
+    <div style="position:absolute;inset:0">${entityDots}</div>
+    ${data.xAxis ? `<div style="position:absolute;bottom:-20px;left:0;right:0;display:flex;justify-content:space-between;font-size:10px;opacity:.6"><span>${esc(data.xAxis.low||'')}</span><span style="font-weight:600">${esc(data.xAxis.label||'')}</span><span>${esc(data.xAxis.high||'')}</span></div>` : ''}
+    ${data.yAxis ? `<div style="position:absolute;top:0;bottom:0;left:-45px;display:flex;flex-direction:column;justify-content:space-between;font-size:10px;opacity:.6;text-align:right;width:40px"><span>${esc(data.yAxis.high||'')}</span><span style="font-weight:600;transform:rotate(-90deg)">${esc(data.yAxis.label||'')}</span><span>${esc(data.yAxis.low||'')}</span></div>` : ''}
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:30px">${legendItems}</div>
+  ${data.insight ? `<div style="margin-top:14px;background:rgba(255,255,255,.06);border-radius:10px;padding:12px"><div style="font-size:11px;opacity:.6;margin-bottom:4px">💡 INSIGHT</div><div style="font-size:13px">${esc(data.insight)}</div></div>` : ''}
+  ${data.recommendation ? `<div style="margin-top:10px;background:rgba(52,152,219,.12);border-radius:10px;padding:12px;border-left:3px solid #3498db"><div style="font-size:11px;opacity:.6;margin-bottom:4px">🎯 RECOMMENDATION</div><div style="font-size:13px">${esc(data.recommendation)}</div></div>` : ''}
+</div>`;
+}
+
+// ── 30-Day Action Plan ────────────────────────────────────────────────────────
+function isActionPlanRequest(text = '') {
+  return /\b(30.?day|thirty.?day)\b.{0,30}\b(plan|action|roadmap|strategy)\b/i.test(text)
+    || /\b(action plan|roadmap|step.?by.?step plan|weekly plan|monthly plan)\b/i.test(text)
+    || /\b(what (should|do) i do (next|first|now)|next steps|where (do i|to) start)\b.{0,30}\b(plan|roadmap|steps)\b/i.test(text);
+}
+async function generateActionPlan(messages = [], location = '', openaiClient) {
+  const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
+  const prompt = `Create a 30-day action plan JSON for this business goal:
+{
+  "title": "30-Day Action Plan",
+  "goal": "The main goal to achieve",
+  "weeks": [
+    {
+      "weekNumber": 1,
+      "theme": "Week theme/focus",
+      "icon": "🎯",
+      "actions": [
+        {"day": "Day 1-2", "action": "Specific action", "priority": "high"},
+        {"day": "Day 3-4", "action": "Specific action", "priority": "medium"},
+        {"day": "Day 5-7", "action": "Specific action", "priority": "high"}
+      ]
+    },
+    {"weekNumber": 2, "theme": "Week 2 theme", "icon": "📈", "actions": [...]},
+    {"weekNumber": 3, "theme": "Week 3 theme", "icon": "🚀", "actions": [...]},
+    {"weekNumber": 4, "theme": "Week 4 theme", "icon": "🏆", "actions": [...]}
+  ],
+  "successMetric": "How to measure success at day 30",
+  "keyResources": ["Resource 1", "Resource 2"]
+}
+Context: ${context.slice(0, 1500)}. Location: ${location || 'not specified'}.`;
+  const resp = await openaiClient.chat.completions.create({
+    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
+    max_tokens: 900, temperature: 0.75
+  });
+  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+}
+function buildActionPlanCard(data = {}) {
+  const esc = escapeHtml;
+  const weeks = Array.isArray(data.weeks) ? data.weeks : [];
+  const weekColors = ['#6c5ce7', '#00b894', '#e17055', '#fdcb6e'];
+  const weekHtml = weeks.map((week, i) => {
+    const color = weekColors[i % weekColors.length];
+    const actions = Array.isArray(week.actions) ? week.actions.map(a =>
+      `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);align-items:flex-start">
+        <span style="background:${a.priority === 'high' ? 'rgba(255,100,100,.2)' : 'rgba(255,255,255,.08)'};color:${a.priority === 'high' ? '#ff6b6b' : 'rgba(255,255,255,.6)'};font-size:10px;padding:2px 6px;border-radius:4px;white-space:nowrap;margin-top:2px">${esc(a.day || '')}</span>
+        <span style="font-size:13px;line-height:1.4">${esc(a.action || '')}</span>
+      </div>`
+    ).join('') : '';
+    return `<div style="background:rgba(255,255,255,.04);border-radius:12px;padding:14px;border-left:3px solid ${color}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:20px">${esc(week.icon || '📅')}</span>
+        <div><div style="font-size:11px;opacity:.5">WEEK ${week.weekNumber}</div><div style="font-size:14px;font-weight:600;color:${color}">${esc(week.theme || '')}</div></div>
+      </div>
+      ${actions}
+    </div>`;
+  }).join('');
+  return `<div data-nabad-card="action-plan" style="background:linear-gradient(135deg,#0a0a1a,#141428);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  <div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:20px;font-weight:700">${esc(data.title || '30-Day Action Plan')}</div>
+    ${data.goal ? `<div style="font-size:13px;opacity:.7;margin-top:6px">🎯 Goal: ${esc(data.goal)}</div>` : ''}
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px">${weekHtml}</div>
+  ${data.successMetric ? `<div style="margin-top:16px;background:rgba(255,215,0,.08);border-radius:10px;padding:12px;border:1px solid rgba(255,215,0,.2)"><div style="font-size:11px;opacity:.6;margin-bottom:4px">🏆 SUCCESS METRIC</div><div style="font-size:13px">${esc(data.successMetric)}</div></div>` : ''}
+</div>`;
+}
+
+// ── HTML reply enforcer ───────────────────────────────────────────────────────
+function ensureHtmlReply(text = '') {
+  if (!text.trim()) return '<p>I hit a snag. Try rephrasing your question.</p>';
+  if (/<[a-z][\s\S]*>/i.test(text)) return text;
+  return '<p>' + text.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+}
+
+// ── YES-intent router helper ──────────────────────────────────────────────────
+const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|yea|sounds good|let's go|let's do it|do that|go for it)[\s!.]*$/i;
 
 function getLastOffer(msgs = []) {
   const assistantMsgs = msgs
     .filter(m => m.role === 'assistant')
-    .map(m => sanitizePromptText(getMessageText(m.content), 600).toLowerCase());
+    .map(m => getMessageText(m.content).toLowerCase());
   const last = assistantMsgs[assistantMsgs.length - 1] || '';
-  if (/offer card/i.test(last))                             return 'offer';
-  if (/business snapshot|quick snapshot/i.test(last))       return 'snapshot';
-  if (/30.?day action plan|action plan/i.test(last))        return 'action-plan';
+  // Offer card — catches "offer card" AND "structure this as a full offer card"
+  if (/offer card|structure (this|it|your offer) as (a |an )?(full )?offer/i.test(last)) return 'offer';
+  if (/business snapshot/i.test(last)) return 'snapshot';
+  if (/30.?day action plan|action plan/i.test(last)) return 'action-plan';
   if (/nabad score|score (this|your|the) idea/i.test(last)) return 'score';
-  if (/pricing table/i.test(last))                          return 'pricing';
-  if (/positioning matrix/i.test(last))                     return 'matrix';
+  if (/pricing table/i.test(last)) return 'pricing';
+  if (/positioning matrix/i.test(last)) return 'matrix';
   return null;
 }
 
-async function generateBusinessSnapshot(messages = [], location = '', openaiClient) {
-  const userText = messages.filter(m => m.role === 'user')
-    .map(m => sanitizePromptText(m.content, 400)).join('\n');
-  const locationContext = location
-    ? `The user is based in: ${location}. Factor in country-specific costs, legal requirements, and market conditions.`
-    : 'Location unknown — give general advice.';
-  const completion = await openaiClient.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      {
-        role: 'system',
-        content: `You are Nabad, an elite business advisor. Generate a Business Snapshot.
-Return ONLY valid JSON:
-{
-  "business_summary": "1-2 sentence summary of the business",
-  "opportunity": "The single biggest opportunity — be specific",
-  "risk": "The single most important risk — be honest",
-  "recommendation": "Your #1 bold actionable recommendation",
-  "local_insight": "Country/market specific insight",
-  "next_move": "Single most important next step this week"
-}
-Rules: Be specific. Be honest about risks. local_insight must reference their country. recommendation must be bold and actionable. next_move must be doable in 7 days.`
-      },
-      { role: 'user', content: `Conversation:\n${userText}\n\nLocation: ${location || 'unknown'}\n${locationContext}\n\nReturn JSON only.` }
-    ],
-    temperature: 0.7, max_tokens: 600
-  });
-  const raw = completion?.choices?.[0]?.message?.content || '';
-  const parsed = tryParseJsonBlock(raw);
-  if (!parsed) throw new Error('Snapshot JSON parse failed');
-  return parsed;
-}
-
-function buildSnapshotCard(data = {}, location = '') {
-  const safe = (val = '') => escapeHtml(String(val || ''));
-  return `<div data-nabad-card="snapshot">
-<h3>📊 Your Business Snapshot</h3>
-${location ? `<p style="font-size:13px;color:#64748b;margin-bottom:14px;">📍 ${safe(location)}</p>` : ''}
-<p><b>What I understand:</b> ${safe(data.business_summary)}</p>
-<ul>
-  <li><b>💡 Biggest Opportunity:</b> ${safe(data.opportunity)}</li>
-  <li><b>⚠️ Key Risk:</b> ${safe(data.risk)}</li>
-  <li><b>🎯 Top Recommendation:</b> ${safe(data.recommendation)}</li>
-  ${data.local_insight ? `<li><b>📍 Local Insight (${safe(location)}):</b> ${safe(data.local_insight)}</li>` : ''}
-</ul>
-<p><b>🚀 Your next move this week:</b> ${safe(data.next_move)}</p>
-</div>`;
-}
-
-// ── NABAD SCORE ───────────────────────────────────────────────
-function isIdeaScoringRequest(text = '') {
-  const lower = String(text || '').toLowerCase();
-  const isExplicitScoreRequest = /\b(score|rate|evaluate|assess|review|rank|give me a score|how good is|is this a good idea|is this viable|will this work|what are my chances|what do you think of my idea|thoughts on my idea)\b/i.test(lower);
-  const hasSpecificIdea =
-    /\b(my idea is|my business idea is|i want to (launch|start|build|create|sell|offer)|i('m| am) (building|creating|launching|starting|selling)|i plan to|the idea is|it('s| is) a|i want to create a|i('m| am) thinking of (building|creating|launching|starting))\b/i.test(lower) &&
-    lower.split(' ').length >= 8;
-  return isExplicitScoreRequest || (hasSpecificIdea && lower.split(' ').length >= 10);
-}
-
-async function generateNabadScore(messages = [], lastUserMessage = '', location = '', openaiClient) {
-  const context = messages.slice(-8)
-    .map(m => `${m.role.toUpperCase()}: ${sanitizePromptText(m.content, 400)}`).join('\n');
-  const locationContext = location ? `User is based in ${location}. Factor this into scores.` : '';
-  const completion = await openaiClient.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      {
-        role: 'system',
-        content: `You are Nabad scoring a business idea. Return ONLY valid JSON:
-{
-  "idea_name": "short name max 8 words",
-  "scores": {
-    "market_demand":   { "score": 8, "reason": "one sharp sentence" },
-    "differentiation": { "score": 6, "reason": "one sharp sentence" },
-    "monetization":    { "score": 9, "reason": "one sharp sentence" },
-    "execution":       { "score": 7, "reason": "one sharp sentence" },
-    "timing":          { "score": 8, "reason": "one sharp sentence" }
-  },
-  "overall": 8,
-  "verdict": "one bold honest sentence",
-  "strongest_point": "what makes this genuinely strong",
-  "biggest_gap": "most important thing missing",
-  "bold_move": "one unexpected move to make this 10x better"
-}
-Scoring: 1-4 weak, 5-6 average, 7-8 strong, 9-10 exceptional. Be honest.
-overall = weighted avg (market_demand 25%, differentiation 20%, monetization 25%, execution 15%, timing 15%)
-${locationContext}`
-      },
-      { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\n\nScore this idea. Return JSON only.` }
-    ],
-    temperature: 0.65, max_tokens: 700
-  });
-  const raw = completion?.choices?.[0]?.message?.content || '';
-  const parsed = tryParseJsonBlock(raw);
-  if (!parsed) throw new Error('Score JSON parse failed');
-  return parsed;
-}
-
-function buildScoreCard(data = {}) {
-  const safe = (val = '') => escapeHtml(String(val || ''));
-  const scoreBar = (score = 0) => {
-    const pct = Math.min(Math.max(Number(score) || 0, 0), 10) * 10;
-    const color = pct >= 75 ? '#22c55e' : pct >= 55 ? '#f59e0b' : '#ef4444';
-    return `<div style="display:flex;align-items:center;gap:10px;margin:4px 0;">
-      <div style="flex:1;height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
-        <div style="width:${pct}%;height:100%;background:${color};border-radius:999px;"></div>
-      </div>
-      <span style="font-size:13px;font-weight:800;color:#0f172a;min-width:28px;">${safe(String(score))}/10</span>
-    </div>`;
-  };
-  const scores = data.scores || {};
-  const dimensions = [
-    { key: 'market_demand',   label: '📊 Market Demand'   },
-    { key: 'differentiation', label: '⚡ Differentiation'  },
-    { key: 'monetization',    label: '💰 Monetization'     },
-    { key: 'execution',       label: '🔧 Execution'        },
-    { key: 'timing',          label: '⏱ Timing'           }
-  ];
-  const overallPct = Math.min(Math.max(Number(data.overall) || 0, 0), 10) * 10;
-  const overallColor = overallPct >= 75 ? '#22c55e' : overallPct >= 55 ? '#f59e0b' : '#ef4444';
-  return `<div data-nabad-card="score">
-<h3>🎯 Nabad Score — ${safe(data.idea_name)}</h3>
-<p style="color:#475569;font-size:14px;margin-bottom:14px;">${safe(data.verdict)}</p>
-<div style="margin-bottom:16px;">
-${dimensions.map(d => {
-  const s = scores[d.key] || {};
-  return `<div style="margin-bottom:10px;">
-    <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-      <span style="font-size:13px;font-weight:700;color:#0f172a;">${d.label}</span>
-    </div>
-    ${scoreBar(s.score)}
-    <p style="font-size:12px;color:#64748b;margin:3px 0 0;">${safe(s.reason)}</p>
-  </div>`;
-}).join('')}
-</div>
-<div style="background:linear-gradient(135deg,#eff6ff,#f0fdf4);border-radius:14px;padding:14px;margin-bottom:14px;border:1px solid rgba(37,99,235,0.10);">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-    <span style="font-size:15px;font-weight:800;color:#0f172a;">Overall Score</span>
-    <span style="font-size:22px;font-weight:900;color:${overallColor};">${safe(String(data.overall))}/10</span>
-  </div>
-  <div style="height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
-    <div style="width:${overallPct}%;height:100%;background:${overallColor};border-radius:999px;"></div>
-  </div>
-</div>
-<ul>
-  <li><b>💪 Strongest point:</b> ${safe(data.strongest_point)}</li>
-  <li><b>🔍 Biggest gap:</b> ${safe(data.biggest_gap)}</li>
-  <li><b>🚀 Bold move:</b> ${safe(data.bold_move)}</li>
-</ul>
-</div>`;
-}
-
-// ── PRICING TABLE ─────────────────────────────────────────────
-function isPricingTableRequest(text = '') {
-  return /\b(pricing table|price table|pricing tiers|pricing plans|pricing packages|show me pricing|create pricing|build pricing|pricing structure|service tiers|package tiers|tier pricing|how should i price|what should i charge|pricing options|compare packages|package comparison)\b/i.test(text);
-}
-
-async function generatePricingTable(messages = [], lastUserMessage = '', location = '', openaiClient) {
-  const context = messages.slice(-8)
-    .map(m => `${m.role.toUpperCase()}: ${sanitizePromptText(m.content, 400)}`).join('\n');
-  const locationContext = location ? `User is based in ${location}. Use market-appropriate pricing for ${location}.` : '';
-  const completion = await openaiClient.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      {
-        role: 'system',
-        content: `You are Nabad, an elite offer architect. Generate a smart pricing table.
-Return ONLY valid JSON:
-{
-  "title": "short title for this pricing structure",
-  "intro": "one sentence explaining the pricing logic",
-  "tiers": [
-    {
-      "name": "tier name",
-      "price": "price with currency",
-      "period": "per month / per project / one-time",
-      "tagline": "one punchy sentence about who this is for",
-      "features": ["feature 1", "feature 2", "feature 3", "feature 4"],
-      "highlight": true
-    }
-  ],
-  "recommendation": "which tier you recommend and why",
-  "pricing_insight": "one sharp insight about the pricing strategy"
-}
-Rules: Create 3 tiers. Make middle tier highlight:true. Prices must be realistic. Features must be specific.
-${locationContext}`
-      },
-      { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\nLocation: ${location || 'unknown'}\n\nGenerate pricing table. Return JSON only.` }
-    ],
-    temperature: 0.7, max_tokens: 800
-  });
-  const raw = completion?.choices?.[0]?.message?.content || '';
-  const parsed = tryParseJsonBlock(raw);
-  if (!parsed) throw new Error('Pricing table JSON parse failed');
-  return parsed;
-}
-
-function buildPricingTableCard(data = {}) {
-  const safe = (val = '') => escapeHtml(String(val || ''));
-  const tiers = Array.isArray(data.tiers) ? data.tiers : [];
-  return `<div data-nabad-card="pricing">
-<h3>💰 ${safe(data.title)}</h3>
-<p style="color:#475569;font-size:14px;margin-bottom:16px;">${safe(data.intro)}</p>
-<div data-nabad-pricing-grid>
-${tiers.map(tier => `
-<div data-nabad-tier="${tier.highlight ? 'highlight' : 'normal'}">
-  ${tier.highlight ? `<div data-nabad-tier-badge>⭐ Recommended</div>` : ''}
-  <div data-nabad-tier-name>${safe(tier.name)}</div>
-  <div data-nabad-tier-price>${safe(tier.price)}</div>
-  <div data-nabad-tier-period>${safe(tier.period)}</div>
-  <div data-nabad-tier-tagline>${safe(tier.tagline)}</div>
-  <ul data-nabad-tier-features>
-    ${(tier.features || []).map(f => `<li>✓ ${safe(f)}</li>`).join('')}
-  </ul>
-</div>`).join('')}
-</div>
-<div data-nabad-pricing-footer>
-  <p><b>🎯 Nabad recommends:</b> ${safe(data.recommendation)}</p>
-  <p><b>💡 Pricing insight:</b> ${safe(data.pricing_insight)}</p>
-</div>
-</div>`;
-}
-
-// ── OFFER CARD ────────────────────────────────────────────────
-function isOfferCardRequest(text = '') {
-  return /\b(offer card|build my offer|create my offer|structure my offer|design my offer|package my offer|what's my offer|help me with my offer|offer breakdown|offer structure|show my offer|my service offer|craft my offer|write my offer)\b/i.test(text);
-}
-
-async function generateOfferCard(messages = [], lastUserMessage = '', location = '', openaiClient) {
-  const context = messages.slice(-8)
-    .map(m => `${m.role.toUpperCase()}: ${sanitizePromptText(m.content, 400)}`).join('\n');
-  const locationContext = location ? `User is based in ${location}.` : '';
-  const completion = await openaiClient.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      {
-        role: 'system',
-        content: `You are Nabad, an elite offer architect. Build a structured offer card.
-Return ONLY valid JSON:
-{
-  "offer_name": "compelling offer name",
-  "one_liner": "one powerful sentence that sells this offer",
-  "target_buyer": "specific description of who this is for",
-  "price": "price with currency and period",
-  "outcome": "the main transformation or result the buyer gets",
-  "deliverables": ["deliverable 1", "deliverable 2", "deliverable 3", "deliverable 4", "deliverable 5"],
-  "upsell": "natural upsell or next step after this offer",
-  "urgency": "reason to act now or unique advantage",
-  "bold_improvement": "one way to make this offer significantly stronger"
-}
-Rules: offer_name must be compelling. one_liner must focus on outcome. deliverables must be specific.
-${locationContext}`
-      },
-      { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\nLocation: ${location || 'unknown'}\n\nBuild offer card. Return JSON only.` }
-    ],
-    temperature: 0.75, max_tokens: 700
-  });
-  const raw = completion?.choices?.[0]?.message?.content || '';
-  const parsed = tryParseJsonBlock(raw);
-  if (!parsed) throw new Error('Offer card JSON parse failed');
-  return parsed;
-}
-
-function buildOfferCard(data = {}) {
-  const safe = (val = '') => escapeHtml(String(val || ''));
-  const deliverables = Array.isArray(data.deliverables) ? data.deliverables : [];
-  return `<div data-nabad-card="offer">
-<h3>💼 ${safe(data.offer_name)}</h3>
-<p data-nabad-offer-oneliner>${safe(data.one_liner)}</p>
-<div data-nabad-offer-grid>
-  <div data-nabad-offer-block>
-    <div data-nabad-offer-label>For</div>
-    <div data-nabad-offer-value>${safe(data.target_buyer)}</div>
-  </div>
-  <div data-nabad-offer-block>
-    <div data-nabad-offer-label>Price</div>
-    <div data-nabad-offer-value data-nabad-offer-price>${safe(data.price)}</div>
-  </div>
-  <div data-nabad-offer-block data-nabad-offer-full>
-    <div data-nabad-offer-label>Outcome</div>
-    <div data-nabad-offer-value>${safe(data.outcome)}</div>
-  </div>
-</div>
-<div data-nabad-offer-section>
-  <div data-nabad-offer-section-title>What's included</div>
-  <ul data-nabad-offer-deliverables>
-    ${deliverables.map(d => `<li>✓ ${safe(d)}</li>`).join('')}
-  </ul>
-</div>
-<div data-nabad-offer-section>
-  <div data-nabad-offer-section-title>🔼 Natural upsell</div>
-  <p>${safe(data.upsell)}</p>
-</div>
-<div data-nabad-offer-section>
-  <div data-nabad-offer-section-title>⚡ Urgency / Advantage</div>
-  <p>${safe(data.urgency)}</p>
-</div>
-<div data-nabad-offer-improvement>
-  <b>🚀 Make it stronger:</b> ${safe(data.bold_improvement)}
-</div>
-</div>`;
-}
-
-// ── POSITIONING MATRIX ────────────────────────────────────────
-function isPositioningMatrixRequest(text = '') {
-  return /\b(positioning matrix|positioning map|competitive map|market map|where do i sit|where do i stand|how do i compare|competitive positioning|market positioning|position my brand|brand positioning|plot my position|2x2|two by two|quadrant)\b/i.test(text);
-}
-
-async function generatePositioningMatrix(messages = [], lastUserMessage = '', openaiClient) {
-  const context = messages.slice(-8)
-    .map(m => `${m.role.toUpperCase()}: ${sanitizePromptText(m.content, 400)}`).join('\n');
-  const completion = await openaiClient.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      {
-        role: 'system',
-        content: `You are Nabad. Generate a positioning matrix showing the user's brand vs competitors.
-Return ONLY valid JSON:
-{
-  "title": "short title for this matrix",
-  "x_axis": { "label": "axis label", "left": "left extreme label", "right": "right extreme label" },
-  "y_axis": { "label": "axis label", "bottom": "bottom extreme label", "top": "top extreme label" },
-  "players": [
-    { "name": "Brand name", "x": 75, "y": 80, "is_user": true, "description": "one sentence" },
-    { "name": "Competitor 1", "x": 30, "y": 60, "is_user": false, "description": "one sentence" },
-    { "name": "Competitor 2", "x": 65, "y": 30, "is_user": false, "description": "one sentence" },
-    { "name": "Competitor 3", "x": 20, "y": 25, "is_user": false, "description": "one sentence" }
-  ],
-  "insight": "the key strategic insight from this map",
-  "opportunity": "the white space or gap the user should own",
-  "recommendation": "one bold positioning move"
-}`
-      },
-      { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\n\nGenerate positioning matrix. Return JSON only.` }
-    ],
-    temperature: 0.7, max_tokens: 800
-  });
-  const raw = completion?.choices?.[0]?.message?.content || '';
-  const parsed = tryParseJsonBlock(raw);
-  if (!parsed) throw new Error('Positioning matrix JSON parse failed');
-  return parsed;
-}
-
-function buildPositioningMatrixCard(data = {}) {
-  const safe = (val = '') => escapeHtml(String(val || ''));
-  const players = Array.isArray(data.players) ? data.players : [];
-  const dots = players.map(p => {
-    const x = Math.min(Math.max(Number(p.x) || 50, 8), 92);
-    const y = Math.min(Math.max(Number(p.y) || 50, 8), 92);
-    const flippedY = 100 - y;
-    const color = p.is_user ? '#2563eb' : '#94a3b8';
-    const size  = p.is_user ? 14 : 10;
-    const fontWeight = p.is_user ? '800' : '600';
-    const fontSize   = p.is_user ? '12px' : '11px';
-    return `<div style="position:absolute;left:${x}%;top:${flippedY}%;transform:translate(-50%,-50%);z-index:${p.is_user ? 3 : 2};">
-      <div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.18);"></div>
-      <div style="position:absolute;top:${size + 4}px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:${fontSize};font-weight:${fontWeight};color:${p.is_user ? '#1e3a8a' : '#475569'};background:rgba(255,255,255,0.92);padding:1px 5px;border-radius:4px;">${safe(p.name)}</div>
-    </div>`;
-  }).join('');
-  return `<div data-nabad-card="matrix">
-<h3>🗺️ ${safe(data.title)}</h3>
-<div data-nabad-matrix-wrap>
-  <div data-nabad-matrix-y-top>${safe(data.y_axis?.top)}</div>
-  <div data-nabad-matrix-row>
-    <div data-nabad-matrix-y-label>${safe(data.y_axis?.label)}</div>
-    <div data-nabad-matrix-grid style="position:relative;width:100%;padding-bottom:100%;background:#f8faff;border:1px solid rgba(37,99,235,0.10);border-radius:12px;">
-      <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(37,99,235,0.15);"></div>
-      <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(37,99,235,0.15);"></div>
-      ${dots}
-    </div>
-  </div>
-  <div data-nabad-matrix-y-bottom>${safe(data.y_axis?.bottom)}</div>
-  <div data-nabad-matrix-x-axis>
-    <span>${safe(data.x_axis?.left)}</span>
-    <span>${safe(data.x_axis?.label)}</span>
-    <span>${safe(data.x_axis?.right)}</span>
-  </div>
-</div>
-<div data-nabad-matrix-legend>
-  ${players.map(p => `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">
-    <div style="width:10px;height:10px;border-radius:50%;background:${p.is_user ? '#2563eb' : '#94a3b8'};flex-shrink:0;margin-top:3px;"></div>
-    <span style="font-size:12px;color:#334155;"><b>${safe(p.name)}</b> — ${safe(p.description)}</span>
-  </div>`).join('')}
-</div>
-<div style="margin-top:14px;padding:12px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.14);border-radius:12px;">
-  <p style="margin:0 0 6px;font-size:13px;color:#334155;"><b>🔍 Key insight:</b> ${safe(data.insight)}</p>
-  <p style="margin:0 0 6px;font-size:13px;color:#334155;"><b>⚡ White space:</b> ${safe(data.opportunity)}</p>
-  <p style="margin:0;font-size:13px;color:#334155;"><b>🎯 Bold move:</b> ${safe(data.recommendation)}</p>
-</div>
-</div>`;
-}
-
-// ── 30-DAY ACTION PLAN ────────────────────────────────────────
-function isActionPlanRequest(text = '') {
-  return /\b(action plan|30.?day|30 day plan|weekly plan|roadmap|step by step|next steps|what should i do|give me a plan|build me a plan|create a plan|daily plan|weekly roadmap|monthly plan|game plan|execution plan|launch plan)\b/i.test(text);
-}
-
-async function generateActionPlan(messages = [], lastUserMessage = '', location = '', openaiClient) {
-  const context = messages.slice(-8)
-    .map(m => `${m.role.toUpperCase()}: ${sanitizePromptText(m.content, 400)}`).join('\n');
-  const locationContext = location ? `User is based in ${location}. Include location-specific steps where relevant.` : '';
-  const completion = await openaiClient.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      {
-        role: 'system',
-        content: `You are Nabad. Generate a focused 30-day action plan.
-Return ONLY valid JSON:
-{
-  "title": "short title for this plan",
-  "goal": "the main goal this plan achieves in 30 days",
-  "weeks": [
-    {
-      "week": 1,
-      "theme": "week theme",
-      "focus": "what this week is all about in one sentence",
-      "tasks": ["task 1", "task 2", "task 3", "task 4"]
-    },
-    { "week": 2, "theme": "...", "focus": "...", "tasks": ["..."] },
-    { "week": 3, "theme": "...", "focus": "...", "tasks": ["..."] },
-    { "week": 4, "theme": "...", "focus": "...", "tasks": ["..."] }
-  ],
-  "day_one_action": "the single most important thing to do TODAY",
-  "success_metric": "how to know if this 30-day plan worked",
-  "warning": "the most common mistake to avoid"
-}
-Rules: Tasks must be specific. day_one_action must be startable in 2 hours. Each week builds on previous.
-${locationContext}`
-      },
-      { role: 'user', content: `Conversation:\n${context}\n\nLatest: ${lastUserMessage}\nLocation: ${location || 'unknown'}\n\nGenerate 30-day action plan. Return JSON only.` }
-    ],
-    temperature: 0.7, max_tokens: 900
-  });
-  const raw = completion?.choices?.[0]?.message?.content || '';
-  const parsed = tryParseJsonBlock(raw);
-  if (!parsed) throw new Error('Action plan JSON parse failed');
-  return parsed;
-}
-
-function buildActionPlanCard(data = {}) {
-  const safe = (val = '') => escapeHtml(String(val || ''));
-  const weeks = Array.isArray(data.weeks) ? data.weeks : [];
-  const weekColors = ['#2563eb', '#0891b2', '#7c3aed', '#059669'];
-  return `<div data-nabad-card="action-plan">
-<h3>📅 ${safe(data.title)}</h3>
-<p style="background:rgba(37,99,235,0.06);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:700;color:#1e3a8a;margin-bottom:16px;">🎯 Goal: ${safe(data.goal)}</p>
-<div>
-${weeks.map((w, i) => `
-<div style="margin-bottom:14px;">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding-left:10px;border-left:3px solid ${weekColors[i] || '#2563eb'};">
-    <div style="background:${weekColors[i] || '#2563eb'};color:#fff;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap;">Week ${safe(String(w.week))}</div>
-    <div>
-      <div style="font-size:14px;font-weight:800;color:#0f172a;">${safe(w.theme)}</div>
-      <div style="font-size:12px;color:#64748b;">${safe(w.focus)}</div>
-    </div>
-  </div>
-  <ul style="margin:0;padding:0;list-style:none;">
-    ${(w.tasks || []).map(t => `<li style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;margin-bottom:5px;background:#fff;border-radius:10px;border:1px solid rgba(15,23,42,0.06);font-size:13px;color:#334155;">
-      <span style="color:#2563eb;font-weight:800;flex-shrink:0;">→</span>
-      <span>${safe(t)}</span>
-    </li>`).join('')}
-  </ul>
-</div>`).join('')}
-</div>
-<div style="margin-top:14px;padding:14px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);border-radius:12px;">
-  <p style="margin:0 0 8px;font-size:14px;font-weight:800;color:#14532d;">⚡ Start today: ${safe(data.day_one_action)}</p>
-  <p style="margin:0 0 6px;font-size:13px;color:#334155;"><b>✅ Success looks like:</b> ${safe(data.success_metric)}</p>
-  <p style="margin:0;font-size:13px;color:#334155;"><b>⚠️ Watch out for:</b> ${safe(data.warning)}</p>
-</div>
-</div>`;
-}
-
-// ── HTML REPLY FORMATTER ──────────────────────────────────────
-function ensureHtmlReply(reply = '') {
-  const text = cleanText(reply, 8000);
-  if (!text) return '<p>Sorry — I could not generate a useful response right now.</p>';
-  if (/<(p|ul|ol|li|br|a|h3|h4|strong|b|em|i)\b/i.test(text)) return text;
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  if (!lines.length) return `<p>${escapeHtml(text)}</p>`;
-  const bulletish = lines.filter(line => /^[-•*]|\d+\./.test(line));
-  if (bulletish.length >= 2) {
-    const nonBullets = lines.filter(line => !/^[-•*]|\d+\./.test(line));
-    const bullets = lines
-      .filter(line => /^[-•*]|\d+\./.test(line))
-      .map(line => line.replace(/^[-•*]\s*|\d+\.\s*/, '').trim())
-      .filter(Boolean);
-    return [
-      ...nonBullets.slice(0, 2).map(p => `<p>${escapeHtml(p)}</p>`),
-      `<ul>${bullets.map(b => `<li>${escapeHtml(b)}</li>`).join('')}</ul>`
-    ].join('');
-  }
-  if (text.length > 350) {
-    const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
-    const chunks = [];
-    let current = '';
-    for (const sentence of sentences) {
-      if ((current + ' ' + sentence).trim().length > 220) {
-        if (current.trim()) chunks.push(current.trim());
-        current = sentence;
-      } else {
-        current = `${current} ${sentence}`.trim();
-      }
-    }
-    if (current.trim()) chunks.push(current.trim());
-    return chunks.map(chunk =>
-      /<[a-z]/i.test(chunk) ? `<p>${chunk}</p>` : `<p>${escapeHtml(chunk)}</p>`
-    ).join('');
-  }
-  return lines.map(line =>
-    /<[a-z]/i.test(line) ? `<p>${line}</p>` : `<p>${escapeHtml(line)}</p>`
-  ).join('');
-}
-
-async function fetchWebsiteAuditContent(url = '') {
-  if (!isValidHttpUrl(url)) return '';
-  try {
-    const stripped = url.replace(/^https?:\/\//i, '');
-    const auditUrl = `https://r.jina.ai/http://${stripped}`;
-    const response = await fetchWithTimeout(auditUrl, {}, 25000);
-    if (!response.ok) return '';
-    const text = await response.text();
-    return cleanText(text, 5000);
-  } catch { return ''; }
-}
-
-function sanitizeProfile(profile = {}) {
-  const fields = ['name', 'business', 'industry', 'goal', 'targetAudience', 'tone'];
-  const sanitized = {};
-  for (const field of fields) {
-    if (profile[field]) {
-      sanitized[field] = cleanText(String(profile[field]), 200)
-        .replace(/ignore\s+(all\s+)?instructions?/gi, '')
-        .replace(/system\s*prompt/gi, '')
-        .replace(/you\s+are\s+(now\s+)?a/gi, '');
-    }
-  }
-  return sanitized;
-}
-
-// ── MAIN HANDLER ──────────────────────────────────────────────
+// ── Main Handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   setCors(req, res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ reply: 'Method not allowed' });
+  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-    || req.socket?.remoteAddress || 'unknown';
-  if (isRateLimited(ip)) return res.status(429).json({ reply: 'Too many requests. Please wait a moment.' });
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  if (isRateLimited(ip)) return res.status(429).json({ error: 'Too many requests. Please wait a moment.' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
-    const rawMessages = Array.isArray(body.messages)
-      ? body.messages
-      : body.message ? [{ role: 'user', content: body.message }] : [];
+  let body;
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body; }
+  catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
 
-    const messages = rawMessages.slice(-20).map(m => {
-      const role = m?.role === 'assistant' ? 'assistant' : 'user';
-      const content = cleanText(getMessageText(m?.content), 4000);
-      return { role, content };
-    }).filter(m => m.content);
+  const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
+  const messages = rawMessages.slice(-20).map(m => ({
+    role: ['user', 'assistant', 'system'].includes(m.role) ? m.role : 'user',
+    content: typeof m.content === 'string' ? m.content.slice(0, 4000) : m.content
+  }));
 
-    const profile = sanitizeProfile(body.profile || {});
-    const selectedPersonality = cleanText(body.personality || 'auto', 60).toLowerCase();
+  const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+  if (!lastUserMsg) return res.status(400).json({ error: 'No user message found' });
+  const lastUserMessage = cleanText(getMessageText(lastUserMsg.content), 1200);
+  if (!lastUserMessage) return res.status(400).json({ error: 'Empty message' });
 
-    const profileText = [
-      profile.name           ? `Name: ${profile.name}` : '',
-      profile.business       ? `Business: ${profile.business}` : '',
-      profile.industry       ? `Industry: ${profile.industry}` : '',
-      profile.goal           ? `Goal: ${profile.goal}` : '',
-      profile.targetAudience ? `Target audience: ${profile.targetAudience}` : '',
-      profile.tone           ? `Preferred tone: ${profile.tone}` : ''
-    ].filter(Boolean).join('\n');
+  const selectedPersonality = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'].includes(body?.personality)
+    ? body.personality : 'auto';
+  const userProfile = cleanText(body?.userProfile || '', 300);
+  const detectedLocation = extractLocationFromMessages(messages);
 
-    const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
-    if (!lastUserMessage) return res.status(400).json({ reply: 'No message provided.' });
+  // ── Positioning question ──
+  if (isPositioningQuestion(lastUserMessage)) {
+    return res.status(200).json({ reply: POSITIONING_REPLY });
+  }
 
-    const detectedLocation = extractLocationFromMessages(messages);
+  // ── Stock photo ──
+  if (isStockPhotoRequest(lastUserMessage)) {
+    return res.status(200).json({ reply: buildStockPhotoHtml(lastUserMessage) });
+  }
 
-    // ── Fast path: positioning ────────────────────────────────
-    if (isPositioningQuestion(lastUserMessage))
-      return res.status(200).json({ reply: POSITIONING_REPLY });
-
-    // ── Fast path: stock photos ───────────────────────────────
-    if (isStockPhotoRequest(lastUserMessage))
-      return res.status(200).json({ reply: buildStockPhotoHtml(buildStockKeyword(lastUserMessage)) });
-
-    // ── Fast path: image generation ───────────────────────────
-    if (shouldGenerateImage(messages, lastUserMessage)) {
+  // ── Image generation ──
+  if (shouldGenerateImage(lastUserMessage, messages)) {
+    try {
       const imageType = detectImageType(lastUserMessage);
-      const previous = extractLastImageMeta(messages);
-      const fallbackPrompt = buildStrictFallbackPrompt(lastUserMessage, messages, imageType);
-      let finalPrompt = fallbackPrompt;
-      let lockedBrief = normalizeImagePrompt(previous?.brief || getLatestExplicitImageRequest(messages) || cleanImageIntentPrefix(lastUserMessage)) || fallbackPrompt;
-      let promptSource = 'fallback', promptModel = 'none';
-      try {
-        if (process.env.OPENAI_API_KEY) {
-          const r = await buildImagePromptWithOpenAI(messages, openai);
-          if (r?.prompt) {
-            finalPrompt = r.prompt;
-            lockedBrief = r.lockedBrief || lockedBrief || finalPrompt;
-            promptSource = r.source || 'openai';
-            promptModel = r.model || 'gpt-4o-mini';
-          }
-        }
-      } catch (err) { console.error('[IMAGE PROMPT ERROR]', err?.message || err); }
-      finalPrompt = normalizeImagePrompt(finalPrompt || fallbackPrompt);
-      lockedBrief = normalizeImagePrompt(lockedBrief || finalPrompt);
-      return res.status(200).json({ reply: buildImageReplyHtml(finalPrompt, { lockedBrief, source: promptSource, model: promptModel }, imageType) });
+      let imagePrompt;
+      if (isRegenerationRequest(lastUserMessage) || isImageModificationRequest(lastUserMessage)) {
+        const lastMeta = extractLastImageMeta(messages);
+        const modText = isImageModificationRequest(lastUserMessage) ? lastUserMessage : '';
+        imagePrompt = lastMeta
+          ? enrichImagePrompt(`${modText} ${lastMeta.prompt}`.trim(), imageType)
+          : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+      } else {
+        imagePrompt = await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+      }
+      imagePrompt = enrichImagePrompt(imagePrompt, imageType);
+      const seed = Math.floor(Math.random() * 999999);
+      const imageUrl = buildPollinationsUrl(imagePrompt, { seed, model: 'flux' });
+      return res.status(200).json({ reply: buildImageReplyHtml(imageUrl, imagePrompt, imageType) });
+    } catch (err) {
+      console.error('[IMAGE GEN ERROR]', err?.message);
+      return res.status(200).json({ reply: '<p>Image generation hit a snag — please try again.</p>' });
     }
+  }
 
-    if (!process.env.OPENAI_API_KEY)
-      return res.status(500).json({ reply: 'Missing OPENAI_API_KEY on the server.' });
+  // ── YES-intent router — must run before card detectors ──
+  if (YES_PATTERN.test(lastUserMessage.trim())) {
+    const lastOffer = getLastOffer(messages);
 
-    // ── YES intent router ─────────────────────────────────────
-    if (YES_PATTERN.test(lastUserMessage.trim())) {
-      const lastOffer = getLastOffer(messages);
-
-      if (lastOffer === 'snapshot' && hasRichBusinessContext(messages)) {
-        try {
-          const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai);
-          return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
-        } catch (err) { console.error('[SNAPSHOT CONFIRM ERROR]', err?.message || err); }
-      }
-
-      if (lastOffer === 'offer') {
-        try {
-          const offerData = await generateOfferCard(messages, lastUserMessage, detectedLocation, openai);
-          return res.status(200).json({ reply: buildOfferCard(offerData) });
-        } catch (err) { console.error('[OFFER CONFIRM ERROR]', err?.message || err); }
-      }
-
-      if (lastOffer === 'action-plan') {
-        try {
-          const planData = await generateActionPlan(messages, lastUserMessage, detectedLocation, openai);
-          return res.status(200).json({ reply: buildActionPlanCard(planData) });
-        } catch (err) { console.error('[ACTION PLAN CONFIRM ERROR]', err?.message || err); }
-      }
-
-      if (lastOffer === 'score') {
-        try {
-          const scoreData = await generateNabadScore(messages, lastUserMessage, detectedLocation, openai);
-          return res.status(200).json({ reply: buildScoreCard(scoreData) });
-        } catch (err) { console.error('[SCORE CONFIRM ERROR]', err?.message || err); }
-      }
-
-      if (lastOffer === 'pricing') {
-        try {
-          const pricingData = await generatePricingTable(messages, lastUserMessage, detectedLocation, openai);
-          return res.status(200).json({ reply: buildPricingTableCard(pricingData) });
-        } catch (err) { console.error('[PRICING CONFIRM ERROR]', err?.message || err); }
-      }
-
-      if (lastOffer === 'matrix') {
-        try {
-          const matrixData = await generatePositioningMatrix(messages, lastUserMessage, openai);
-          return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
-        } catch (err) { console.error('[MATRIX CONFIRM ERROR]', err?.message || err); }
-      }
-    }
-
-    // ── Explicit card requests ────────────────────────────────
-    if (isIdeaScoringRequest(lastUserMessage)) {
+    if (lastOffer === 'offer') {
       try {
-        const scoreData = await generateNabadScore(messages, lastUserMessage, detectedLocation, openai);
-        return res.status(200).json({ reply: buildScoreCard(scoreData) });
-      } catch (err) { console.error('[NABAD SCORE ERROR]', err?.message || err); }
-    }
-
-    if (isPricingTableRequest(lastUserMessage)) {
-      try {
-        const pricingData = await generatePricingTable(messages, lastUserMessage, detectedLocation, openai);
-        return res.status(200).json({ reply: buildPricingTableCard(pricingData) });
-      } catch (err) { console.error('[PRICING TABLE ERROR]', err?.message || err); }
-    }
-
-    if (isOfferCardRequest(lastUserMessage)) {
-      try {
-        const offerData = await generateOfferCard(messages, lastUserMessage, detectedLocation, openai);
+        const offerData = await generateOfferCard(messages, detectedLocation, openai);
         return res.status(200).json({ reply: buildOfferCard(offerData) });
-      } catch (err) { console.error('[OFFER CARD ERROR]', err?.message || err); }
+      } catch (err) { console.error('[OFFER CONFIRM ERROR]', err?.message); }
     }
-
-    if (isPositioningMatrixRequest(lastUserMessage)) {
-      try {
-        const matrixData = await generatePositioningMatrix(messages, lastUserMessage, openai);
-        return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
-      } catch (err) { console.error('[MATRIX ERROR]', err?.message || err); }
-    }
-
-    if (isActionPlanRequest(lastUserMessage)) {
-      try {
-        const planData = await generateActionPlan(messages, lastUserMessage, detectedLocation, openai);
-        return res.status(200).json({ reply: buildActionPlanCard(planData) });
-      } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message || err); }
-    }
-
-    if (isSnapshotRequest(lastUserMessage)) {
+    if (lastOffer === 'snapshot' && snapshotAlreadyOffered(messages) && hasRichBusinessContext(messages)) {
       try {
         const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai);
         return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
-      } catch (err) { console.error('[SNAPSHOT ERROR]', err?.message || err); }
+      } catch (err) { console.error('[SNAPSHOT CONFIRM ERROR]', err?.message); }
     }
-
-    // ── Main GPT-4o reply ─────────────────────────────────────
-    const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
-    const websiteAuditContent = isValidHttpUrl(explicitUrl) ? await fetchWebsiteAuditContent(explicitUrl) : '';
-
-    const personalityResolution = resolveActivePersonality(selectedPersonality, lastUserMessage);
-    const personalityConfig = getPersonalityConfig(personalityResolution.personalityId);
-    const businessMode = personalityResolution.personalityId === 'auto'
-      ? detectBusinessMode(lastUserMessage, messages)
-      : { id: 'advisor', label: personalityConfig.label, temperature: 0.82, maxTokens: 700, instruction: '' };
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[PERSONALITY DEBUG]', {
-        selectedPersonality,
-        activePersonality: personalityConfig.id,
-        businessMode: businessMode.id,
-        detectedLocation
-      });
+    if (lastOffer === 'action-plan') {
+      try {
+        const planData = await generateActionPlan(messages, detectedLocation, openai);
+        return res.status(200).json({ reply: buildActionPlanCard(planData) });
+      } catch (err) { console.error('[ACTION PLAN CONFIRM ERROR]', err?.message); }
     }
+    if (lastOffer === 'score') {
+      try {
+        const scoreData = await generateNabadScore(messages, openai);
+        return res.status(200).json({ reply: buildScoreCard(scoreData) });
+      } catch (err) { console.error('[SCORE CONFIRM ERROR]', err?.message); }
+    }
+    if (lastOffer === 'pricing') {
+      try {
+        const pricingData = await generatePricingTable(messages, detectedLocation, openai);
+        return res.status(200).json({ reply: buildPricingTableCard(pricingData) });
+      } catch (err) { console.error('[PRICING CONFIRM ERROR]', err?.message); }
+    }
+    if (lastOffer === 'matrix') {
+      try {
+        const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
+        return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
+      } catch (err) { console.error('[MATRIX CONFIRM ERROR]', err?.message); }
+    }
+  }
 
-    const proactiveInstruction = isEarlyConversation(messages) && isBroadOpeningMessage(lastUserMessage)
-      ? `
-PROACTIVE INTELLIGENCE MODE (ACTIVE):
-This is one of the user's first messages and it is broad or exploratory.
-Do NOT just answer the question directly.
-FIRST: Identify the REAL underlying problem or opportunity.
-THEN: Reframe it in one sharp sentence.
-THEN: Give your answer through that reframe.
-Example openers:
-- "Most people in your position focus on X — but the real leverage is usually Y."
-- "Before we go into that — here's what I think the actual problem is..."
-- "Honestly? The question you're asking is the second question. The first one is..."
-Lead with intelligence, not information.
-` : '';
+  // ── Nabad Score ──
+  if (isIdeaScoringRequest(lastUserMessage)) {
+    try {
+      const scoreData = await generateNabadScore(messages, openai);
+      return res.status(200).json({ reply: buildScoreCard(scoreData) });
+    } catch (err) { console.error('[SCORE ERROR]', err?.message); }
+  }
 
-    const memoryInstruction = buildMemoryContext(messages);
+  // ── Pricing Table ──
+  if (isPricingTableRequest(lastUserMessage)) {
+    try {
+      const pricingData = await generatePricingTable(messages, detectedLocation, openai);
+      return res.status(200).json({ reply: buildPricingTableCard(pricingData) });
+    } catch (err) { console.error('[PRICING ERROR]', err?.message); }
+  }
 
-    const locationInstruction = !detectedLocation && !locationAlreadyAsked(messages) &&
-      hasBusinessContext(messages) && messages.filter(m => m.role === 'user').length >= 2
-      ? `
-LOCATION COLLECTION (ACTIVE):
-At the END of your reply — after your main answer — naturally ask:
-"Quick question — where are you based? It'll help me give you advice that's relevant to your market, costs, and local legal setup."
-Ask this ONCE only.
-`
-      : detectedLocation
-      ? `
-LOCATION CONTEXT (ACTIVE):
-The user is based in: ${detectedLocation}
-- Reference this naturally when giving advice about costs, legal setup, market conditions
-- Factor in ${detectedLocation}-specific business registration, tax, and legal requirements when relevant
-`
-      : '';
+  // ── Offer Card ──
+  if (isOfferCardRequest(lastUserMessage)) {
+    try {
+      const offerData = await generateOfferCard(messages, detectedLocation, openai);
+      return res.status(200).json({ reply: buildOfferCard(offerData) });
+    } catch (err) { console.error('[OFFER ERROR]', err?.message); }
+  }
 
-    const snapshotInstruction = hasRichBusinessContext(messages) && !snapshotAlreadyOffered(messages)
-      ? `
-BUSINESS SNAPSHOT OFFER (ACTIVE):
-At the END of your reply — after your main answer — naturally say:
-"I think I have a clear enough picture of what you're building. Want me to put together a quick Business Snapshot — your biggest opportunity, your key risk, and my top recommendation in one card?"
-Say this ONCE only.
-`
-      : '';
+  // ── Positioning Matrix ──
+  if (isPositioningMatrixRequest(lastUserMessage)) {
+    try {
+      const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
+      return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
+    } catch (err) { console.error('[MATRIX ERROR]', err?.message); }
+  }
 
-    const visualOutputsInstruction = `
-VISUAL OUTPUT AWARENESS:
-You can generate special structured cards. When relevant, naturally suggest them:
-- Pricing Table: "Want me to build a pricing table for this?"
-- Offer Card: "Want me to structure this as a full offer card?"
-- Positioning Matrix: "Want me to map your positioning vs competitors?"
-- 30-Day Action Plan: "Want me to turn this into a 30-day action plan?"
-Only suggest when genuinely relevant — not on every message.
+  // ── Action Plan ──
+  if (isActionPlanRequest(lastUserMessage)) {
+    try {
+      const planData = await generateActionPlan(messages, detectedLocation, openai);
+      return res.status(200).json({ reply: buildActionPlanCard(planData) });
+    } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message); }
+  }
+
+  // ── Business Snapshot offer ──
+  if (shouldOfferSnapshot(messages)) {
+    return res.status(200).json({
+      reply: `<p>I've got a clear enough picture of where you are. Want me to run a quick <strong>Business Snapshot</strong> — your biggest opportunity, key risk, and one bold recommendation based on everything you've shared?</p>`
+    });
+  }
+
+  // ── Location ask (Fix 2) ──
+  const userMsgCount = messages.filter(m => m.role === 'user').length;
+  if (
+    userMsgCount >= 2 &&
+    hasBusinessContext(lastUserMessage) &&
+    !detectedLocation &&
+    !locationAlreadyAsked(messages) &&
+    !YES_PATTERN.test(lastUserMessage.trim())
+  ) {
+    return res.status(200).json({
+      reply: `<p>Before I go deeper — <strong>where are you based?</strong> It'll help me give advice that's relevant to your market, costs, and local conditions.</p>`
+    });
+  }
+
+  // ── Main GPT-4o reply ─────────────────────────────────────────────────────
+  const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
+  const websiteAuditContent = isValidHttpUrl(explicitUrl) ? await fetchWebsiteAuditContent(explicitUrl) : '';
+
+  const personalityResolution = resolveActivePersonality(selectedPersonality, lastUserMessage);
+  const personalityConfig = getPersonalityConfig(personalityResolution.personalityId);
+  const businessMode = personalityResolution.personalityId === 'auto'
+    ? detectBusinessMode(lastUserMessage, messages)
+    : { id: 'advisor', label: personalityConfig.label, temperature: 0.82, maxTokens: 700, instruction: '' };
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[PERSONALITY DEBUG]', {
+      selectedPersonality,
+      activePersonality: personalityConfig.id,
+      personalitySource: personalityResolution.source,
+      overridePersonality: personalityResolution.overridePersonality || '',
+      businessMode: businessMode.id,
+      detectedLocation
+    });
+  }
+
+  const proactiveIntelligence = buildProactiveIntelligence(messages, lastUserMessage);
+  const memoryContext = buildMemoryContext(messages);
+  const locationContext = buildLocationContext(detectedLocation);
+
+  const toneInstruction = `
+RESPONSE RULES — non-negotiable:
+
+LENGTH:
+- Simple question → max 3 sentences. No lists.
+- Advice request → max 4 bullet points OR 2 short paragraphs. Never both.
+- Complex strategy → max 6 bullet points. One heading max.
+- Never exceed the word limit defined by the active personality.
+
+TONE:
+- You are a real founder who has built businesses. Not a consultant. Not a bot.
+- Write like you're texting a smart friend who needs a real answer fast.
+- Never use: "Absolutely", "Great question", "Of course", "Certainly", "Sure!", "Happy to help".
+- Never open with a heading. Always open with a sentence.
+- No corporate language. No filler. No summaries at the end.
+
+FORMAT:
+- HTML only: use <p>, <ul>, <li>, <strong>, <em>. No markdown.
+- Bullet points only when listing 3 or more distinct items.
+- End every reply with ONE of: a direct question, a provocation, or "Next move:".
+
+BAD (never do this):
+"Great question! Here are 5 strategies to grow your agency:
+1. Build your brand
+2. Get referrals..."
+
+GOOD (do this):
+"Referrals don't come from doing good work — they come from making clients feel stupid for NOT referring you. What does your current follow-up look like after a project ends?"
 `;
 
-    const toneInstruction = `
-VOICE & TONE (ALWAYS ACTIVE):
-You are Nabad — sharp, opinionated, commercially intelligent.
-- Lead with a point of view, not a list
-- Use phrases like:
-  "Honestly? Most people get this backwards."
-  "Here's the uncomfortable truth about that market..."
-  "This is actually a better idea than you think — here's why."
-  "The real question is not X, it's Y."
-- Never start with "Great question!" or "Certainly!" or "Of course!"
-- Never sound like a school textbook or motivational poster
-- If the user is wrong, say so — diplomatically but clearly
-- Always end with a clear next move or a provocative question
-- Maximum 4 bullet points per reply — cut the weakest ones if you have more
-`;
+  const systemPromptParts = [
+    `You are NabadAI — a founder who has built and scaled businesses. You give real, direct advice in plain language. You are NOT an assistant. You do NOT over-explain. You challenge assumptions and tell people what they need to hear, not what they want to hear.`,
+    personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : '',
+    businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
+    userProfile ? `User profile: ${userProfile}` : '',
+    proactiveIntelligence,
+    memoryContext,
+    locationContext,
+    websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
+    toneInstruction
+  ].filter(Boolean).join('\n');
 
-    const systemPrompt = `
-You are Nabad, an elite business strategist, growth advisor, offer architect, and creative commercial thinker.
-
-Your job is to help users make smarter business decisions, spot opportunities, differentiate, position offers, grow revenue, improve branding, and think in more original ways.
-
-PERSONALITY: Sharp, commercially smart, creative, practical, modern, persuasive, insightful.
-Never sound like a school textbook or motivational chatbot.
-
-HOW TO ANSWER:
-- Reply in clean HTML only. Never use Markdown.
-- Allowed tags: <p>, <b>, <strong>, <i>, <em>, <ul>, <ol>, <li>, <br>, <a>, <h3>, <h4>
-- Structure every answer — no walls of text
-- Default structure:
-<h3>Main insight or recommendation</h3>
-<p>One short direct conclusion.</p>
-<ul><li>2 to 4 specific points</li></ul>
-<p><b>Fresh angle:</b> one original idea.</p>
-<p><b>Next best move:</b> best immediate action.</p>
-
-EMOJI STYLE: 1-3 tasteful business emojis only. Good: 📈 💡 🎯 🚀 🧠 💼 🎨 ⚡
-
-PERSONALITY INSTRUCTIONS:
-${personalityConfig.instruction}
-${businessMode.instruction ? `CURRENT TASK MODE:\n${businessMode.instruction}` : ''}
-
-${proactiveInstruction}
-${memoryInstruction}
-${locationInstruction}
-${snapshotInstruction}
-${visualOutputsInstruction}
-${toneInstruction}
-
-USER PROFILE:
-${profileText || 'No saved user profile provided.'}
-${websiteAuditContent ? `\nWEBSITE AUDIT CONTEXT:\n${websiteAuditContent}` : ''}
-`;
-
+  try {
+    const chatMessages = [
+      { role: 'system', content: systemPromptParts },
+      ...messages.filter(m => m.role !== 'system')
+    ];
+    const temperature = personalityConfig.temperature || businessMode.temperature || 0.82;
+    const maxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages.map(m => ({ role: m.role, content: m.content }))
-      ],
-      max_tokens: businessMode.maxTokens,
-      temperature: businessMode.temperature
+      messages: chatMessages,
+      temperature,
+      max_tokens: maxTokens
     });
-
-    const rawReply = completion?.choices?.[0]?.message?.content
-      || '<p>Sorry — I could not generate a response right now.</p>';
-
+    const rawReply = completion.choices?.[0]?.message?.content || '';
     return res.status(200).json({ reply: ensureHtmlReply(rawReply) });
-
-  } catch (error) {
-    console.error('[CHAT API ERROR]', error);
-    return res.status(500).json({
-      reply: '<p>Sorry — something went wrong on my side. Please try again in a moment.</p>'
-    });
+  } catch (err) {
+    console.error('[GPT ERROR]', err?.message);
+    return res.status(500).json({ error: 'AI service temporarily unavailable. Please try again.' });
   }
 }
 
-export const config = {
-  api: { bodyParser: { sizeLimit: '32kb' } }
-};
+export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
