@@ -887,6 +887,64 @@
           height: 44px !important;
         }
       }
+      
+      /* ── IMAGE LOADING PLACEHOLDER ─────────────────────────── */
+.nabad-img-placeholder {
+  width: 100%;
+  max-width: 320px;
+  height: 220px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #e8f0ff 0%, #f0e8ff 100%);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 18px 4px rgba(99,102,241,0.25),
+              0 0 40px 8px rgba(99,102,241,0.12);
+  animation: nabadGlowPulse 2s ease-in-out infinite;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 8px 0;
+}
+.nabad-img-placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.5) 50%,
+    transparent 100%
+  );
+  animation: nabadShimmer 1.8s ease-in-out infinite;
+  transform: translateX(-100%);
+}
+.nabad-img-placeholder-icon {
+  font-size: 36px;
+  animation: nabadIconPulse 2s ease-in-out infinite;
+}
+.nabad-img-placeholder-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6366f1;
+  letter-spacing: 0.3px;
+}
+@keyframes nabadGlowPulse {
+  0%, 100% { box-shadow: 0 0 18px 4px rgba(99,102,241,0.25),
+                          0 0 40px 8px rgba(99,102,241,0.12); }
+  50%       { box-shadow: 0 0 28px 8px rgba(99,102,241,0.40),
+                          0 0 60px 16px rgba(99,102,241,0.20); }
+}
+@keyframes nabadShimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+@keyframes nabadIconPulse {
+  0%, 100% { transform: scale(1);    opacity: 1;   }
+  50%       { transform: scale(1.12); opacity: 0.7; }
+}
+
     `;
     document.head.appendChild(style);
   }
@@ -1148,6 +1206,44 @@
     scrollToBottom();
   }
 
+// ── IMAGE LOADING PLACEHOLDER ────────────────────────────────
+  const IMAGE_LOADING_TEXTS = [
+    '✦ Crafting your image...',
+    '✦ Building the visual...',
+    '✦ Adding finishing touches...',
+    '✦ Almost ready...'
+  ];
+
+  function createImagePlaceholder() {
+    const wrap = document.createElement('div');
+    wrap.className = 'nabad-img-placeholder';
+
+    const icon = document.createElement('div');
+    icon.className = 'nabad-img-placeholder-icon';
+    icon.textContent = '🎨';
+
+    const text = document.createElement('div');
+    text.className = 'nabad-img-placeholder-text';
+    text.textContent = IMAGE_LOADING_TEXTS[0];
+
+    let i = 0;
+    const interval = setInterval(() => {
+      i = (i + 1) % IMAGE_LOADING_TEXTS.length;
+      text.textContent = IMAGE_LOADING_TEXTS[i];
+    }, 1800);
+
+    wrap.dataset.intervalId = String(interval);
+    wrap.appendChild(icon);
+    wrap.appendChild(text);
+    return wrap;
+  }
+
+  function removePlaceholder(placeholder) {
+    if (!placeholder) return;
+    clearInterval(Number(placeholder.dataset.intervalId));
+    placeholder.remove();
+  }
+
   // ── RENDER MESSAGE ───────────────────────────────────────────
   function renderMessage(role, content, persist = true) {
     const isUser = role === 'user';
@@ -1189,9 +1285,9 @@
     });
 
     bubble.querySelectorAll('img').forEach((img, i) => {
-      const MIN_GLOW_MS  = 900;
-      const start        = Date.now();
-      const originalSrc  = img.getAttribute('src') || '';
+      const MIN_GLOW_MS = 900;
+      const start       = Date.now();
+      const originalSrc = img.getAttribute('src') || '';
 
       if (/image\.pollinations\.ai/i.test(originalSrc)) {
         const sep      = originalSrc.includes('?') ? '&' : '?';
@@ -1199,19 +1295,25 @@
         img.setAttribute('src', freshSrc);
       }
 
-      img.classList.add('loading');
+      // ── Show glowing placeholder while image loads ──
+      const placeholder = createImagePlaceholder();
+      img.style.opacity = '0';
+      img.style.transition = 'opacity 0.5s ease';
+      img.parentNode.insertBefore(placeholder, img);
 
-      // [FIX-6] Consistent addEventListener with { once:true } — no need for a 'finished' flag
       img.addEventListener('load', () => {
         const elapsed = Date.now() - start;
-        setTimeout(
-          () => img.classList.remove('loading'),
-          Math.max(0, MIN_GLOW_MS - elapsed)
-        );
+        setTimeout(() => {
+          removePlaceholder(placeholder);
+          img.classList.remove('loading');
+          img.style.opacity = '1';
+        }, Math.max(0, MIN_GLOW_MS - elapsed));
       }, { once: true });
 
       img.addEventListener('error', () => {
+        removePlaceholder(placeholder);
         img.classList.remove('loading');
+        img.style.opacity = '1';
         img.style.display = 'none';
       }, { once: true });
 
