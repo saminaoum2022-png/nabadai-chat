@@ -690,7 +690,7 @@
         padding: 10px 14px;
         min-height: 44px;
         max-height: 150px;
-        font-size: 16px;
+        font-size: 14px;
         color: #0f172a;
         outline: none;
         background: rgba(255,255,255,0.98);
@@ -733,13 +733,6 @@
       #nabad-send:disabled {
         opacity: 0.55;
         cursor: not-allowed;
-      }
-
-      #nabad-footer-note {
-        margin-top: 8px;
-        font-size: 11px;
-        color: #64748b;
-        text-align: center;
       }
 
       #nabad-lightbox {
@@ -942,7 +935,6 @@
             <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
             <button id="nabad-send" type="button" aria-label="Send">➜</button>
           </div>
-          <div id="nabad-footer-note">Business strategy, branding, growth, offers, and visuals</div>
         </div>
       </div>
 
