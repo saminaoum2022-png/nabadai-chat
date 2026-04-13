@@ -1248,12 +1248,23 @@ export default async function handler(req, res) {
       } catch (err) { console.error('[SNAPSHOT ERROR]', err?.message || err); }
     }
 
-    if (isSnapshotConfirmation(lastUserMessage) && snapshotAlreadyOffered(messages) && hasRichBusinessContext(messages)) {
-      try {
-        const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai);
-        return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
-      } catch (err) { console.error('[SNAPSHOT CONFIRM ERROR]', err?.message || err); }
-    }
+    // ... everything above stays the same ...
+
+// ── "Yes" intent router — routes confirmation to correct card ─
+const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|let's go|let's do it|do that|make it|create it|show me|generate it)$/i;
+
+function getLastOffer(msgs = []) {
+  // ... the full function ...
+}
+
+if (YES_PATTERN.test(lastUserMessage.trim())) {
+  // ... all the if blocks ...
+}
+// ── End "Yes" intent router ───────────────────────────────────
+
+// ── Main GPT-4o reply ─────────────────────────────────────
+const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
+// ... everything below stays the same ...
 
     // ── Main GPT-4o reply ─────────────────────────────────────
     const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
