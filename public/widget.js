@@ -2,9 +2,9 @@
 //  NabadAI Widget  —  Full Updated Version
 //  Previous fixes: [FIX-1] through [FIX-12]
 //  Tier 1: [T1-1] [T1-4] [T1-8] [T1-10]
-//  Tier 2:
-//   [T2-2]  Business Snapshot card styles
-//   [T2-7]  Nabad Score card styles
+//  Tier 2: [T2-2] Business Snapshot  [T2-7] Nabad Score
+//  Tier 3: [T3-6] Pricing Table  [T3-6b] Offer Card
+//          [T3-6c] Positioning Matrix  [T3-6d] 30-Day Action Plan
 // ─────────────────────────────────────────────────────────────
 
 (() => {
@@ -25,13 +25,19 @@
     document.head.appendChild(s);
   }
 
+  // ── [T3-6] Extended PURIFY_CONFIG to allow Tier 3 card attrs ─
   const PURIFY_CONFIG = {
     ALLOWED_TAGS: [
       'p','b','i','strong','em','h3','h4',
-      'ul','ol','li','a','br','img','span','div'
+      'ul','ol','li','a','br','img','span','div','table',
+      'thead','tbody','tr','th','td'
     ],
-    ALLOWED_ATTR: ['href','src','alt','target','rel','class','style','data-nabad-card',
-      'data-nabad-brief','data-nabad-source','data-nabad-model','data-nabad-prompt']
+    ALLOWED_ATTR: [
+      'href','src','alt','target','rel','class','style',
+      'data-nabad-card','data-nabad-brief','data-nabad-source',
+      'data-nabad-model','data-nabad-prompt',
+      'data-score','data-quadrant'
+    ]
   };
 
   function sanitizeHtml(html) {
@@ -861,6 +867,374 @@
         box-shadow: 0 4px 12px rgba(15,23,42,0.04);
       }
 
+      /* ── [T3-6] SCORE BARS ──────────────────────────────── */
+      .nabad-score-bar-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .nabad-score-bar-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #334155;
+        min-width: 130px;
+        flex-shrink: 0;
+      }
+
+      .nabad-score-bar-track {
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        overflow: hidden;
+      }
+
+      .nabad-score-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2563eb, #06b6d4);
+        width: 0%;
+        transition: width 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      .nabad-score-bar-value {
+        font-size: 13px;
+        font-weight: 800;
+        color: #2563eb;
+        min-width: 32px;
+        text-align: right;
+      }
+
+      /* ── [T3-6] PRICING TABLE CARD ──────────────────────── */
+      .nabad-bubble [data-nabad-card="pricing"] {
+        background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
+        border: 1px solid rgba(37,99,235,0.12);
+        border-radius: 18px;
+        padding: 18px 16px;
+        margin: -4px 0;
+        overflow-x: auto;
+      }
+
+      .nabad-bubble [data-nabad-card="pricing"] h3 {
+        font-size: 17px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 14px;
+      }
+
+      .nabad-pricing-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      .nabad-pricing-table th {
+        background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+        color: #fff;
+        font-weight: 800;
+        padding: 10px 12px;
+        text-align: left;
+        font-size: 13px;
+      }
+
+      .nabad-pricing-table th:first-child { border-radius: 10px 0 0 0; }
+      .nabad-pricing-table th:last-child  { border-radius: 0 10px 0 0; }
+
+      .nabad-pricing-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(15,23,42,0.06);
+        color: #334155;
+        vertical-align: top;
+        line-height: 1.45;
+      }
+
+      .nabad-pricing-table tr:last-child td { border-bottom: none; }
+
+      .nabad-pricing-table tr:nth-child(even) td {
+        background: rgba(37,99,235,0.03);
+      }
+
+      .nabad-pricing-table .price-cell {
+        font-weight: 800;
+        color: #2563eb;
+        white-space: nowrap;
+      }
+
+      .nabad-pricing-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #2563eb, #06b6d4);
+        color: #fff;
+        margin-left: 6px;
+        vertical-align: middle;
+      }
+
+      .nabad-pricing-note {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 10px;
+        line-height: 1.5;
+        font-style: italic;
+      }
+
+      /* ── [T3-6b] OFFER CARD ─────────────────────────────── */
+      .nabad-bubble [data-nabad-card="offer"] {
+        background: linear-gradient(180deg, #fffbf0 0%, #ffffff 100%);
+        border: 1px solid rgba(234,179,8,0.22);
+        border-radius: 18px;
+        padding: 18px 16px;
+        margin: -4px 0;
+      }
+
+      .nabad-bubble [data-nabad-card="offer"] h3 {
+        font-size: 17px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 12px;
+      }
+
+      .nabad-offer-section {
+        margin-bottom: 14px;
+      }
+
+      .nabad-offer-section-title {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #92400e;
+        margin-bottom: 6px;
+      }
+
+      .nabad-offer-price-block {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .nabad-offer-price {
+        font-size: 32px;
+        font-weight: 900;
+        color: #0f172a;
+        line-height: 1;
+      }
+
+      .nabad-offer-price-sub {
+        font-size: 14px;
+        color: #64748b;
+        font-weight: 600;
+      }
+
+      .nabad-offer-tag {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        margin: 2px 4px 2px 0;
+        background: rgba(37,99,235,0.08);
+        color: #1e40af;
+        border: 1px solid rgba(37,99,235,0.14);
+      }
+
+      .nabad-offer-tag.warning {
+        background: rgba(234,179,8,0.10);
+        color: #92400e;
+        border-color: rgba(234,179,8,0.22);
+      }
+
+      .nabad-offer-divider {
+        height: 1px;
+        background: rgba(15,23,42,0.06);
+        margin: 12px 0;
+      }
+
+      /* ── [T3-6c] POSITIONING MATRIX CARD ───────────────── */
+      .nabad-bubble [data-nabad-card="matrix"] {
+        background: linear-gradient(180deg, #fdf4ff 0%, #ffffff 100%);
+        border: 1px solid rgba(139,92,246,0.15);
+        border-radius: 18px;
+        padding: 18px 16px;
+        margin: -4px 0;
+      }
+
+      .nabad-bubble [data-nabad-card="matrix"] h3 {
+        font-size: 17px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 14px;
+      }
+
+      .nabad-matrix-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .nabad-matrix-cell {
+        border-radius: 14px;
+        padding: 14px 12px;
+        font-size: 13px;
+        line-height: 1.45;
+        border: 1px solid transparent;
+        position: relative;
+      }
+
+      .nabad-matrix-cell-label {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        margin-bottom: 6px;
+      }
+
+      .nabad-matrix-cell-content {
+        font-size: 13px;
+        color: #334155;
+        line-height: 1.45;
+      }
+
+      /* Q1: High Value / Low Competition — "Sweet Spot" */
+      .nabad-matrix-cell[data-quadrant="q1"] {
+        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+        border-color: rgba(34,197,94,0.20);
+      }
+      .nabad-matrix-cell[data-quadrant="q1"] .nabad-matrix-cell-label { color: #15803d; }
+
+      /* Q2: High Value / High Competition — "Differentiate" */
+      .nabad-matrix-cell[data-quadrant="q2"] {
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        border-color: rgba(37,99,235,0.18);
+      }
+      .nabad-matrix-cell[data-quadrant="q2"] .nabad-matrix-cell-label { color: #1d4ed8; }
+
+      /* Q3: Low Value / Low Competition — "Niche" */
+      .nabad-matrix-cell[data-quadrant="q3"] {
+        background: linear-gradient(135deg, #fefce8, #fef9c3);
+        border-color: rgba(234,179,8,0.20);
+      }
+      .nabad-matrix-cell[data-quadrant="q3"] .nabad-matrix-cell-label { color: #a16207; }
+
+      /* Q4: Low Value / High Competition — "Avoid" */
+      .nabad-matrix-cell[data-quadrant="q4"] {
+        background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+        border-color: rgba(239,68,68,0.18);
+      }
+      .nabad-matrix-cell[data-quadrant="q4"] .nabad-matrix-cell-label { color: #b91c1c; }
+
+      .nabad-matrix-axes {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #94a3b8;
+        font-weight: 700;
+        margin-top: 6px;
+      }
+
+      .nabad-matrix-recommendation {
+        background: rgba(139,92,246,0.06);
+        border: 1px solid rgba(139,92,246,0.14);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 13px;
+        color: #4c1d95;
+        line-height: 1.5;
+        margin-top: 12px;
+      }
+
+      /* ── [T3-6d] 30-DAY ACTION PLAN CARD ────────────────── */
+      .nabad-bubble [data-nabad-card="action-plan"] {
+        background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+        border: 1px solid rgba(34,197,94,0.15);
+        border-radius: 18px;
+        padding: 18px 16px;
+        margin: -4px 0;
+      }
+
+      .nabad-bubble [data-nabad-card="action-plan"] h3 {
+        font-size: 17px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 14px;
+      }
+
+      .nabad-action-week {
+        margin-bottom: 14px;
+      }
+
+      .nabad-action-week-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+
+      .nabad-action-week-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #2563eb, #06b6d4);
+        color: #fff;
+        white-space: nowrap;
+      }
+
+      .nabad-action-week-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #0f172a;
+      }
+
+      .nabad-action-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 9px 12px;
+        margin-bottom: 6px;
+        background: rgba(255,255,255,0.9);
+        border-radius: 12px;
+        border: 1px solid rgba(15,23,42,0.06);
+        font-size: 13px;
+        color: #334155;
+        line-height: 1.45;
+        box-shadow: 0 2px 8px rgba(15,23,42,0.03);
+      }
+
+      .nabad-action-item-icon {
+        font-size: 15px;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+
+      .nabad-action-divider {
+        height: 1px;
+        background: rgba(15,23,42,0.06);
+        margin: 10px 0;
+      }
+
+      .nabad-action-goal {
+        background: rgba(34,197,94,0.08);
+        border: 1px solid rgba(34,197,94,0.18);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #14532d;
+        line-height: 1.5;
+        margin-top: 12px;
+      }
+
       /* ── RESPONSIVE ──────────────────────────────────────── */
       @media (max-width: 640px) {
         #nabad-widget-root {
@@ -917,9 +1291,28 @@
         .nabad-bubble { max-width: 92%; }
 
         .nabad-bubble [data-nabad-card="snapshot"],
-        .nabad-bubble [data-nabad-card="score"] {
+        .nabad-bubble [data-nabad-card="score"],
+        .nabad-bubble [data-nabad-card="pricing"],
+        .nabad-bubble [data-nabad-card="offer"],
+        .nabad-bubble [data-nabad-card="matrix"],
+        .nabad-bubble [data-nabad-card="action-plan"] {
           padding: 14px 12px;
         }
+
+        .nabad-matrix-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+        }
+
+        .nabad-matrix-cell { padding: 10px 8px; }
+
+        .nabad-pricing-table { font-size: 12px; }
+        .nabad-pricing-table th,
+        .nabad-pricing-table td { padding: 8px 8px; }
+
+        .nabad-score-bar-label { min-width: 100px; font-size: 12px; }
+
+        .nabad-offer-price { font-size: 26px; }
       }
 
       @media (min-width: 641px) {
@@ -939,6 +1332,21 @@
           width: 44px !important;
           height: 44px !important;
         }
+      }
+
+      /* ── REDUCED MOTION ──────────────────────────────────── */
+      @media (prefers-reduced-motion: reduce) {
+        #nabad-launcher,
+        #nabad-input,
+        .nabad-score-bar-fill,
+        .nabad-img-placeholder,
+        .nabad-img-placeholder::before,
+        .nabad-dots span,
+        .nabad-bubble img.loading {
+          animation: none !important;
+          transition: none !important;
+        }
+        .nabad-score-bar-fill { width: var(--nabad-score-target, 0%) !important; }
       }
     `;
     document.head.appendChild(style);
@@ -1260,8 +1668,32 @@
     scrollToBottom();
   }
 
+  // ── [T3-6] POST-RENDER CARD ENHANCER ─────────────────────────
+  // Runs after sanitizeHtml — animates score bars and enriches
+  // card elements that need JS to come alive.
+  function enhanceCards(bubble) {
+
+    // Score bars — find all [data-score] bar-fill elements
+    bubble.querySelectorAll('.nabad-score-bar-fill[data-score]').forEach(fill => {
+      const raw   = parseInt(fill.getAttribute('data-score') || '0', 10);
+      const pct   = Math.min(100, Math.max(0, raw));
+      fill.style.setProperty('--nabad-score-target', `${pct}%`);
+      // Trigger animation on next frame so CSS transition fires
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { fill.style.width = `${pct}%`; });
+      });
+    });
+
+    // Pricing table — highlight "Popular" / "Recommended" badge rows
+    bubble.querySelectorAll('.nabad-pricing-badge').forEach(badge => {
+      const row = badge.closest('tr');
+      if (row) row.style.background = 'rgba(37,99,235,0.05)';
+    });
+  }
+
   // ── PROCESS ASSISTANT BUBBLE ─────────────────────────────────
   function processAssistantBubble(bubble) {
+    // Standard link & image processing
     bubble.querySelectorAll('a').forEach(a => {
       a.setAttribute('target', '_blank');
       a.setAttribute('rel', 'noopener noreferrer');
@@ -1310,6 +1742,9 @@
         if (src) openImageLightbox(src, img.alt || 'Generated image');
       });
     });
+
+    // [T3-6] Enhance Tier 2 & 3 cards after DOM is ready
+    enhanceCards(bubble);
   }
 
   // ── LIGHTBOX ─────────────────────────────────────────────────
