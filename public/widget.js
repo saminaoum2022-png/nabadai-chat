@@ -679,7 +679,7 @@
         align-items: flex-end;
         gap: 10px;
         width: 100%;
-        overflow: hidden;
+        overflow: visible;
       }
 
       #nabad-input {
@@ -690,7 +690,7 @@
         padding: 10px 14px;
         min-height: 44px;
         max-height: 150px;
-        font-size: 14px;
+        font-size: 16px;
         color: #0f172a;
         outline: none;
         background: rgba(255,255,255,0.98);
