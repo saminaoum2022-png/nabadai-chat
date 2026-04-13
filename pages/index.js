@@ -1,7 +1,22 @@
+// ─────────────────────────────────────────────────────────────
+//  NabadAI — index.js (Next.js Page)
+//  Fixes applied:
+//   [FIX-1]  Mobile shell permanently hidden — corrected media queries
+//   [FIX-2]  Auto-open uses public widget API instead of hidden launcher click
+//   [FIX-3]  Service worker update check added on every revisit
+//   [FIX-4]  handleOpenWidget uses retry interval not a single 300ms guess
+//   [FIX-5]  Splash fade-out animation before unmount
+//   [FIX-6]  Dead window.NABAD_API variable removed
+//   [FIX-7]  Open Graph and Twitter meta tags added
+//   [FIX-8]  PERSONALITIES labels sourced from single array
+//   [FIX-9]  Chip buttons have descriptive aria-label
+// ─────────────────────────────────────────────────────────────
+
 import Head from 'next/head';
 import Script from 'next/script';
 import { useEffect, useState } from 'react';
 
+// [FIX-8] Single source of truth for personality labels
 const PERSONALITIES = [
   'Strategist',
   'Growth Expert',
@@ -30,19 +45,24 @@ const FEATURE_POINTS = [
 ];
 
 export default function Home() {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash]     = useState(true);
+  // [FIX-5] Separate hiding state for fade-out before unmount
+  const [splashHiding, setSplashHiding] = useState(false);
 
   useEffect(() => {
+    // [FIX-5] Fade first, then unmount
+    const fadeTimer   = window.setTimeout(() => setSplashHiding(true), 1200);
+    const removeTimer = window.setTimeout(() => setShowSplash(false), 1650);
+
     let autoOpenTimer = null;
-    let pollTimer = null;
+    let pollTimer     = null;
 
-    const hideSplashTimer = window.setTimeout(() => {
-      setShowSplash(false);
-    }, 1600);
-
+    // [FIX-3] Register SW with immediate update check
     const registerServiceWorker = () => {
       if (!('serviceWorker' in navigator)) return;
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        reg.update();
+      }).catch(() => {});
     };
 
     if (document.readyState === 'complete') {
@@ -51,12 +71,15 @@ export default function Home() {
       window.addEventListener('load', registerServiceWorker, { once: true });
     }
 
+    // [FIX-2] Open widget via public API exposed by widget.js
     const openWidget = () => {
-      const launcher = document.getElementById('nabad-launcher');
-      if (launcher) {
-        launcher.click();
+      if (window.__NABAD_OPEN_WIDGET__) {
+        window.__NABAD_OPEN_WIDGET__();
         return true;
       }
+      // Fallback to launcher click
+      const launcher = document.getElementById('nabad-launcher');
+      if (launcher) { launcher.click(); return true; }
       return false;
     };
 
@@ -66,14 +89,12 @@ export default function Home() {
 
       let tries = 0;
       pollTimer = window.setInterval(() => {
-        tries += 1;
-
+        tries++;
         if (openWidget()) {
           window.clearInterval(pollTimer);
           pollTimer = null;
           return;
         }
-
         if (tries >= 50) {
           window.clearInterval(pollTimer);
           pollTimer = null;
@@ -86,38 +107,43 @@ export default function Home() {
     }, 1300);
 
     return () => {
-      window.clearTimeout(hideSplashTimer);
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(removeTimer);
       if (autoOpenTimer) window.clearTimeout(autoOpenTimer);
       if (pollTimer) window.clearInterval(pollTimer);
       window.removeEventListener('load', registerServiceWorker);
     };
   }, []);
 
+  // [FIX-4] Retry with interval instead of a single 300ms guess
   const handleOpenWidget = () => {
-    const launcher = document.getElementById('nabad-launcher');
-    if (launcher) {
-      launcher.click();
+    if (window.__NABAD_OPEN_WIDGET__) {
+      window.__NABAD_OPEN_WIDGET__();
       return;
     }
+    const launcher = document.getElementById('nabad-launcher');
+    if (launcher) { launcher.click(); return; }
 
-    window.setTimeout(() => {
-      const retryLauncher = document.getElementById('nabad-launcher');
-      if (retryLauncher) retryLauncher.click();
-    }, 300);
+    let attempts = 0;
+    const retry = window.setInterval(() => {
+      attempts++;
+      if (window.__NABAD_OPEN_WIDGET__) {
+        window.__NABAD_OPEN_WIDGET__();
+        window.clearInterval(retry);
+      } else {
+        const l = document.getElementById('nabad-launcher');
+        if (l) { l.click(); window.clearInterval(retry); }
+        else if (attempts >= 10) window.clearInterval(retry);
+      }
+    }, 150);
   };
 
   return (
     <>
       <Head>
         <title>NabadAi</title>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, viewport-fit=cover"
-        />
-        <meta
-          name="description"
-          content="NabadAi is your business-focused AI for strategy, growth, branding, offers, and creative direction."
-        />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="description" content="NabadAi is your business-focused AI for strategy, growth, branding, offers, and creative direction." />
         <meta name="theme-color" content="#f7f8fc" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -125,11 +151,21 @@ export default function Home() {
         <link rel="icon" href="/logo.png" />
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
+
+        {/* [FIX-7] Open Graph & Twitter meta tags */}
+        <meta property="og:title" content="NabadAi — Business AI" />
+        <meta property="og:description" content="Strategy, branding, growth, offers and creative direction — all in one AI." />
+        <meta property="og:image" content="https://nabadai.com/og-image.png" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://nabadai.com" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="NabadAi — Business AI" />
+        <meta name="twitter:description" content="Your business-focused AI assistant." />
+        <meta name="twitter:image" content="https://nabadai.com/og-image.png" />
       </Head>
 
       <Script id="nabad-widget-config" strategy="beforeInteractive">
         {`
-          window.NABAD_API = '/api/chat';
           window.NABAD_WIDGET_CONFIG = {
             apiUrl: '/api/chat',
             title: 'NabadAi',
@@ -140,7 +176,7 @@ export default function Home() {
 
       <Script
         id="nabad-widget-script"
-        src="/widget.js?v=14"
+        src="/widget.js?v=15"
         strategy="afterInteractive"
       />
 
@@ -162,7 +198,7 @@ export default function Home() {
               </p>
 
               <div className="nabad-feature-list">
-                {FEATURE_POINTS.map((item) => (
+                {FEATURE_POINTS.map(item => (
                   <div className="nabad-feature-card" key={item.title}>
                     <div className="nabad-feature-title">
                       <span>{item.emoji}</span>
@@ -188,11 +224,13 @@ export default function Home() {
                 </p>
 
                 <div className="nabad-chip-grid">
-                  {PERSONALITIES.map((item) => (
+                  {/* [FIX-9] Descriptive aria-label on each chip */}
+                  {PERSONALITIES.map(item => (
                     <button
                       type="button"
                       key={item}
                       className="nabad-chip"
+                      aria-label={`Open Nabad as ${item}`}
                       onClick={handleOpenWidget}
                     >
                       {item}
@@ -200,11 +238,7 @@ export default function Home() {
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  className="nabad-cta"
-                  onClick={handleOpenWidget}
-                >
+                <button type="button" className="nabad-cta" onClick={handleOpenWidget}>
                   Open Nabad
                 </button>
               </div>
@@ -212,30 +246,32 @@ export default function Home() {
           </div>
         </section>
 
+        {/* [FIX-1] Mobile shell now correctly shown on mobile */}
         <section id="nabad-mobile-shell" aria-label="Open Nabad on mobile">
           <div className="nabad-mobile-card">
             <img src="/logo.png" alt="NabadAi" className="nabad-mobile-logo" />
             <h2>NabadAi</h2>
-            <p>
-              Your business AI for strategy, branding, growth, and offer ideas.
-            </p>
+            <p>Your business AI for strategy, branding, growth, and offer ideas.</p>
             <button type="button" className="nabad-cta" onClick={handleOpenWidget}>
               Open chat
             </button>
           </div>
         </section>
 
+        {/* [FIX-5] Fade-out class applied before unmount */}
         {showSplash && (
-          <div id="nabad-splash" aria-hidden="true">
+          <div
+            id="nabad-splash"
+            className={splashHiding ? 'hiding' : ''}
+            aria-hidden="true"
+          >
             <img src="/logo.png" alt="NabadAi" />
           </div>
         )}
       </main>
 
       <style jsx global>{`
-        html,
-        body,
-        #__next {
+        html, body, #__next {
           margin: 0;
           padding: 0;
           width: 100%;
@@ -246,32 +282,19 @@ export default function Home() {
             'Segoe UI', sans-serif;
         }
 
-        * {
-          box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
+        body { color: #0f172a; }
 
-        body {
-          color: #0f172a;
-        }
-
-        button,
-        input,
-        textarea,
-        select {
-          font: inherit;
-        }
-
-        a {
-          color: inherit;
-        }
+        button, input, textarea, select { font: inherit; }
+        a { color: inherit; }
 
         #nabad-page {
           position: relative;
           min-height: 100dvh;
           overflow: hidden;
           background:
-            radial-gradient(circle at top left, rgba(125, 211, 252, 0.18), transparent 26%),
-            radial-gradient(circle at top right, rgba(196, 181, 253, 0.22), transparent 26%),
+            radial-gradient(circle at top left, rgba(125,211,252,0.18), transparent 26%),
+            radial-gradient(circle at top right, rgba(196,181,253,0.22), transparent 26%),
             linear-gradient(180deg, #f8fbff 0%, #f7f8fc 100%);
         }
 
@@ -280,11 +303,12 @@ export default function Home() {
           inset: 0;
           pointer-events: none;
           background:
-            radial-gradient(circle at 18% 20%, rgba(59, 130, 246, 0.08), transparent 20%),
-            radial-gradient(circle at 82% 16%, rgba(14, 165, 233, 0.10), transparent 18%),
-            radial-gradient(circle at 50% 85%, rgba(99, 102, 241, 0.08), transparent 18%);
+            radial-gradient(circle at 18% 20%, rgba(59,130,246,0.08), transparent 20%),
+            radial-gradient(circle at 82% 16%, rgba(14,165,233,0.10), transparent 18%),
+            radial-gradient(circle at 50% 85%, rgba(99,102,241,0.08), transparent 18%);
         }
 
+        /* [FIX-5] Splash with fade transition */
         #nabad-splash {
           position: fixed;
           inset: 0;
@@ -293,6 +317,13 @@ export default function Home() {
           align-items: center;
           justify-content: center;
           background: #f7f8fc;
+          opacity: 1;
+          transition: opacity 0.4s ease;
+        }
+
+        #nabad-splash.hiding {
+          opacity: 0;
+          pointer-events: none;
         }
 
         #nabad-splash img {
@@ -300,17 +331,17 @@ export default function Home() {
           height: 94px;
           object-fit: contain;
           animation: nabadLogoGlow 1.25s ease-in-out infinite alternate;
-          filter: drop-shadow(0 10px 28px rgba(37, 99, 235, 0.18));
+          filter: drop-shadow(0 10px 28px rgba(37,99,235,0.18));
         }
 
         @keyframes nabadLogoGlow {
           0% {
             transform: scale(0.98);
-            filter: drop-shadow(0 8px 24px rgba(37, 99, 235, 0.12));
+            filter: drop-shadow(0 8px 24px rgba(37,99,235,0.12));
           }
           100% {
             transform: scale(1.03);
-            filter: drop-shadow(0 10px 32px rgba(34, 211, 238, 0.26));
+            filter: drop-shadow(0 10px 32px rgba(34,211,238,0.26));
           }
         }
 
@@ -332,19 +363,16 @@ export default function Home() {
           align-items: stretch;
           padding: 28px;
           border-radius: 34px;
-          background: rgba(255, 255, 255, 0.72);
-          border: 1px solid rgba(255, 255, 255, 0.8);
+          background: rgba(255,255,255,0.72);
+          border: 1px solid rgba(255,255,255,0.8);
           box-shadow:
-            0 20px 60px rgba(15, 23, 42, 0.08),
-            inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            0 20px 60px rgba(15,23,42,0.08),
+            inset 0 1px 0 rgba(255,255,255,0.75);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
         }
 
-        #nabad-desktop-copy,
-        #nabad-desktop-side {
-          min-width: 0;
-        }
+        #nabad-desktop-copy, #nabad-desktop-side { min-width: 0; }
 
         .nabad-eyebrow {
           display: inline-flex;
@@ -353,13 +381,13 @@ export default function Home() {
           margin-bottom: 16px;
           padding: 9px 14px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.92);
-          border: 1px solid rgba(148, 163, 184, 0.15);
+          background: rgba(255,255,255,0.92);
+          border: 1px solid rgba(148,163,184,0.15);
           color: #334155;
           font-size: 13px;
           font-weight: 700;
           letter-spacing: 0.02em;
-          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+          box-shadow: 0 8px 24px rgba(15,23,42,0.05);
         }
 
         #nabad-desktop-copy h1 {
@@ -371,8 +399,7 @@ export default function Home() {
           max-width: 640px;
         }
 
-        .nabad-lead,
-        .nabad-sublead {
+        .nabad-lead, .nabad-sublead {
           max-width: 700px;
           font-size: 20px;
           line-height: 1.65;
@@ -380,26 +407,18 @@ export default function Home() {
           margin: 0 0 16px;
         }
 
-        .nabad-sublead {
-          margin-bottom: 28px;
-        }
+        .nabad-sublead { margin-bottom: 28px; }
 
-        .nabad-feature-list {
-          display: grid;
-          gap: 16px;
-        }
+        .nabad-feature-list { display: grid; gap: 16px; }
 
-        .nabad-feature-card,
-        .nabad-side-card {
+        .nabad-feature-card, .nabad-side-card {
           border-radius: 24px;
-          background: rgba(255, 255, 255, 0.88);
-          border: 1px solid rgba(255, 255, 255, 0.92);
-          box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
+          background: rgba(255,255,255,0.88);
+          border: 1px solid rgba(255,255,255,0.92);
+          box-shadow: 0 12px 34px rgba(15,23,42,0.06);
         }
 
-        .nabad-feature-card {
-          padding: 18px 20px;
-        }
+        .nabad-feature-card { padding: 18px 20px; }
 
         .nabad-feature-title {
           display: flex;
@@ -417,10 +436,7 @@ export default function Home() {
           line-height: 1.55;
         }
 
-        .nabad-side-card {
-          height: 100%;
-          padding: 24px;
-        }
+        .nabad-side-card { height: 100%; padding: 24px; }
 
         .nabad-side-card h3 {
           margin: 0 0 14px;
@@ -436,9 +452,7 @@ export default function Home() {
           line-height: 1.6;
         }
 
-        .nabad-side-small {
-          color: #64748b;
-        }
+        .nabad-side-small { color: #64748b; }
 
         .nabad-chip-grid {
           display: flex;
@@ -449,7 +463,7 @@ export default function Home() {
 
         .nabad-chip {
           appearance: none;
-          border: 1px solid rgba(226, 232, 240, 0.95);
+          border: 1px solid rgba(226,232,240,0.95);
           background: linear-gradient(180deg, #ffffff 0%, #f7f8ff 100%);
           color: #334155;
           border-radius: 999px;
@@ -458,13 +472,13 @@ export default function Home() {
           font-weight: 700;
           cursor: pointer;
           transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-          box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+          box-shadow: 0 8px 22px rgba(15,23,42,0.05);
         }
 
         .nabad-chip:hover {
           transform: translateY(-1px);
-          border-color: rgba(59, 130, 246, 0.22);
-          box-shadow: 0 12px 26px rgba(37, 99, 235, 0.10);
+          border-color: rgba(59,130,246,0.22);
+          box-shadow: 0 12px 26px rgba(37,99,235,0.10);
         }
 
         .nabad-cta {
@@ -480,8 +494,8 @@ export default function Home() {
           letter-spacing: 0.01em;
           cursor: pointer;
           box-shadow:
-            0 12px 30px rgba(37, 99, 235, 0.22),
-            0 0 18px rgba(34, 211, 238, 0.12);
+            0 12px 30px rgba(37,99,235,0.22),
+            0 0 18px rgba(34,211,238,0.12);
           transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
         }
 
@@ -489,10 +503,11 @@ export default function Home() {
           transform: translateY(-1px);
           filter: saturate(1.05);
           box-shadow:
-            0 18px 36px rgba(37, 99, 235, 0.25),
-            0 0 22px rgba(34, 211, 238, 0.15);
+            0 18px 36px rgba(37,99,235,0.25),
+            0 0 22px rgba(34,211,238,0.15);
         }
 
+        /* [FIX-1] Mobile shell base — hidden by default, shown on mobile */
         #nabad-mobile-shell {
           display: none;
           position: relative;
@@ -510,11 +525,11 @@ export default function Home() {
           padding: 28px 22px;
           text-align: center;
           border-radius: 28px;
-          background: rgba(255, 255, 255, 0.84);
-          border: 1px solid rgba(255, 255, 255, 0.88);
+          background: rgba(255,255,255,0.84);
+          border: 1px solid rgba(255,255,255,0.88);
           box-shadow:
-            0 18px 46px rgba(15, 23, 42, 0.08),
-            inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            0 18px 46px rgba(15,23,42,0.08),
+            inset 0 1px 0 rgba(255,255,255,0.75);
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
         }
@@ -524,7 +539,7 @@ export default function Home() {
           height: 68px;
           object-fit: contain;
           margin-bottom: 14px;
-          filter: drop-shadow(0 10px 22px rgba(37, 99, 235, 0.14));
+          filter: drop-shadow(0 10px 22px rgba(37,99,235,0.14));
         }
 
         .nabad-mobile-card h2 {
@@ -542,34 +557,20 @@ export default function Home() {
           font-size: 16px;
         }
 
-        /* Force widget above the landing page */
-        #nabad-widget-root {
-          z-index: 2147483000 !important;
-        }
+        #nabad-widget-root { z-index: 2147483000 !important; }
+        #nabad-launcher, #nabad-panel { z-index: 2147483001 !important; }
 
-        #nabad-launcher,
-        #nabad-panel {
-          z-index: 2147483001 !important;
-        }
-
+        /* [FIX-1] Correct responsive layout */
         @media (max-width: 767px) {
-  #nabad-desktop-hero {
-    display: none;
-  }
+          #nabad-desktop-hero { display: none; }
+          #nabad-launcher { display: none !important; }
 
-  #nabad-mobile-shell {
-    display: none;
-  }
-
-  #nabad-launcher {
-    display: none !important;
-  }
-}
+          /* Mobile shell shows as fallback until widget opens */
+          #nabad-mobile-shell { display: flex; }
+        }
 
         @media (min-width: 768px) {
-          #nabad-mobile-shell {
-            display: none;
-          }
+          #nabad-mobile-shell { display: none; }
         }
       `}</style>
     </>
