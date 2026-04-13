@@ -151,20 +151,20 @@
   function getPersonalityGreeting(id = 'auto') {
     switch (id) {
       case 'strategist':
-        return `<h3>🧠 Strategist mode selected</h3><p>I'll help you make sharper business decisions, choose the right direction, and avoid weak moves.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>🧠 Strategist mode selected</h3><p>I’ll help you make sharper business decisions, choose the right direction, and avoid weak moves.</p><p><b>What are you working on?</b></p>`;
       case 'growth':
-        return `<h3>📈 Growth Expert mode selected</h3><p>I'll focus on traction, marketing, leads, conversion, and practical growth opportunities.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>📈 Growth Expert mode selected</h3><p>I’ll focus on traction, marketing, leads, conversion, and practical growth opportunities.</p><p><b>What are you working on?</b></p>`;
       case 'branding':
-        return `<h3>🎨 Brand Builder mode selected</h3><p>I'll focus on identity, positioning, perception, naming, and premium brand thinking.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>🎨 Brand Builder mode selected</h3><p>I’ll focus on identity, positioning, perception, naming, and premium brand thinking.</p><p><b>What are you working on?</b></p>`;
       case 'offer':
-        return `<h3>💼 Offer Architect mode selected</h3><p>I'll help you shape stronger offers, pricing, packaging, and monetization.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>💼 Offer Architect mode selected</h3><p>I’ll help you shape stronger offers, pricing, packaging, and monetization.</p><p><b>What are you working on?</b></p>`;
       case 'creative':
-        return `<h3>⚡ Creative Challenger mode selected</h3><p>I'll push for fresher, bolder, more differentiated business ideas.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>⚡ Creative Challenger mode selected</h3><p>I’ll push for fresher, bolder, more differentiated business ideas.</p><p><b>What are you working on?</b></p>`;
       case 'straight_talk':
-        return `<h3>🎯 Straight Talk mode selected</h3><p>I'll give direct, no-fluff, commercially honest advice.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>🎯 Straight Talk mode selected</h3><p>I’ll give direct, no-fluff, commercially honest advice.</p><p><b>What are you working on?</b></p>`;
       case 'auto':
       default:
-        return `<h3>✨ Nabad will adapt to you</h3><p>I'll adjust my style based on your goal and give business-focused advice.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>✨ Nabad will adapt to you</h3><p>I’ll adjust my style based on your goal and give business-focused advice.</p><p><b>What are you working on?</b></p>`;
     }
   }
 
@@ -294,22 +294,14 @@
         width: 42px;
         height: 42px;
         border-radius: 999px;
-        background: #ffffff;
+        background: radial-gradient(circle at 30% 30%, #67e8f9 0%, #2563eb 45%, #1e3a8a 100%);
         display: flex;
         align-items: center;
         justify-content: center;
-        overflow: hidden;
-        flex-shrink: 0;
-        box-shadow:
-          0 2px 8px rgba(36, 87, 197, 0.15),
-          0 0 0 2px rgba(0, 180, 216, 0.18);
-      }
-
-      #nabad-logo img {
-        width: 34px;
-        height: 34px;
-        object-fit: contain;
-        display: block;
+        color: #fff;
+        font-weight: 900;
+        font-size: 14px;
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35);
       }
 
       #nabad-title-wrap {
@@ -443,16 +435,25 @@
       .nabad-bubble h3 { font-size: 17px; }
       .nabad-bubble h4 { font-size: 15px; }
 
-      .nabad-bubble p { margin: 0 0 10px; }
+      .nabad-bubble p {
+        margin: 0 0 10px;
+      }
 
       .nabad-bubble p:last-child,
       .nabad-bubble ul:last-child,
-      .nabad-bubble ol:last-child { margin-bottom: 0; }
+      .nabad-bubble ol:last-child {
+        margin-bottom: 0;
+      }
 
       .nabad-bubble ul,
-      .nabad-bubble ol { margin: 0 0 10px 18px; padding: 0; }
+      .nabad-bubble ol {
+        margin: 0 0 10px 18px;
+        padding: 0;
+      }
 
-      .nabad-bubble li { margin: 0 0 6px; }
+      .nabad-bubble li {
+        margin: 0 0 6px;
+      }
 
       .nabad-bubble a {
         color: #2563eb;
@@ -460,7 +461,9 @@
         text-decoration: none;
       }
 
-      .nabad-bubble a:hover { text-decoration: underline; }
+      .nabad-bubble a:hover {
+        text-decoration: underline;
+      }
 
       .nabad-bubble img {
         display: block;
@@ -488,7 +491,9 @@
         }
       }
 
-      #nabad-onboarding { padding: 4px 2px 10px; }
+      #nabad-onboarding {
+        padding: 4px 2px 10px;
+      }
 
       #nabad-onboarding h3 {
         margin: 0 0 6px;
@@ -546,7 +551,9 @@
         margin-bottom: 6px;
       }
 
-      .nabad-personality-title .icon { font-size: 18px; }
+      .nabad-personality-title .icon {
+        font-size: 18px;
+      }
 
       .nabad-personality-desc {
         color: #475569;
@@ -559,7 +566,9 @@
         padding: 0 14px 10px;
       }
 
-      #nabad-typing.show { display: block; }
+      #nabad-typing.show {
+        display: block;
+      }
 
       #nabad-typing .inner {
         display: inline-flex;
@@ -575,7 +584,10 @@
         font-weight: 700;
       }
 
-      .nabad-dots { display: inline-flex; gap: 4px; }
+      .nabad-dots {
+        display: inline-flex;
+        gap: 4px;
+      }
 
       .nabad-dots span {
         width: 6px;
@@ -593,195 +605,61 @@
         40% { transform: translateY(-4px); opacity: 1; }
       }
 
-      /* ====================================================
-         INPUT GLOW — only around textarea, not send button
-         Idle  : slow 6s spin, low opacity 0.35
-         Focus : fast 2.5s spin, full opacity 1.0
-      ==================================================== */
+@keyframes siriIdleGlow {
+  0%   { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 6px rgba(6,182,212,0.3), 0 0 12px rgba(37,99,235,0.15); }
+  50%  { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(37,99,235,0.35), 0 0 18px rgba(6,182,212,0.2); }
+  100% { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 6px rgba(6,182,212,0.3), 0 0 12px rgba(37,99,235,0.15); }
+}
 
-      @keyframes nabadInputSpinGrad {
-        from { transform: rotate(0deg); }
-        to   { transform: rotate(360deg); }
-      }
+@keyframes siriFocusGlow {
+  0%   { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(6,182,212,0.7), 0 0 24px rgba(37,99,235,0.4), 0 0 40px rgba(6,182,212,0.2); }
+  50%  { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 14px rgba(37,99,235,0.8), 0 0 28px rgba(6,182,212,0.5), 0 0 48px rgba(37,99,235,0.25); }
+  100% { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(6,182,212,0.7), 0 0 24px rgba(37,99,235,0.4), 0 0 40px rgba(6,182,212,0.2); }
+}
 
-      @keyframes nabadInputIdlePulse {
-        0%, 100% {
-          box-shadow:
-            inset 0 1px 2px rgba(15,23,42,0.03),
-            0 0 5px rgba(0,180,216,0.15),
-            0 0 10px rgba(36,87,197,0.08);
-        }
-        50% {
-          box-shadow:
-            inset 0 1px 2px rgba(15,23,42,0.03),
-            0 0 8px rgba(36,87,197,0.18),
-            0 0 14px rgba(0,180,216,0.10);
-        }
-      }
-
-      /* Wrap only the textarea — excludes send button */
-      #nabad-input-glow-wrap {
-        position: relative;
-        flex: 1;
-        min-width: 0;
-      }
-
-      /* Static ring — never moves */
-      #nabad-input-glow-ring {
-        position: absolute;
-        inset: -3px;
-        border-radius: 19px;
-        z-index: 0;
-        overflow: hidden;
-        opacity: 0.35;
-        transition: opacity 0.6s ease;
-        pointer-events: none;
-      }
-
-      /* Spinning gradient inside the static ring */
-      #nabad-input-glow-ring::before {
-        content: '';
-        position: absolute;
-        width: 200%;
-        height: 200%;
-        top: -50%;
-        left: -50%;
-        background: conic-gradient(
-          from 0deg,
-          transparent          0deg,
-          #1a3a8f             22deg,
-          #2457c5             48deg,
-          #2b7de9             68deg,
-          #00b4d8             88deg,
-          #48cae4             98deg,
-          #90e0ef            108deg,
-          #ffffff            118deg,
-          #90e0ef            128deg,
-          #48cae4            143deg,
-          #00b4d8            163deg,
-          #2b7de9            183deg,
-          #2457c5            213deg,
-          #1a3a8f            243deg,
-          transparent        285deg,
-          transparent        360deg
-        );
-        animation: nabadInputSpinGrad 6s linear infinite;
-      }
-
-      /* White mask — only the ring border is visible */
-      #nabad-input-glow-ring::after {
-        content: '';
-        position: absolute;
-        inset: 2.5px;
-        border-radius: 17px;
-        background: rgba(255,255,255,0.98);
-        z-index: 1;
-      }
-
-      /* Blurred outer halo */
-      #nabad-input-halo {
-        position: absolute;
-        inset: -7px;
-        border-radius: 23px;
-        z-index: 0;
-        overflow: hidden;
-        opacity: 0.2;
-        transition: opacity 0.6s ease;
-        pointer-events: none;
-      }
-
-      #nabad-input-halo::before {
-        content: '';
-        position: absolute;
-        width: 200%;
-        height: 200%;
-        top: -50%;
-        left: -50%;
-        background: conic-gradient(
-          from 0deg,
-          transparent           0deg,
-          rgba(43,125,233,0.2)  55deg,
-          rgba(0,180,216,0.38)  82deg,
-          rgba(144,224,239,0.5)102deg,
-          rgba(255,255,255,0.65)118deg,
-          rgba(144,224,239,0.5)134deg,
-          rgba(0,180,216,0.28) 154deg,
-          rgba(43,125,233,0.14)180deg,
-          transparent          228deg,
-          transparent          360deg
-        );
-        filter: blur(8px);
-        animation: nabadInputSpinGrad 6s linear infinite;
-      }
-
-      /* Focus — speed up ring + intensify everything */
-      #nabad-input-glow-wrap:focus-within #nabad-input-glow-ring {
-        opacity: 1;
-      }
-      #nabad-input-glow-wrap:focus-within #nabad-input-glow-ring::before {
-        animation-duration: 2.5s;
-      }
-      #nabad-input-glow-wrap:focus-within #nabad-input-halo {
-        opacity: 0.9;
-      }
-      #nabad-input-glow-wrap:focus-within #nabad-input-halo::before {
-        animation-duration: 2.5s;
-      }
-
-      /* ── TEXTAREA ── */
-      #nabad-input {
-        position: relative;
-        z-index: 2;
-        width: 100%;
-        resize: none;
-        border: 1.5px solid rgba(36,87,197,0.15);
-        border-radius: 16px;
-        padding: 10px 14px;
-        min-height: 44px;
-        max-height: 150px;
-        font-size: 16px;
-        color: #0f172a;
-        outline: none;
-        background: rgba(255,255,255,0.98);
-        box-shadow:
-          inset 0 1px 2px rgba(15,23,42,0.03),
-          0 0 5px rgba(0,180,216,0.15),
-          0 0 10px rgba(36,87,197,0.08);
-        transition: border-color 0.3s ease;
-        animation: nabadInputIdlePulse 5s ease-in-out infinite;
-      }
-
-      #nabad-input-glow-wrap:focus-within #nabad-input {
-        border-color: rgba(0,180,216,0.38);
-        animation: none;
-        box-shadow:
-          inset 0 1px 2px rgba(15,23,42,0.03),
-          0 0 0 2px rgba(0,180,216,0.07);
-      }
-
-      /* ── INPUT WRAP ── */
       #nabad-input-wrap {
-        position: relative;
-        padding: 12px 14px 14px;
-        padding-bottom: max(14px, env(safe-area-inset-bottom));
-        border-top: 1px solid rgba(15, 23, 42, 0.06);
-        background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
-        width: 100%;
-        overflow: visible;
-      }
+  padding: 12px 14px 14px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
+  width: 100%;
+  overflow: visible;
+}
 
       #nabad-input-row {
-        display: flex;
-        align-items: flex-end;
-        gap: 10px;
-        width: 100%;
-        position: relative;
-        overflow: visible;
-      }
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  overflow: hidden;
+}
 
-      /* ── SEND BUTTON — clean, no glow ring ── */
+      #nabad-input {
+  flex: 1;
+  resize: none;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 16px;
+  padding: 10px 14px;
+  min-height: 44px;
+  max-height: 150px;
+  font-size: 16px;
+  color: #0f172a;
+  outline: none;
+  background: rgba(255,255,255,0.98);
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.03),
+    0 0 8px rgba(6, 182, 212, 0.25),
+    0 0 16px rgba(37, 99, 235, 0.15);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: siriIdleGlow 3s ease-in-out infinite;
+}
+
+#nabad-input:focus {
+  border-color: rgba(37, 99, 235, 0.30);
+  animation: siriFocusGlow 1.5s ease-in-out infinite;
+}
+
       #nabad-send {
-        flex-shrink: 0;
         width: 44px;
         height: 44px;
         border: none;
@@ -795,8 +673,6 @@
           0 8px 20px rgba(37, 99, 235, 0.14),
           0 0 14px rgba(6, 182, 212, 0.08);
         transition: transform 0.2s ease, box-shadow 0.2s ease;
-        position: relative;
-        z-index: 2;
       }
 
       #nabad-send:hover {
@@ -829,7 +705,9 @@
         padding: 20px;
       }
 
-      #nabad-lightbox.open { display: flex; }
+      #nabad-lightbox.open {
+        display: flex;
+      }
 
       #nabad-lightbox-inner {
         width: min(92vw, 920px);
@@ -898,84 +776,98 @@
       }
 
       @media (max-width: 640px) {
-        #nabad-widget-root {
-          position: fixed;
-          inset: 0;
-          top: 0; right: 0; bottom: 0; left: 0;
-          width: 100vw;
-          height: 100svh;
-          height: 100dvh;
-          padding: 0;
-        }
+  #nabad-widget-root {
+    position: fixed;
+    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 100svh;
+    height: 100dvh;
+    padding: 0;
+  }
 
-        #nabad-input-wrap { overflow: visible !important; }
-        #nabad-input-row  { overflow: visible !important; }
+#nabad-input-wrap {
+  overflow: visible !important;
+}
 
-        #nabad-close { display: none !important; }
+#nabad-input-row {
+  overflow: visible !important;
+}
 
-        #nabad-panel {
-          position: fixed;
-          inset: 0;
-          top: 0; right: 0; bottom: 0; left: 0;
-          width: 100vw;
-          height: 100svh;
-          height: 100dvh;
-          max-width: 100vw;
-          max-height: 100dvh;
-          border-radius: 0;
-          box-shadow: none;
-          border: none;
-          overflow: hidden;
-        }
+  #nabad-close {
+    display: none !important;
+  }
+  #nabad-panel {
+    position: fixed;
+    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 100svh;
+    height: 100dvh;
+    max-width: 100vw;
+    max-height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+    overflow: hidden;
+  }
 
-        #nabad-header {
-          padding-top: max(14px, env(safe-area-inset-top));
-        }
+  #nabad-header {
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
 
-        #nabad-messages {
-          flex: 1;
-          min-height: 0;
-          padding-bottom: 18px;
-          -webkit-overflow-scrolling: touch;
-        }
+  #nabad-messages {
+    flex: 1;
+    min-height: 0;
+    padding-bottom: 18px;
+    -webkit-overflow-scrolling: touch;
+  }
 
-        #nabad-input-wrap {
-          padding-bottom: max(14px, env(safe-area-inset-bottom));
-        }
+  #nabad-input-wrap {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
 
-        #nabad-launcher {
-          position: fixed;
-          right: 14px;
-          bottom: 14px;
-          width: 60px;
-          height: 60px;
-        }
+  #nabad-launcher {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    width: 60px;
+    height: 60px;
+  }
 
-        .nabad-bubble { max-width: 92%; }
-      }
+  .nabad-bubble {
+    max-width: 92%;
+  }
+}
 
-      @media (min-width: 641px) {
-        #nabad-input-wrap {
-          padding-left: 16px;
-          padding-right: 16px;
-          margin-bottom: 4px;
-        }
+@media (min-width: 641px) {
+  #nabad-input-wrap {
+    padding-left: 16px;
+    padding-right: 16px;
+    margin-bottom: 4px;
+  }
 
-        #nabad-input {
-          margin: 2px;
-          padding: 10px 14px !important;
-          min-height: 44px !important;
-        }
+  #nabad-input {
+    margin: 2px;
+    padding: 10px 14px !important;
+    min-height: 44px !important;
+  }
 
-        #nabad-send {
-          width: 44px !important;
-          height: 44px !important;
-        }
-      }
+  #nabad-send {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
     `;
     document.head.appendChild(style);
   }
-
+    
   function buildShell() {
     const root = document.createElement('div');
     root.id = 'nabad-widget-root';
@@ -986,13 +878,7 @@
       <div id="nabad-panel" aria-hidden="true">
         <div id="nabad-header">
           <div id="nabad-header-left">
-            <div id="nabad-logo">
-              <img
-                src="https://www.genspark.ai/api/files/s/TIAzJ8kJ"
-                alt="NabadAI logo"
-                draggable="false"
-              />
-            </div>
+            <div id="nabad-logo">N</div>
             <div id="nabad-title-wrap">
               <div id="nabad-title">${escapeHtml(CONFIG.title)}</div>
               <div id="nabad-subtitle">${escapeHtml(CONFIG.subtitle)}</div>
@@ -1000,7 +886,7 @@
           </div>
           <div id="nabad-header-actions">
             <button class="nabad-icon-btn" id="nabad-new-chat" type="button" title="New chat">⟳</button>
-            <button class="nabad-icon-btn" id="nabad-close" type="button" title="Close">×</button>
+            <button class="nabad-icon-btn" id="nabad-close" type="button" title="Close" class="nabad-desktop-only">×</button>
           </div>
         </div>
 
@@ -1020,11 +906,7 @@
 
         <div id="nabad-input-wrap">
           <div id="nabad-input-row">
-            <div id="nabad-input-glow-wrap">
-              <div id="nabad-input-glow-ring"></div>
-              <div id="nabad-input-halo"></div>
-              <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
-            </div>
+            <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
             <button id="nabad-send" type="button" aria-label="Send">➜</button>
           </div>
           <div id="nabad-footer-note">Business strategy, branding, growth, offers, and visuals</div>
@@ -1072,7 +954,9 @@
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
     root.querySelector('#nabad-new-chat').addEventListener('click', startNewChat);
-    root.querySelector('#nabad-change-personality').addEventListener('click', changePersonalityFlow);
+    root
+      .querySelector('#nabad-change-personality')
+      .addEventListener('click', changePersonalityFlow);
 
     refs.input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -1096,6 +980,7 @@
 
     refs.lightboxSave.addEventListener('click', async () => {
       if (!currentLightboxSrc) return;
+
       try {
         const r = await fetch(currentLightboxSrc);
         const b = await r.blob();
@@ -1125,55 +1010,64 @@
   }
 
   function toggleWidget(force) {
-    state.open = typeof force === 'boolean' ? force : !state.open;
+  state.open = typeof force === 'boolean' ? force : !state.open;
 
-    refs.panel.classList.toggle('open', state.open);
-    refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
-    refs.root.classList.toggle('nabad-open', state.open);
+  refs.panel.classList.toggle('open', state.open);
+  refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
+  refs.root.classList.toggle('nabad-open', state.open);
 
-    if (state.open) {
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
+  if (state.open) {
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
 
-      setTimeout(() => {
-        if (!state.personalityChosen && !state.messages.length) {
-          renderPersonalityOnboarding();
-          scrollToBottom();
-          return;
-        }
+    setTimeout(() => {
+      if (!state.personalityChosen && !state.messages.length) {
+        renderPersonalityOnboarding();
         scrollToBottom();
-        if (refs.input) refs.input.focus();
-      }, 40);
-    } else {
-      document.documentElement.style.overflow = '';
-      document.body.style.overflow = '';
-      document.body.style.touchAction = '';
-    }
+        return;
+      }
+
+      scrollToBottom();
+      if (refs.input) refs.input.focus();
+    }, 40);
+  } else {
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
   }
+}
 
   function updatePersonalityBadge() {
     if (!refs.badge) return;
+
     if (!state.personalityChosen) {
       refs.badge.classList.remove('show');
       return;
     }
+
     const meta = getSelectedPersonalityMeta();
-    refs.badge.querySelector('.label').innerHTML = `${escapeHtml(meta.icon)} ${escapeHtml(meta.title)}`;
+    refs.badge.querySelector('.label').innerHTML = `${escapeHtml(meta.icon)} ${escapeHtml(
+      meta.title
+    )}`;
     refs.badge.classList.add('show');
   }
 
   function renderInitialState() {
     refs.messages.innerHTML = '';
+
     if (!state.personalityChosen && !state.messages.length) {
       renderPersonalityOnboarding();
       return;
     }
+
     updatePersonalityBadge();
+
     if (!state.messages.length) {
       renderMessage('assistant', getPersonalityGreeting(state.personality), false);
       return;
     }
+
     refs.messages.innerHTML = '';
     state.messages.forEach((m) => renderMessage(m.role, m.content, false));
     scrollToBottom();
@@ -1187,7 +1081,9 @@
         <div class="nabad-personality-grid">
           ${PERSONALITIES.map(
             (p) => `
-            <button class="nabad-personality-card ${state.personality === p.id ? 'active' : ''}" data-personality="${p.id}" type="button">
+            <button class="nabad-personality-card ${
+              state.personality === p.id ? 'active' : ''
+            }" data-personality="${p.id}" type="button">
               <div class="nabad-personality-title">
                 <span class="icon">${p.icon}</span>
                 <span>${escapeHtml(p.title)}</span>
@@ -1209,6 +1105,7 @@
         setInputPlaceholder();
         refs.messages.innerHTML = '';
         renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+
         setTimeout(() => {
           refs.input.focus();
           scrollToBottom();
@@ -1236,7 +1133,9 @@
     msg.appendChild(bubble);
     refs.messages.appendChild(msg);
 
-    if (!isUser) processAssistantBubble(bubble);
+    if (!isUser) {
+      processAssistantBubble(bubble);
+    }
 
     if (persist) {
       state.messages.push({
@@ -1251,50 +1150,59 @@
   }
 
   function processAssistantBubble(bubble) {
-    bubble.querySelectorAll('a').forEach((a) => {
-      a.setAttribute('target', '_blank');
-      a.setAttribute('rel', 'noopener noreferrer');
-    });
+  bubble.querySelectorAll('a').forEach((a) => {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
 
-    const imgs = bubble.querySelectorAll('img');
-    imgs.forEach((img, i) => {
-      const MIN_GLOW_MS = 900;
-      const start = Date.now();
-      let finished = false;
-      const originalSrc = img.getAttribute('src') || '';
+  const imgs = bubble.querySelectorAll('img');
 
-      if (/image\.pollinations\.ai/i.test(originalSrc)) {
-        const sep = originalSrc.includes('?') ? '&' : '?';
-        const freshSrc = `${originalSrc}${sep}cb=${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
-        img.setAttribute('src', freshSrc);
-      }
+  imgs.forEach((img, i) => {
+    const MIN_GLOW_MS = 900;
+    const start = Date.now();
+    let finished = false;
+    const originalSrc = img.getAttribute('src') || '';
 
-      img.classList.add('loading');
+    if (/image\.pollinations\.ai/i.test(originalSrc)) {
+      const sep = originalSrc.includes('?') ? '&' : '?';
+      const freshSrc = `${originalSrc}${sep}cb=${Date.now()}_${i}_${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      img.setAttribute('src', freshSrc);
+    }
 
-      function finishLoad() {
-        if (finished) return;
-        finished = true;
-        const elapsed = Date.now() - start;
-        setTimeout(() => img.classList.remove('loading'), Math.max(0, MIN_GLOW_MS - elapsed));
-      }
+    img.classList.add('loading');
 
-      function failLoad() {
-        if (finished) return;
-        finished = true;
+    function finishLoad() {
+      if (finished) return;
+      finished = true;
+      const elapsed = Date.now() - start;
+      setTimeout(() => {
         img.classList.remove('loading');
-        img.style.display = 'none';
-      }
+      }, Math.max(0, MIN_GLOW_MS - elapsed));
+    }
 
-      img.onload = finishLoad;
-      img.onerror = failLoad;
-      if (img.complete) img.naturalWidth > 0 ? finishLoad() : failLoad();
+    function failLoad() {
+      if (finished) return;
+      finished = true;
+      img.classList.remove('loading');
+      img.style.display = 'none';
+    }
 
-      img.addEventListener('click', () => {
-        const src = img.currentSrc || img.src || img.getAttribute('src');
-        if (src) openImageLightbox(src, img.alt || 'Generated image');
-      });
+    img.onload = finishLoad;
+    img.onerror = failLoad;
+
+    if (img.complete) {
+      img.naturalWidth > 0 ? finishLoad() : failLoad();
+    }
+
+    img.addEventListener('click', () => {
+      const src = img.currentSrc || img.src || img.getAttribute('src');
+      if (src) openImageLightbox(src, img.alt || 'Generated image');
     });
-  }
+  });
+}
+
 
   function openImageLightbox(src, alt = 'Generated image') {
     currentLightboxSrc = src;
@@ -1308,7 +1216,9 @@
     refs.lightbox.classList.remove('open');
     refs.lightboxImg.src = '';
     currentLightboxSrc = '';
-    if (!state.open) document.body.style.overflow = '';
+    if (!state.open) {
+      document.body.style.overflow = '';
+    }
   }
 
   function showTyping(show) {
@@ -1326,10 +1236,14 @@
 
   function startNewChat() {
     const hasHistory = state.messages.length > 0;
-    if (hasHistory && !window.confirm('Start a new chat? Your current conversation will be cleared.')) return;
+    if (hasHistory && !window.confirm('Start a new chat? Your current conversation will be cleared.')) {
+      return;
+    }
+
     state.messages = [];
     saveMessages();
     refs.messages.innerHTML = '';
+
     if (!state.personalityChosen) {
       renderPersonalityOnboarding();
     } else {
@@ -1339,7 +1253,16 @@
 
   function changePersonalityFlow() {
     const hasHistory = state.messages.length > 0;
-    if (hasHistory && !window.confirm('Change personality and start a fresh chat? This will clear the current conversation.')) return;
+
+    if (
+      hasHistory &&
+      !window.confirm(
+        'Change personality and start a fresh chat? This will clear the current conversation.'
+      )
+    ) {
+      return;
+    }
+
     state.messages = [];
     saveMessages();
     state.personality = 'auto';
@@ -1353,6 +1276,7 @@
 
   async function sendMessage() {
     if (state.sending) return;
+
     const text = (refs.input.value || '').trim();
     if (!text) return;
 
@@ -1366,6 +1290,7 @@
     }
 
     state.sending = true;
+
     renderMessage('user', text, true);
     refs.input.value = '';
     refs.input.style.height = 'auto';
@@ -1373,19 +1298,27 @@
 
     try {
       const payload = {
-        messages: state.messages.map((m) => ({ role: m.role, content: m.content })),
+        messages: state.messages.map((m) => ({
+          role: m.role,
+          content: m.content
+        })),
         personality: state.personality,
         profile: {}
       };
 
       const response = await fetch(CONFIG.apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(payload)
       });
 
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.reply || 'Request failed');
+
+      if (!response.ok) {
+        throw new Error(data?.reply || 'Request failed');
+      }
 
       renderMessage(
         'assistant',
