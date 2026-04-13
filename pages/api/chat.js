@@ -474,7 +474,7 @@ function buildStrictFallbackPrompt(lastUserMessage = '', messages = []) {
   }Single clear concept, no unrelated props, highly faithful to the user request.`;
 
   return normalizeImagePrompt(prompt);
-
+}
 async function buildImagePromptWithGemini(messages = [], geminiApiKey = '') {
   const lastUserMessage =
     [...messages].reverse().find(m => m?.role === 'user' && typeof m?.content === 'string')
