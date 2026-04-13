@@ -888,17 +888,16 @@
         }
       }
       
-      /* ── IMAGE LOADING PLACEHOLDER ─────────────────────────── */
+     /* ── IMAGE LOADING PLACEHOLDER ─────────────────────────── */
 .nabad-img-placeholder {
-  width: 100%;
-  max-width: 320px;
-  height: 220px;
+  width: 280px;
+  height: 280px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #e8f0ff 0%, #f0e8ff 100%);
+  background: linear-gradient(135deg, #f0f4ff 0%, #f5f5ff 100%);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 0 18px 4px rgba(99,102,241,0.25),
-              0 0 40px 8px rgba(99,102,241,0.12);
+  box-shadow: 0 0 14px 3px rgba(120,130,200,0.18),
+              0 0 32px 6px rgba(120,130,200,0.09);
   animation: nabadGlowPulse 2s ease-in-out infinite;
   display: flex;
   flex-direction: column;
@@ -914,35 +913,34 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255,255,255,0.5) 50%,
+    rgba(255,255,255,0.6) 50%,
     transparent 100%
   );
   animation: nabadShimmer 1.8s ease-in-out infinite;
   transform: translateX(-100%);
 }
-.nabad-img-placeholder-icon {
-  font-size: 36px;
-  animation: nabadIconPulse 2s ease-in-out infinite;
+.nabad-img-placeholder-countdown {
+  font-size: 28px;
+  font-weight: 700;
+  color: #8892c8;
+  letter-spacing: -1px;
+  line-height: 1;
 }
 .nabad-img-placeholder-text {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: #6366f1;
+  color: #9aa0c8;
   letter-spacing: 0.3px;
 }
 @keyframes nabadGlowPulse {
-  0%, 100% { box-shadow: 0 0 18px 4px rgba(99,102,241,0.25),
-                          0 0 40px 8px rgba(99,102,241,0.12); }
-  50%       { box-shadow: 0 0 28px 8px rgba(99,102,241,0.40),
-                          0 0 60px 16px rgba(99,102,241,0.20); }
+  0%, 100% { box-shadow: 0 0 14px 3px rgba(120,130,200,0.18),
+                          0 0 32px 6px rgba(120,130,200,0.09); }
+  50%       { box-shadow: 0 0 22px 6px rgba(120,130,200,0.28),
+                          0 0 48px 12px rgba(120,130,200,0.15); }
 }
 @keyframes nabadShimmer {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(200%); }
-}
-@keyframes nabadIconPulse {
-  0%, 100% { transform: scale(1);    opacity: 1;   }
-  50%       { transform: scale(1.12); opacity: 0.7; }
 }
 
     `;
@@ -1218,29 +1216,46 @@
     const wrap = document.createElement('div');
     wrap.className = 'nabad-img-placeholder';
 
-    const icon = document.createElement('div');
-    icon.className = 'nabad-img-placeholder-icon';
-    icon.textContent = '🎨';
+    const countdown = document.createElement('div');
+    countdown.className = 'nabad-img-placeholder-countdown';
+    countdown.textContent = '30';
 
     const text = document.createElement('div');
     text.className = 'nabad-img-placeholder-text';
-    text.textContent = IMAGE_LOADING_TEXTS[0];
+    text.textContent = '✦ Crafting your image...';
 
-    let i = 0;
+    let seconds = 30;
+    let textIndex = 0;
     const interval = setInterval(() => {
-      i = (i + 1) % IMAGE_LOADING_TEXTS.length;
-      text.textContent = IMAGE_LOADING_TEXTS[i];
-    }, 1800);
+      seconds -= 1;
+
+      if (seconds > 0) {
+        countdown.textContent = String(seconds);
+      }
+
+      if (seconds % 6 === 0 && seconds > 0) {
+        textIndex = (textIndex + 1) % IMAGE_LOADING_TEXTS.length;
+        text.textContent = IMAGE_LOADING_TEXTS[textIndex];
+      }
+
+      if (seconds <= 0) {
+        countdown.textContent = '⏳';
+        text.textContent = 'Taking longer than usual, almost there...';
+        clearInterval(interval);
+        wrap.dataset.intervalId = '';
+      }
+    }, 1000);
 
     wrap.dataset.intervalId = String(interval);
-    wrap.appendChild(icon);
+    wrap.appendChild(countdown);
     wrap.appendChild(text);
     return wrap;
   }
 
   function removePlaceholder(placeholder) {
     if (!placeholder) return;
-    clearInterval(Number(placeholder.dataset.intervalId));
+    const id = placeholder.dataset.intervalId;
+    if (id) clearInterval(Number(id));
     placeholder.remove();
   }
 
