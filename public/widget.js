@@ -1390,6 +1390,10 @@
   function init() {
     injectStyles();
     buildShell();
+    // [FIX-12] Expose public API so index.js can open/close the widget
+    // reliably without clicking a hidden launcher button
+    window.__NABAD_OPEN_WIDGET__  = () => toggleWidget(true);
+    window.__NABAD_CLOSE_WIDGET__ = () => toggleWidget(false);
   }
 
   // Load DOMPurify first, then boot everything
