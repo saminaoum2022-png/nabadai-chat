@@ -142,7 +142,7 @@ export default function Home() {
     <>
       <Head>
         <title>NabadAi</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
         <meta name="description" content="NabadAi is your business-focused AI for strategy, growth, branding, offers, and creative direction." />
         <meta name="theme-color" content="#f7f8fc" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
