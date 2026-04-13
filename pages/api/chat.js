@@ -252,16 +252,19 @@ function detectImageType(text = '') {
 function enrichImagePrompt(prompt = '', imageType = 'general') {
   const enrichments = {
     logo: [
-      'professional vector logo design',
-      'clean minimalist style',
-      'transparent background',
-      'flat design',
-      'suitable for business branding',
-      'high contrast sharp edges',
-      'centered composition',
-      'no extra clutter',
-      'scalable icon mark'
-    ],
+  'professional vector logo mark only',
+  'simple icon symbol not a building or scene',
+  'flat 2D logo design',
+  'white background',
+  'single graphic mark centered',
+  'no text unless requested',
+  'no background scene',
+  'no realistic photography',
+  'no storefront no building no people',
+  'suitable for business card and app icon',
+  'clean minimal shapes',
+  'scalable vector style'
+],
     mockup: [
       'professional product mockup',
       'studio lighting',
@@ -457,12 +460,20 @@ function buildStrictFallbackPrompt(lastUserMessage = '', messages = []) {
     ? 'Create a new variation. Keep the same subject, background family, purpose, and style. Only vary angle, crop, reflections, or small details.'
     : 'Keep the same core concept and stay very close to the original request.';
 
+  // Logo gets extra strict constraints
+  if (/logo/i.test(lastUserMessage)) {
+    return normalizeImagePrompt(
+      `${baseConcept}, professional vector logo mark, flat 2D icon design, ` +
+      `white background, no scene, no building, no people, no text, ` +
+      `simple centered symbol, scalable, clean minimal shapes`
+    );
+  }
+
   const prompt = `${baseConcept}. ${variationInstruction} ${
     changes.length ? `Change only: ${changes.join(', ')}. ` : ''
   }Single clear concept, no unrelated props, highly faithful to the user request.`;
 
   return normalizeImagePrompt(prompt);
-}
 
 async function buildImagePromptWithGemini(messages = [], geminiApiKey = '') {
   const lastUserMessage =
