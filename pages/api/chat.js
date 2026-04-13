@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────
 //  NabadAI — chat.js  (API Route)
 //  Previous fixes: [FIX-1] through [FIX-10]
-//  New Tier 1 features:
-//   [T1-1]  Proactive Intelligence — leads with reframe on early messages
-//   [T1-4]  Memory That Feels Human — references earlier context naturally
-//   [T1-8]  Real Person Tone — opinionated, direct, founder-like voice
-//   [T1-10] Positioning Handler — crafted answer for "what makes you different"
+//  Tier 1: [T1-1] [T1-4] [T1-8] [T1-10]
+//  Tier 2:
+//   [T2-2]  Business Snapshot — context-aware trigger + card
+//   [T2-7]  Nabad Score — idea rating scorecard
+//   [T2-L]  Location Collection — natural location detection
 // ─────────────────────────────────────────────────────────────
 
 import OpenAI from 'openai';
@@ -65,21 +65,17 @@ function isRateLimited(ip = '') {
     count: 0,
     resetAt: now + RATE_LIMIT.windowMs
   };
-
   if (now > entry.resetAt) {
     entry.count = 0;
     entry.resetAt = now + RATE_LIMIT.windowMs;
   }
-
   entry.count++;
   rateLimitMap.set(ip, entry);
-
   if (rateLimitMap.size > 500) {
     for (const [key, val] of rateLimitMap) {
       if (now > val.resetAt) rateLimitMap.delete(key);
     }
   }
-
   return entry.count > RATE_LIMIT.maxRequests;
 }
 
@@ -232,11 +228,11 @@ function normalizeImagePrompt(text = '') {
 
 function detectImageType(text = '') {
   const t = text.toLowerCase();
-  if (/\b(logo|brand mark|icon)\b/.test(t))   return 'logo';
+  if (/\b(logo|brand mark|icon)\b/.test(t))            return 'logo';
   if (/\b(mockup|product shot|product photo)\b/.test(t)) return 'mockup';
-  if (/\b(poster|flyer)\b/.test(t))            return 'poster';
-  if (/\b(banner|cover|header)\b/.test(t))     return 'banner';
-  if (/\b(social|instagram|facebook|post)\b/.test(t)) return 'social';
+  if (/\b(poster|flyer)\b/.test(t))                    return 'poster';
+  if (/\b(banner|cover|header)\b/.test(t))             return 'banner';
+  if (/\b(social|instagram|facebook|post)\b/.test(t))  return 'social';
   return 'general';
 }
 
@@ -340,13 +336,11 @@ function extractLastImageMeta(messages = []) {
   for (let i = messages.length - 1; i >= 0; i--) {
     const content = typeof messages[i]?.content === 'string' ? messages[i].content : '';
     if (!content) continue;
-
-    const briefMatch  = content.match(/data-nabad-brief="([^"]+)"/i);
-    const promptMatch = content.match(/data-nabad-prompt="([^"]+)"/i);
-    const sourceMatch = content.match(/data-nabad-source="([^"]+)"/i);
-    const modelMatch  = content.match(/data-nabad-model="([^"]+)"/i);
+    const briefMatch     = content.match(/data-nabad-brief="([^"]+)"/i);
+    const promptMatch    = content.match(/data-nabad-prompt="([^"]+)"/i);
+    const sourceMatch    = content.match(/data-nabad-source="([^"]+)"/i);
+    const modelMatch     = content.match(/data-nabad-model="([^"]+)"/i);
     const urlPromptMatch = content.match(/image\.pollinations\.ai\/prompt\/([^"'\s<&]+)/i);
-
     if (
       briefMatch || promptMatch || urlPromptMatch ||
       /img\s+src=/i.test(content) ||
@@ -436,21 +430,20 @@ function buildStrictFallbackPrompt(lastUserMessage = '', messages = [], imageTyp
   const lower = String(lastUserMessage || '').toLowerCase();
   const changes = [];
 
-  if (/dark/.test(lower))                      changes.push('darker mood with deeper shadows');
-  if (/light|bright/.test(lower))              changes.push('cleaner brighter studio lighting');
-  if (/premium|luxury|luxurious/.test(lower))  changes.push('more premium luxurious finish and materials');
-  if (/closer|close-up|zoom/.test(lower))      changes.push('closer crop and tighter framing');
-  if (/angle|side|top|perspective/.test(lower))changes.push('different camera angle');
-  if (/minimal|clean/.test(lower))             changes.push('cleaner more minimal composition');
-  if (/gold/.test(lower))                      changes.push('richer gold accents');
-  if (/silver/.test(lower))                    changes.push('refined silver accents');
-  if (/without\b/.test(lower))                 changes.push('remove any optional extra elements');
+  if (/dark/.test(lower))                       changes.push('darker mood with deeper shadows');
+  if (/light|bright/.test(lower))               changes.push('cleaner brighter studio lighting');
+  if (/premium|luxury|luxurious/.test(lower))   changes.push('more premium luxurious finish and materials');
+  if (/closer|close-up|zoom/.test(lower))       changes.push('closer crop and tighter framing');
+  if (/angle|side|top|perspective/.test(lower)) changes.push('different camera angle');
+  if (/minimal|clean/.test(lower))              changes.push('cleaner more minimal composition');
+  if (/gold/.test(lower))                       changes.push('richer gold accents');
+  if (/silver/.test(lower))                     changes.push('refined silver accents');
+  if (/without\b/.test(lower))                  changes.push('remove any optional extra elements');
 
   const variationInstruction = isRegenerationRequest(lastUserMessage)
     ? 'Create a new variation. Keep the same subject, background family, purpose, and style. Only vary angle, crop, reflections, or small details.'
     : 'Keep the same core concept and stay very close to the original request.';
 
-  // [UPDATED] Now uses imageType parameter instead of regex on lastUserMessage
   if (imageType === 'logo') {
     return normalizeImagePrompt(
       `${baseConcept}, professional vector logo mark, flat 2D icon design, ` +
@@ -487,46 +480,28 @@ async function buildImagePromptWithGemini(messages = [], geminiApiKey = '') {
 
   const systemPrompt = `
 You are an expert image brief writer for a business website.
-Your job is to convert a chat conversation into an extremely faithful image prompt.
-
-Return ONLY valid JSON in this exact shape:
+Return ONLY valid JSON:
 {
   "prompt": "final text-to-image prompt in English",
-  "locked_brief": "short stable concept summary for future regenerate requests",
-  "must_keep": ["item 1", "item 2"],
-  "can_vary": ["item 1", "item 2"],
+  "locked_brief": "short stable concept summary",
+  "must_keep": ["item 1"],
+  "can_vary": ["item 1"],
   "aspect_ratio": "1:1"
 }
-
 Rules:
-- Keep the image VERY close to the user's request.
-- Do NOT invent a different concept, product, scene, or style unless the user explicitly asks.
-- If the user says "again", "one more", "another version", preserve the same subject, concept, background, style, and purpose. Only vary camera angle, crop, reflections, or small details.
-- Use one clear concept only.
-- Be concrete about subject count, material, color, background, composition, lighting, mood, camera angle, and product placement.
-- Use positive precise constraints.
-- If text should appear inside the image, preserve exact quoted text.
-- Avoid generic filler and competing ideas.
-- "locked_brief" must remain stable and reusable.
-- "prompt" should be one dense paragraph, specific and production-oriented.
+- Stay very close to the user request
+- One clear concept only
+- locked_brief must be short and reusable
+- prompt must be one dense specific paragraph
 `;
 
   const userPrompt = `
 Conversation:
 ${conversation}
-
-Latest user message:
-${lastUserMessage}
-
-Previous locked brief:
-${previous?.brief || ''}
-
-Previous final prompt:
-${previous?.prompt || ''}
-
-Latest explicit image request:
-${explicitRequest}
-
+Latest user message: ${lastUserMessage}
+Previous locked brief: ${previous?.brief || ''}
+Previous final prompt: ${previous?.prompt || ''}
+Latest explicit image request: ${explicitRequest}
 Return JSON only.
 `;
 
@@ -563,7 +538,6 @@ Return JSON only.
       const data = await readJsonSafe(response);
       const raw = data?.choices?.[0]?.message?.content || '';
       const parsed = tryParseJsonBlock(raw);
-
       const prompt = normalizeImagePrompt(parsed?.prompt || raw);
       const lockedBrief = normalizeImagePrompt(
         parsed?.locked_brief || previous?.brief || explicitRequest || prompt
@@ -571,16 +545,13 @@ Return JSON only.
 
       if (prompt) {
         return {
-          prompt,
-          lockedBrief,
+          prompt, lockedBrief,
           mustKeep: normalizeList(parsed?.must_keep),
           canVary: normalizeList(parsed?.can_vary),
           aspectRatio: sanitizePromptText(parsed?.aspect_ratio || '1:1', 20) || '1:1',
-          model,
-          source: 'gemini'
+          model, source: 'gemini'
         };
       }
-
       throw new Error(`Gemini ${model} returned empty prompt`);
     } catch (err) {
       lastError = err;
@@ -616,7 +587,7 @@ async function buildImagePromptWithOpenAI(messages = [], openaiClient) {
         role: 'system',
         content: `You are an expert image brief writer for a business website.
 Convert the chat conversation into a faithful image prompt.
-Return ONLY valid JSON in this exact shape:
+Return ONLY valid JSON:
 {
   "prompt": "final text-to-image prompt in English",
   "locked_brief": "short stable concept summary",
@@ -628,9 +599,7 @@ Rules:
 - Stay very close to the user request
 - One clear concept only
 - Be specific about subject, background, style, lighting
-- For logos: flat 2D icon, white background, no scenes, no buildings, no people
-- For mockups: studio lighting, neutral background, photorealistic render
-- For posters: bold typography, strong visual hierarchy, print quality
+- For logos: flat 2D icon, white background, no scenes
 - locked_brief must be short and reusable
 - prompt must be one dense specific paragraph`
       },
@@ -653,8 +622,7 @@ Rules:
   if (!prompt) throw new Error('OpenAI returned empty prompt');
 
   return {
-    prompt,
-    lockedBrief,
+    prompt, lockedBrief,
     mustKeep: normalizeList(parsed?.must_keep),
     canVary: normalizeList(parsed?.can_vary),
     aspectRatio: parsed?.aspect_ratio || '1:1',
@@ -664,13 +632,12 @@ Rules:
 }
 
 function buildPollinationsImageHtml(prompt, meta = {}, imageType = 'general') {
-  const finalPrompt    = normalizeImagePrompt(prompt);
-  const imageUrl       = buildPollinationsUrl(finalPrompt, imageType);
-  const encodedBrief   = encodeURIComponent(meta.lockedBrief || finalPrompt);
-  const encodedSource  = encodeURIComponent(meta.source || 'fallback');
-  const encodedModel   = encodeURIComponent(meta.model || 'none');
-  const encodedPrompt  = encodeURIComponent(finalPrompt);
-
+  const finalPrompt   = normalizeImagePrompt(prompt);
+  const imageUrl      = buildPollinationsUrl(finalPrompt, imageType);
+  const encodedBrief  = encodeURIComponent(meta.lockedBrief || finalPrompt);
+  const encodedSource = encodeURIComponent(meta.source || 'fallback');
+  const encodedModel  = encodeURIComponent(meta.model || 'none');
+  const encodedPrompt = encodeURIComponent(finalPrompt);
   return `<img src="${imageUrl}" alt="Generated image" data-nabad-brief="${encodedBrief}" data-nabad-source="${encodedSource}" data-nabad-model="${encodedModel}" data-nabad-prompt="${encodedPrompt}">`;
 }
 
@@ -678,7 +645,6 @@ function buildImageReplyHtml(prompt, meta = {}, imageType = 'general') {
   const debugHtml = SHOW_IMAGE_DEBUG
     ? `<div style="font-size:12px;color:#667;margin-bottom:8px;"><b>Debug:</b> source=${escapeHtml(meta.source || 'fallback')} | model=${escapeHtml(meta.model || 'none')}</div><div style="font-size:12px;color:#667;margin-bottom:10px;"><b>Prompt:</b> ${escapeHtml(prompt)}</div>`
     : '';
-
   return `${debugHtml}${buildPollinationsImageHtml(prompt, meta, imageType)}`;
 }
 
@@ -686,54 +652,49 @@ function buildImageReplyHtml(prompt, meta = {}, imageType = 'general') {
 function detectBusinessMode(text = '', messages = []) {
   const fullText = `${text} ${messages.slice(-6).map(m => m?.content || '').join(' ')}`.toLowerCase();
 
-  if (/\b(brand|branding|logo|identity|visual identity|packaging|name|slogan|tagline|rebrand|positioning)\b/.test(fullText)) {
-    return { id: 'branding', label: 'Branding', temperature: 0.82, maxTokens: 520, instruction: `\nCURRENT MODE: BRANDING\nFocus on brand clarity, positioning, naming, identity, perception, premium feel, memorability, and commercial distinctiveness.\nDo not give generic brand advice. Suggest angles that make the brand easier to remember and easier to sell.\n` };
-  }
-  if (/\b(grow|growth|marketing|sales|funnel|lead|leads|ads|advertising|campaign|seo|content|social media|conversion|traffic|reach|audience)\b/.test(fullText)) {
-    return { id: 'growth', label: 'Growth', temperature: 0.84, maxTokens: 540, instruction: `\nCURRENT MODE: GROWTH\nFocus on customer acquisition, channel strategy, conversion, messaging, demand generation, and scalable growth.\nPrefer practical growth moves over theory.\n` };
-  }
-  if (/\b(offer|service package|package|pricing|proposal|upsell|bundle|retainer|productized|value proposition|what should i sell|monetize|monetise)\b/.test(fullText)) {
-    return { id: 'offer', label: 'Offer', temperature: 0.83, maxTokens: 520, instruction: `\nCURRENT MODE: OFFER\nFocus on designing strong offers, pricing logic, perceived value, packaging, outcomes, differentiation, and ease of purchase.\n` };
-  }
-  if (/\b(idea|ideas|brainstorm|creative|unique|different|unusual|out of the box|innovative|concept|concepts)\b/.test(fullText)) {
-    return { id: 'creative', label: 'Creative Ideas', temperature: 0.9, maxTokens: 560, instruction: `\nCURRENT MODE: CREATIVE IDEAS\nThink expansively but commercially. Suggest fresh, original, monetizable angles. Avoid generic brainstorming.\n` };
-  }
-  if (/\b(strategy|strategic|launch|business plan|roadmap|niche|market|audience|target market|business model|position|positioning|plan|direction|start a business|startup)\b/.test(fullText)) {
-    return { id: 'strategy', label: 'Strategy', temperature: 0.8, maxTokens: 540, instruction: `\nCURRENT MODE: STRATEGY\nFocus on choosing the right market, angle, business model, positioning, sequencing, and strategic path.\nPrefer sharp recommendations over vague checklists.\n` };
-  }
+  if (/\b(brand|branding|logo|identity|visual identity|packaging|name|slogan|tagline|rebrand|positioning)\b/.test(fullText))
+    return { id: 'branding', label: 'Branding', temperature: 0.82, maxTokens: 620, instruction: `\nCURRENT MODE: BRANDING\nFocus on brand clarity, positioning, naming, identity, perception, premium feel, memorability, and commercial distinctiveness.\n` };
+  if (/\b(grow|growth|marketing|sales|funnel|lead|leads|ads|advertising|campaign|seo|content|social media|conversion|traffic|reach|audience)\b/.test(fullText))
+    return { id: 'growth', label: 'Growth', temperature: 0.84, maxTokens: 640, instruction: `\nCURRENT MODE: GROWTH\nFocus on customer acquisition, channel strategy, conversion, messaging, demand generation, and scalable growth.\n` };
+  if (/\b(offer|service package|package|pricing|proposal|upsell|bundle|retainer|productized|value proposition|what should i sell|monetize|monetise)\b/.test(fullText))
+    return { id: 'offer', label: 'Offer', temperature: 0.83, maxTokens: 620, instruction: `\nCURRENT MODE: OFFER\nFocus on designing strong offers, pricing logic, perceived value, packaging, outcomes, differentiation, and ease of purchase.\n` };
+  if (/\b(idea|ideas|brainstorm|creative|unique|different|unusual|out of the box|innovative|concept|concepts)\b/.test(fullText))
+    return { id: 'creative', label: 'Creative Ideas', temperature: 0.9, maxTokens: 660, instruction: `\nCURRENT MODE: CREATIVE IDEAS\nThink expansively but commercially. Suggest fresh, original, monetizable angles.\n` };
+  if (/\b(strategy|strategic|launch|business plan|roadmap|niche|market|audience|target market|business model|position|positioning|plan|direction|start a business|startup)\b/.test(fullText))
+    return { id: 'strategy', label: 'Strategy', temperature: 0.8, maxTokens: 640, instruction: `\nCURRENT MODE: STRATEGY\nFocus on choosing the right market, angle, business model, positioning, sequencing, and strategic path.\n` };
 
-  return { id: 'advisor', label: 'Business Advisor', temperature: 0.82, maxTokens: 520, instruction: `\nCURRENT MODE: BUSINESS ADVISOR\nAct like a commercially smart founder advisor. Be practical, strategic, and creative.\n` };
+  return { id: 'advisor', label: 'Business Advisor', temperature: 0.82, maxTokens: 620, instruction: `\nCURRENT MODE: BUSINESS ADVISOR\nAct like a commercially smart founder advisor. Be practical, strategic, and creative.\n` };
 }
 
 function getPersonalityConfig(selectedPersonality = 'auto') {
   const key = String(selectedPersonality || 'auto').toLowerCase();
   switch (key) {
     case 'strategist':
-      return { id: 'strategist', label: 'Strategist', instruction: `\nSELECTED PERSONALITY: STRATEGIST\nTone: smart, structured, commercially sharp.\nBehavior:\n- prioritize clarity, direction, sequencing, and positioning\n- recommend the smartest path, not all possible paths\n- think like a founder strategist\n- avoid fluffy motivation\n` };
+      return { id: 'strategist', label: 'Strategist', instruction: `\nSELECTED PERSONALITY: STRATEGIST\nTone: smart, structured, commercially sharp.\n- prioritize clarity, direction, sequencing, and positioning\n- recommend the smartest path, not all possible paths\n` };
     case 'growth':
-      return { id: 'growth', label: 'Growth Expert', instruction: `\nSELECTED PERSONALITY: GROWTH EXPERT\nTone: practical, energetic, opportunity-focused.\nBehavior:\n- focus on customers, lead generation, conversion, distribution, and revenue growth\n- prioritize traction, acquisition, and marketing leverage\n` };
+      return { id: 'growth', label: 'Growth Expert', instruction: `\nSELECTED PERSONALITY: GROWTH EXPERT\nTone: practical, energetic, opportunity-focused.\n- focus on customers, lead generation, conversion, distribution, and revenue growth\n` };
     case 'branding':
-      return { id: 'branding', label: 'Brand Builder', instruction: `\nSELECTED PERSONALITY: BRAND BUILDER\nTone: creative, premium, perceptive, modern.\nBehavior:\n- focus on brand perception, identity, positioning, memorability, naming, messaging, and premium feel\n` };
+      return { id: 'branding', label: 'Brand Builder', instruction: `\nSELECTED PERSONALITY: BRAND BUILDER\nTone: creative, premium, perceptive, modern.\n- focus on brand perception, identity, positioning, memorability, naming, messaging\n` };
     case 'offer':
-      return { id: 'offer', label: 'Offer Architect', instruction: `\nSELECTED PERSONALITY: OFFER ARCHITECT\nTone: persuasive, commercial, monetization-focused.\nBehavior:\n- focus on offer design, pricing, packaging, upsells, value perception, and ease of purchase\n` };
+      return { id: 'offer', label: 'Offer Architect', instruction: `\nSELECTED PERSONALITY: OFFER ARCHITECT\nTone: persuasive, commercial, monetization-focused.\n- focus on offer design, pricing, packaging, upsells, value perception\n` };
     case 'creative':
-      return { id: 'creative', label: 'Creative Challenger', instruction: `\nSELECTED PERSONALITY: CREATIVE CHALLENGER\nTone: bold, inventive, unconventional, commercially aware.\nBehavior:\n- push beyond obvious ideas\n- suggest unexpected but practical business angles\n` };
+      return { id: 'creative', label: 'Creative Challenger', instruction: `\nSELECTED PERSONALITY: CREATIVE CHALLENGER\nTone: bold, inventive, unconventional, commercially aware.\n- push beyond obvious ideas\n` };
     case 'straight_talk':
-      return { id: 'straight_talk', label: 'Straight Talk', instruction: `\nSELECTED PERSONALITY: STRAIGHT TALK\nTone: direct, honest, sharp, no-fluff.\nBehavior:\n- tell the user what is weak, risky, vague, or unrealistic\n- do not sugarcoat\n- be concise and commercially grounded\n` };
+      return { id: 'straight_talk', label: 'Straight Talk', instruction: `\nSELECTED PERSONALITY: STRAIGHT TALK\nTone: direct, honest, sharp, no-fluff.\n- tell the user what is weak, risky, vague, or unrealistic\n- do not sugarcoat\n` };
     case 'auto':
     default:
-      return { id: 'auto', label: 'Auto', instruction: `\nSELECTED PERSONALITY: AUTO\nAdapt naturally to the user's goal.\nStill sound premium, commercially intelligent, and creative.\n` };
+      return { id: 'auto', label: 'Auto', instruction: `\nSELECTED PERSONALITY: AUTO\nAdapt naturally to the user's goal. Sound premium, commercially intelligent, and creative.\n` };
   }
 }
 
 function detectToneOverride(text = '') {
   const value = String(text || '').toLowerCase();
-  if (/\b(be direct|be more direct|be brutally honest|be honest|straight talk|no fluff|stop being soft|be blunt|be harsh|tell me the truth|be real)\b/i.test(value)) return 'straight_talk';
-  if (/\b(be more creative|think outside the box|out of the box|be bold|challenge me|push me|fresh ideas|unexpected ideas|wild ideas|bolder ideas|creative mode)\b/i.test(value)) return 'creative';
-  if (/\b(focus on growth|growth mode|marketing mode|sales mode|lead generation|customer acquisition|get customers|focus on conversion|acquisition strategy)\b/i.test(value)) return 'growth';
-  if (/\b(brand mode|branding mode|think like a brand strategist|focus on branding|premium brand thinking|naming and branding|brand expert)\b/i.test(value)) return 'branding';
-  if (/\b(offer mode|pricing mode|monetization mode|help me monetize|focus on pricing|design my offer|package this|improve my offer)\b/i.test(value)) return 'offer';
-  if (/\b(strategy mode|be strategic|think like a strategist|focus on strategy|high level strategy|strategic mode)\b/i.test(value)) return 'strategist';
+  if (/\b(be direct|be more direct|be brutally honest|straight talk|no fluff|be blunt|be harsh|tell me the truth|be real)\b/i.test(value)) return 'straight_talk';
+  if (/\b(be more creative|think outside the box|be bold|challenge me|push me|fresh ideas|unexpected ideas|wild ideas|creative mode)\b/i.test(value)) return 'creative';
+  if (/\b(focus on growth|growth mode|marketing mode|sales mode|lead generation|customer acquisition|get customers)\b/i.test(value)) return 'growth';
+  if (/\b(brand mode|branding mode|think like a brand strategist|focus on branding|brand expert)\b/i.test(value)) return 'branding';
+  if (/\b(offer mode|pricing mode|monetization mode|help me monetize|focus on pricing|design my offer)\b/i.test(value)) return 'offer';
+  if (/\b(strategy mode|be strategic|think like a strategist|focus on strategy|strategic mode)\b/i.test(value)) return 'strategist';
   return '';
 }
 
@@ -747,9 +708,6 @@ function resolveActivePersonality(selectedPersonality = 'auto', lastUserMessage 
 }
 
 // ── [T1-10] POSITIONING HANDLER ───────────────────────────────
-// Detects when user asks what makes Nabad different/unique/better
-// and returns a fixed crafted positioning answer instantly
-// without burning OpenAI tokens on a generic response.
 function isPositioningQuestion(text = '') {
   return /\b(what makes you|what makes nabad|how are you different|how is nabad different|why should i use you|why nabad|what can you do|what do you do|what is nabad|who are you|what sets you apart|better than|different from|unique about|special about|compared to other|vs other|versus other)\b/i.test(text);
 }
@@ -762,31 +720,28 @@ const POSITIONING_REPLY = `
   <li><b>Multiple expert personalities</b> — Switch between Strategist, Growth Expert, Brand Builder, Offer Architect, Creative Challenger, and Straight Talk modes.</li>
   <li><b>Visual outputs</b> — Generate images, logos, mockups, posters, and banners directly inside the chat.</li>
   <li><b>Memory that feels human</b> — Nabad references what you said earlier and builds on it naturally, like a real advisor would.</li>
-  <li><b>Commercial intelligence</b> — Every answer is filtered through a business lens: positioning, monetization, differentiation, and growth.</li>
+  <li><b>Business Snapshot</b> — When Nabad knows enough about your business, it offers a structured card with your opportunity, risk, and top recommendation.</li>
+  <li><b>Nabad Score</b> — Get your business idea rated across 5 dimensions: demand, differentiation, monetization, execution, and timing.</li>
+  <li><b>Location-aware advice</b> — Nabad factors in your country for legal, cost, and market-specific guidance.</li>
 </ul>
-<p><b>The short version:</b> Nabad is not a chatbot. It's the smartest business thinking partner you can have on your website — available 24/7, opinionated, and built to make your business sharper. 🎯</p>
+<p><b>The short version:</b> Nabad is not a chatbot. It's the smartest business thinking partner you can have — available 24/7, opinionated, and built to make your business sharper. 🎯</p>
 `;
 
 // ── [T1-1] PROACTIVE INTELLIGENCE ────────────────────────────
-// Detects if this is an early message (1st or 2nd user message)
-// so we can inject a reframe instruction into the system prompt.
 function isEarlyConversation(messages = []) {
   const userMessages = messages.filter(m => m.role === 'user');
   return userMessages.length <= 2;
 }
 
-// Detects broad/vague opening messages that benefit most from a reframe
 function isBroadOpeningMessage(text = '') {
   return /\b(i want to|i need to|i am thinking|i have an idea|i have a business|help me|where do i start|how do i|what should i|i don't know|not sure|thinking about|considering|planning to|want to start|starting a|building a|launching a|growing my|improve my|struggling with)\b/i.test(text);
 }
 
 // ── [T1-4] MEMORY CONTEXT BUILDER ────────────────────────────
-// Extracts key facts mentioned by the user in earlier messages
-// and returns a formatted string to inject into the system prompt.
 function buildMemoryContext(messages = []) {
   const userMessages = messages
     .filter(m => m.role === 'user')
-    .slice(0, -1); // exclude the current message
+    .slice(0, -1);
 
   if (!userMessages.length) return '';
 
@@ -796,11 +751,300 @@ function buildMemoryContext(messages = []) {
     .join(' | ');
 
   return facts
-    ? `CONVERSATION MEMORY:\nThe user has previously mentioned: ${facts}\nWhen relevant, naturally reference these earlier points in your reply — the way a real advisor who was paying attention would. Do not force references. Only use them when they genuinely add value.\n`
+    ? `CONVERSATION MEMORY:\nThe user has previously mentioned: ${facts}\nWhen relevant, naturally reference these earlier points — the way a real advisor who was paying attention would. Only use them when they genuinely add value.\n`
     : '';
 }
 
-// ── [T1-7] ENSURE HTML REPLY — no double-escaping ────────────
+// ── [T2-L] LOCATION DETECTION ────────────────────────────────
+// Extracts location from conversation history if user has mentioned it
+function extractLocationFromMessages(messages = []) {
+  const allUserText = messages
+    .filter(m => m.role === 'user')
+    .map(m => m.content)
+    .join(' ');
+
+  // Match patterns like "I'm in Dubai", "based in UK", "I live in Canada", etc.
+  const patterns = [
+    /\b(?:i'?m|i am|based|located|living|from|in)\s+(?:in\s+)?([A-Z][a-zA-Z\s]{2,30}?)(?:\s*[,.]|\s+(?:and|so|but|the|my|we|our|for|to|a|an)\b)/i,
+    /\b(?:from|in)\s+([A-Z][a-zA-Z\s]{2,20}?)(?:\s*[,.]|$)/im,
+    /\b(UAE|UK|US|USA|KSA|Saudi Arabia|Dubai|Abu Dhabi|London|New York|Canada|Australia|Germany|France|Egypt|Jordan|Qatar|Bahrain|Kuwait|Oman|Lebanon|Morocco|Tunisia|Singapore|India|Pakistan)\b/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = allUserText.match(pattern);
+    if (match) {
+      const location = (match[1] || match[0] || '').trim();
+      if (location.length > 1 && location.length < 40) return location;
+    }
+  }
+  return '';
+}
+
+// Detects if user is explicitly sharing their location in current message
+function isLocationMessage(text = '') {
+  return /\b(?:i'?m|i am|based|located|living|from|i live)\s+(?:in\s+)?[A-Z]/i.test(text) ||
+    /\b(UAE|UK|US|USA|KSA|Saudi|Dubai|Abu Dhabi|London|New York|Canada|Australia|Germany|France|Egypt|Jordan|Qatar|Bahrain|Kuwait|Oman|Lebanon|Morocco|Tunisia|Singapore|India|Pakistan)\b/i.test(text);
+}
+
+// Checks if location has already been asked in the conversation
+function locationAlreadyAsked(messages = []) {
+  return messages.some(m =>
+    m.role === 'assistant' &&
+    /where are you based|which country|what country|your location|where you('re| are) located/i.test(
+      sanitizePromptText(m.content, 500)
+    )
+  );
+}
+
+// Checks if we have enough business context to ask for location
+function hasBusinessContext(messages = []) {
+  const userText = messages
+    .filter(m => m.role === 'user')
+    .map(m => m.content)
+    .join(' ')
+    .toLowerCase();
+
+  const signals = [
+    /\b(business|startup|company|brand|service|product|offer|sell|launch|start|grow|client|customer|revenue|market|niche)\b/.test(userText),
+    /\b(idea|concept|plan|strategy|pricing|marketing|branding|agency|freelance|ecommerce|saas|app)\b/.test(userText)
+  ];
+
+  return signals.filter(Boolean).length >= 1;
+}
+
+// ── [T2-2] BUSINESS SNAPSHOT ─────────────────────────────────
+// Detects if conversation has enough rich context for a snapshot
+function hasRichBusinessContext(messages = []) {
+  const userMessages = messages.filter(m => m.role === 'user');
+  if (userMessages.length < 3) return false;
+
+  const userText = userMessages.map(m => m.content).join(' ').toLowerCase();
+
+  const signals = [
+    /\b(business|startup|company|brand|agency|freelance|product|service|saas|app|ecommerce|store|shop)\b/.test(userText),
+    /\b(sell|selling|offer|offers|price|pricing|revenue|income|monetize|charge|package|subscription)\b/.test(userText),
+    /\b(customer|client|audience|market|niche|target|buyer|user|consumer)\b/.test(userText),
+    /\b(goal|plan|strategy|launch|grow|scale|improve|build|start|struggling|problem|challenge)\b/.test(userText),
+    /\b(idea|concept|vision|direction|roadmap|positioning|differentiation|competition|competitor)\b/.test(userText)
+  ];
+
+  // Need at least 3 signals for a meaningful snapshot
+  return signals.filter(Boolean).length >= 3;
+}
+
+// Detects if snapshot has already been offered or generated
+function snapshotAlreadyOffered(messages = []) {
+  return messages.some(m =>
+    m.role === 'assistant' &&
+    /business snapshot|want me to put together|quick snapshot/i.test(
+      sanitizePromptText(m.content, 500)
+    )
+  );
+}
+
+// Detects if user is confirming they want the snapshot
+function isSnapshotConfirmation(text = '') {
+  return /\b(yes|yeah|sure|go ahead|do it|please|generate it|show me|let'?s go|ok|okay|yep|absolutely|definitely|of course|why not)\b/i.test(text);
+}
+
+// Detects if user is explicitly requesting a snapshot
+function isSnapshotRequest(text = '') {
+  return /\b(snapshot|business snapshot|give me a snapshot|business summary|summarize my business|business overview|what do you think of my business|assess my business|evaluate my business|review my business)\b/i.test(text);
+}
+
+// Generates the Business Snapshot card using GPT-4o
+async function generateBusinessSnapshot(messages = [], location = '', openaiClient) {
+  const userText = messages
+    .filter(m => m.role === 'user')
+    .map(m => sanitizePromptText(m.content, 400))
+    .join('\n');
+
+  const locationContext = location
+    ? `The user is based in: ${location}. Factor in country-specific costs, legal requirements, and market conditions for ${location}.`
+    : 'Location unknown — give general advice but note that local factors may vary.';
+
+  const completion = await openaiClient.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: `You are Nabad, an elite business advisor. 
+Based on the conversation, generate a Business Snapshot.
+Return ONLY valid JSON in this exact shape:
+{
+  "business_summary": "1-2 sentence summary of what the business is",
+  "opportunity": "The single biggest opportunity you see — be specific",
+  "risk": "The single most important risk or weakness — be honest",
+  "recommendation": "Your #1 bold actionable recommendation right now",
+  "local_insight": "Country/market specific insight based on their location (costs, legal, market reality)",
+  "next_move": "The single most important next step they should take this week"
+}
+Rules:
+- Be specific, not generic
+- Be honest about risks — do not sugarcoat
+- local_insight must reference their specific country if known
+- recommendation must be bold and actionable, not vague
+- next_move must be something they can do in the next 7 days`
+      },
+      {
+        role: 'user',
+        content: `Conversation so far:\n${userText}\n\nLocation: ${location || 'unknown'}\n\n${locationContext}\n\nReturn JSON only.`
+      }
+    ],
+    temperature: 0.7,
+    max_tokens: 600
+  });
+
+  const raw = completion?.choices?.[0]?.message?.content || '';
+  const parsed = tryParseJsonBlock(raw);
+
+  if (!parsed) throw new Error('Snapshot JSON parse failed');
+  return parsed;
+}
+
+// Builds the beautiful snapshot HTML card
+function buildSnapshotCard(data = {}, location = '') {
+  const safe = (val = '') => escapeHtml(String(val || ''));
+
+  return `<div data-nabad-card="snapshot">
+<h3>📊 Your Business Snapshot</h3>
+${location ? `<p style="font-size:13px;color:#64748b;margin-bottom:14px;">📍 ${safe(location)}</p>` : ''}
+<p><b>What I understand:</b> ${safe(data.business_summary)}</p>
+<ul>
+  <li><b>💡 Biggest Opportunity:</b> ${safe(data.opportunity)}</li>
+  <li><b>⚠️ Key Risk:</b> ${safe(data.risk)}</li>
+  <li><b>🎯 Top Recommendation:</b> ${safe(data.recommendation)}</li>
+  ${data.local_insight ? `<li><b>📍 Local Insight (${safe(location)}):</b> ${safe(data.local_insight)}</li>` : ''}
+</ul>
+<p><b>🚀 Your next move this week:</b> ${safe(data.next_move)}</p>
+</div>`;
+}
+
+// ── [T2-7] NABAD SCORE ────────────────────────────────────────
+// Detects if user is sharing a business idea that should be scored
+function isIdeaScoringRequest(text = '') {
+  return /\b(score|rate|evaluate|assess|what do you think of|thoughts on|review|judge|rank|give me a score|how good is|is this a good idea|is this viable|will this work|what are my chances)\b/i.test(text) ||
+    /\b(my idea is|i have an idea|i want to|my business idea|i'm thinking of|i plan to|i want to launch|i want to start|i'm building|i'm creating)\b/i.test(text);
+}
+
+// Generates the Nabad Score using GPT-4o
+async function generateNabadScore(messages = [], lastUserMessage = '', location = '', openaiClient) {
+  const context = messages
+    .slice(-8)
+    .map(m => `${m.role.toUpperCase()}: ${sanitizePromptText(m.content, 400)}`)
+    .join('\n');
+
+  const locationContext = location
+    ? `User is based in ${location}. Factor this into market demand and execution scores.`
+    : '';
+
+  const completion = await openaiClient.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: `You are Nabad, an elite business advisor scoring a business idea.
+Return ONLY valid JSON:
+{
+  "idea_name": "short name or description of the idea (max 8 words)",
+  "scores": {
+    "market_demand": { "score": 8, "reason": "one sharp sentence explaining the score" },
+    "differentiation": { "score": 6, "reason": "one sharp sentence" },
+    "monetization": { "score": 9, "reason": "one sharp sentence" },
+    "execution": { "score": 7, "reason": "one sharp sentence" },
+    "timing": { "score": 8, "reason": "one sharp sentence" }
+  },
+  "overall": 8,
+  "verdict": "one bold honest sentence summarizing the idea's potential",
+  "strongest_point": "what makes this genuinely strong",
+  "biggest_gap": "the most important thing missing or weak",
+  "bold_move": "one unexpected move that could make this 10x better"
+}
+Scoring rules:
+- Score out of 10, be honest — do not inflate scores
+- 1-4 = weak, 5-6 = average, 7-8 = strong, 9-10 = exceptional
+- overall = weighted average (market_demand 25%, differentiation 20%, monetization 25%, execution 15%, timing 15%)
+- verdict must be direct and opinionated
+${locationContext}`
+      },
+      {
+        role: 'user',
+        content: `Conversation:\n${context}\n\nLatest message: ${lastUserMessage}\n\nScore this business idea. Return JSON only.`
+      }
+    ],
+    temperature: 0.65,
+    max_tokens: 700
+  });
+
+  const raw = completion?.choices?.[0]?.message?.content || '';
+  const parsed = tryParseJsonBlock(raw);
+  if (!parsed) throw new Error('Score JSON parse failed');
+  return parsed;
+}
+
+// Builds the visual score card HTML
+function buildScoreCard(data = {}) {
+  const safe = (val = '') => escapeHtml(String(val || ''));
+
+  const scoreBar = (score = 0) => {
+    const pct = Math.min(Math.max(Number(score) || 0, 0), 10) * 10;
+    const color = pct >= 75 ? '#22c55e' : pct >= 55 ? '#f59e0b' : '#ef4444';
+    return `<div style="display:flex;align-items:center;gap:10px;margin:4px 0;">
+      <div style="flex:1;height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:999px;transition:width 0.6s ease;"></div>
+      </div>
+      <span style="font-size:13px;font-weight:800;color:#0f172a;min-width:28px;">${safe(String(score))}/10</span>
+    </div>`;
+  };
+
+  const scores = data.scores || {};
+  const dimensions = [
+    { key: 'market_demand',    label: '📊 Market Demand'    },
+    { key: 'differentiation',  label: '⚡ Differentiation'  },
+    { key: 'monetization',     label: '💰 Monetization'     },
+    { key: 'execution',        label: '🔧 Execution'        },
+    { key: 'timing',           label: '⏱ Timing'           }
+  ];
+
+  const overallPct = Math.min(Math.max(Number(data.overall) || 0, 0), 10) * 10;
+  const overallColor = overallPct >= 75 ? '#22c55e' : overallPct >= 55 ? '#f59e0b' : '#ef4444';
+
+  return `<div data-nabad-card="score">
+<h3>🎯 Nabad Score — ${safe(data.idea_name)}</h3>
+<p style="color:#475569;font-size:14px;margin-bottom:14px;">${safe(data.verdict)}</p>
+
+<div style="margin-bottom:16px;">
+${dimensions.map(d => {
+  const s = scores[d.key] || {};
+  return `<div style="margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+      <span style="font-size:13px;font-weight:700;color:#0f172a;">${d.label}</span>
+    </div>
+    ${scoreBar(s.score)}
+    <p style="font-size:12px;color:#64748b;margin:3px 0 0;">${safe(s.reason)}</p>
+  </div>`;
+}).join('')}
+</div>
+
+<div style="background:linear-gradient(135deg,#eff6ff,#f0fdf4);border-radius:14px;padding:14px;margin-bottom:14px;border:1px solid rgba(37,99,235,0.10);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <span style="font-size:15px;font-weight:800;color:#0f172a;">Overall Score</span>
+    <span style="font-size:22px;font-weight:900;color:${overallColor};">${safe(String(data.overall))}/10</span>
+  </div>
+  <div style="height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
+    <div style="width:${overallPct}%;height:100%;background:${overallColor};border-radius:999px;"></div>
+  </div>
+</div>
+
+<ul>
+  <li><b>💪 Strongest point:</b> ${safe(data.strongest_point)}</li>
+  <li><b>🔍 Biggest gap:</b> ${safe(data.biggest_gap)}</li>
+  <li><b>🚀 Bold move:</b> ${safe(data.bold_move)}</li>
+</ul>
+</div>`;
+}
+
+// ── ENSURE HTML REPLY ─────────────────────────────────────────
 function ensureHtmlReply(reply = '') {
   const text = cleanText(reply, 8000);
   if (!text) return '<p>Sorry — I could not generate a useful response right now.</p>';
@@ -857,7 +1101,6 @@ async function fetchWebsiteAuditContent(url = '') {
   } catch { return ''; }
 }
 
-// ── PROFILE SANITIZER ─────────────────────────────────────────
 function sanitizeProfile(profile = {}) {
   const fields = ['name', 'business', 'industry', 'goal', 'targetAudience', 'tone'];
   const sanitized = {};
@@ -926,7 +1169,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ reply: 'No message provided.' });
     }
 
-    // [T1-10] Positioning question — return crafted answer instantly
+    // [T1-10] Positioning question handler
     if (isPositioningQuestion(lastUserMessage)) {
       return res.status(200).json({ reply: POSITIONING_REPLY });
     }
@@ -972,10 +1215,7 @@ export default async function handler(req, res) {
       lockedBrief = normalizeImagePrompt(lockedBrief || finalPrompt);
 
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[IMAGE DEBUG]', {
-          lastUserMessage, promptSource, promptModel,
-          lockedBrief, finalPrompt, mustKeep, canVary
-        });
+        console.log('[IMAGE DEBUG]', { lastUserMessage, promptSource, promptModel, lockedBrief, finalPrompt, mustKeep, canVary });
       }
 
       return res.status(200).json({
@@ -989,6 +1229,47 @@ export default async function handler(req, res) {
       return res.status(500).json({ reply: 'Missing OPENAI_API_KEY on the server.' });
     }
 
+    // ── [T2-L] Location resolution ────────────────────────────
+    const detectedLocation = extractLocationFromMessages(messages);
+
+    // ── [T2-7] Nabad Score — detect and generate ──────────────
+    if (isIdeaScoringRequest(lastUserMessage)) {
+      try {
+        const scoreData = await generateNabadScore(
+          messages, lastUserMessage, detectedLocation, openai
+        );
+        return res.status(200).json({ reply: buildScoreCard(scoreData) });
+      } catch (err) {
+        console.error('[NABAD SCORE ERROR]', err?.message || err);
+        // Fall through to normal reply if score generation fails
+      }
+    }
+
+    // ── [T2-2] Business Snapshot — detect and generate ───────
+    // Case 1: User explicitly requests a snapshot
+    if (isSnapshotRequest(lastUserMessage)) {
+      try {
+        const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai);
+        return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
+      } catch (err) {
+        console.error('[SNAPSHOT ERROR]', err?.message || err);
+      }
+    }
+
+    // Case 2: User confirms after Nabad offered the snapshot
+    if (
+      isSnapshotConfirmation(lastUserMessage) &&
+      snapshotAlreadyOffered(messages) &&
+      hasRichBusinessContext(messages)
+    ) {
+      try {
+        const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai);
+        return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
+      } catch (err) {
+        console.error('[SNAPSHOT CONFIRM ERROR]', err?.message || err);
+      }
+    }
+
     const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
     const websiteAuditContent = isValidHttpUrl(explicitUrl)
       ? await fetchWebsiteAuditContent(explicitUrl)
@@ -999,7 +1280,7 @@ export default async function handler(req, res) {
 
     const businessMode = personalityResolution.personalityId === 'auto'
       ? detectBusinessMode(lastUserMessage, messages)
-      : { id: 'advisor', label: personalityConfig.label, temperature: 0.82, maxTokens: 520, instruction: '' };
+      : { id: 'advisor', label: personalityConfig.label, temperature: 0.82, maxTokens: 620, instruction: '' };
 
     if (process.env.NODE_ENV !== 'production') {
       console.log('[PERSONALITY DEBUG]', {
@@ -1007,11 +1288,12 @@ export default async function handler(req, res) {
         activePersonality: personalityConfig.id,
         personalitySource: personalityResolution.source,
         overridePersonality: personalityResolution.overridePersonality || '',
-        businessMode: businessMode.id
+        businessMode: businessMode.id,
+        detectedLocation
       });
     }
 
-    // [T1-1] Proactive intelligence instruction
+    // [T1-1] Proactive intelligence
     const proactiveInstruction = isEarlyConversation(messages) && isBroadOpeningMessage(lastUserMessage)
       ? `
 PROACTIVE INTELLIGENCE MODE (ACTIVE):
@@ -1020,7 +1302,7 @@ Do NOT just answer the question directly.
 FIRST: Identify what you think the REAL underlying problem or opportunity is.
 THEN: Reframe it for the user in one sharp sentence.
 THEN: Give your answer through that reframe.
-Example openers you can use:
+Example openers:
 - "Most people in your position focus on X — but the real leverage is usually Y."
 - "Before we go into that — here's what I think the actual problem is..."
 - "Honestly? The question you're asking is the second question. The first one is..."
@@ -1028,131 +1310,104 @@ Lead with intelligence, not information.
 `
       : '';
 
-    // [T1-4] Memory context instruction
+    // [T1-4] Memory context
     const memoryInstruction = buildMemoryContext(messages);
 
-    // [T1-8] Real person tone instruction
+    // [T2-L] Location instruction — ask naturally if missing
+    const locationInstruction = !detectedLocation &&
+      !locationAlreadyAsked(messages) &&
+      hasBusinessContext(messages) &&
+      messages.filter(m => m.role === 'user').length >= 2
+      ? `
+LOCATION COLLECTION (ACTIVE):
+You do not yet know where the user is based.
+At the END of your reply — after giving your main answer — naturally ask:
+"Quick question — where are you based? It'll help me give you advice that's relevant to your market, costs, and local legal setup."
+Ask this ONCE only. Do not repeat it in future messages.
+`
+      : detectedLocation
+      ? `
+LOCATION CONTEXT (ACTIVE):
+The user is based in: ${detectedLocation}
+- Reference this naturally when giving advice about costs, legal setup, market conditions, and regulations
+- Factor in ${detectedLocation}-specific business registration, tax, and legal requirements when relevant
+- Use local market knowledge for pricing and competitive landscape advice
+`
+      : '';
+
+    // [T2-2] Snapshot offer instruction — suggest snapshot when context is rich
+    const snapshotInstruction = hasRichBusinessContext(messages) &&
+      !snapshotAlreadyOffered(messages) &&
+      !isSnapshotConfirmation(lastUserMessage)
+      ? `
+BUSINESS SNAPSHOT OFFER (ACTIVE):
+You have gathered enough information about the user's business to offer a structured Business Snapshot.
+At the END of your reply — after your main answer — naturally say:
+"I think I have a clear enough picture of what you're building. Want me to put together a quick Business Snapshot — your biggest opportunity, your key risk, and my top recommendation in one card?"
+Say this ONCE only. Only add it if it flows naturally after your answer.
+`
+      : '';
+
+    // [T1-8] Real person tone
     const toneInstruction = `
 VOICE & TONE (ALWAYS ACTIVE):
-You are not a generic AI assistant. You are Nabad — a sharp, opinionated, commercially intelligent business advisor.
-Your voice must feel like the smartest person in the room who is also direct and occasionally cuts through the noise.
-
-Specific tone rules:
+You are Nabad — sharp, opinionated, commercially intelligent.
 - Lead with a point of view, not a list
 - Use phrases like:
   "Honestly? Most people get this backwards."
   "Here's the uncomfortable truth about that market..."
   "This is actually a better idea than you think — here's why."
   "The real question is not X, it's Y."
-  "Most advisors would tell you Z. I'd push back on that."
 - Never start with "Great question!" or "Certainly!" or "Of course!"
 - Never sound like a school textbook or motivational poster
-- Be concise but never shallow
 - If the user is wrong about something, say so — diplomatically but clearly
-- If their idea is strong, tell them why specifically — not just "great idea"
-- Always end with either a clear next move or a provocative question that pushes thinking forward
+- Always end with either a clear next move or a provocative question
 `;
 
     const systemPrompt = `
 You are Nabad, an elite business strategist, growth advisor, offer architect, and creative commercial thinker.
 
-Your job is NOT to sound like a generic assistant.
 Your job is to help users make smarter business decisions, spot opportunities, differentiate, position offers, grow revenue, improve branding, and think in more original ways.
 
 PERSONALITY:
 - Sharp, commercially smart, creative, business-oriented
 - Practical, modern, persuasive, insightful
 - Always think beyond the obvious
-- Always look for leverage, differentiation, monetization, positioning, and growth
 - Never sound like a school textbook or motivational chatbot
-- Never give bland generic advice if a stronger angle can be given
 
 CORE BUSINESS MINDSET:
-For business questions, think through:
-- customer pain/problem
-- market opportunity
-- positioning
-- business model / revenue path
-- offer design
-- acquisition / distribution
-- conversion potential
-- brand perception
-- scalability
-- smart unconventional angles
+Think through: customer pain, market opportunity, positioning, business model, offer design, acquisition, conversion, brand perception, scalability, unconventional angles.
 
 HOW TO ANSWER:
-- Reply in clean HTML only
-- Never use Markdown
+- Reply in clean HTML only. Never use Markdown.
 - Allowed tags: <p>, <b>, <strong>, <i>, <em>, <ul>, <ol>, <li>, <br>, <a>, <h3>, <h4>
-- Never return one huge wall of text
-- Every answer must be visually structured and easy to scan
-- Prefer this structure by default:
-
+- Structure every answer — no walls of text
+- Default structure:
 <h3>Main insight or recommendation</h3>
 <p>One short direct conclusion.</p>
-<ul>
-  <li>2 to 5 specific points</li>
-</ul>
-<p><b>Fresh angle:</b> one more original or unexpected idea.</p>
-<p><b>Next best move:</b> the best immediate action to take.</p>
+<ul><li>2 to 5 specific points</li></ul>
+<p><b>Fresh angle:</b> one original idea.</p>
+<p><b>Next best move:</b> best immediate action.</p>
 
-STYLE RULES:
-- Be concise but high-value
-- Focus on commercial usefulness
-- Add at least one fresh thought, overlooked angle, or stronger idea whenever relevant
-- If the user is vague, do NOT give a basic generic checklist only
-- Suggest promising directions and recommend one
-- Speak like a founder advisor, not a school teacher
-- Prefer a point of view over neutral waffle
-
-EMOJI STYLE:
-- You may use 1 to 3 tasteful business-relevant emojis when helpful
-- Good examples: 📈 💡 🎯 🚀 🧠 💼 🎨 ⚡
-- Do not overuse emojis
-
-MODE GUIDANCE:
-SELECTED PERSONALITY PREFERENCE:
-- User selected: ${personalityResolution.selectedPersonality}
-- Active personality for this reply: ${personalityConfig.label}
-- Personality source: ${personalityResolution.source}
-${personalityResolution.overridePersonality ? `- Temporary override: ${personalityResolution.overridePersonality}` : ''}
+EMOJI STYLE: 1-3 tasteful business emojis only. Good: 📈 💡 🎯 🚀 🧠 💼 🎨 ⚡
 
 PERSONALITY INSTRUCTIONS:
 ${personalityConfig.instruction}
-
 ${businessMode.instruction ? `CURRENT TASK MODE:\n${businessMode.instruction}` : ''}
 
 ${proactiveInstruction}
-
 ${memoryInstruction}
-
+${locationInstruction}
+${snapshotInstruction}
 ${toneInstruction}
 
-SPECIAL RULE FOR BROAD BUSINESS QUESTIONS:
-When the user asks something broad like "I want to start a business" or "give me ideas":
-1. Give a point of view
-2. Give 2 to 4 strong directions or options
-3. Recommend one best path
-4. Add one fresh angle the user may not have considered
-
-STOCK PHOTOS:
-If the user asks for free stock photos, free image sources, or photo references, return exactly 2 clickable HTML links:
-<a href="https://unsplash.com/s/photos/[keyword]" target="_blank" rel="noopener noreferrer">🖼 Search [keyword] on Unsplash</a><br>
-<a href="https://www.pexels.com/search/[keyword]/" target="_blank" rel="noopener noreferrer">🖼 Search [keyword] on Pexels</a>
-
-IMAGE REQUESTS:
-If the user asks for an image, logo, poster, banner, flyer, mockup, or another version of an image, respond naturally if needed but do NOT output raw image HTML or Pollinations URLs manually. The backend handles image generation.
-
-BUSINESS BEHAVIOR:
-- Always try to improve the user's idea, not just answer it
-- Suggest new angles proactively when useful
-- If visuals would help, you may say:
-<p>🖼 Would you like me to generate a visual for this idea?</p>
+STOCK PHOTOS: Return 2 Unsplash/Pexels links when asked for free stock images.
+IMAGE REQUESTS: Do NOT output image HTML — backend handles image generation.
+BUSINESS BEHAVIOR: Always try to improve the user's idea. Suggest new angles proactively.
 
 USER PROFILE:
 ${profileText || 'No saved user profile provided.'}
-
-${websiteAuditContent ? `WEBSITE AUDIT CONTEXT:\n${websiteAuditContent}` : ''}
+${websiteAuditContent ? `\nWEBSITE AUDIT CONTEXT:\n${websiteAuditContent}` : ''}
 `;
 
     const completion = await openai.chat.completions.create({
@@ -1178,7 +1433,6 @@ ${websiteAuditContent ? `WEBSITE AUDIT CONTEXT:\n${websiteAuditContent}` : ''}
   }
 }
 
-// ── REQUEST BODY SIZE CAP ─────────────────────────────────────
 export const config = {
   api: {
     bodyParser: {
