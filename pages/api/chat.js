@@ -1262,9 +1262,6 @@ if (YES_PATTERN.test(lastUserMessage.trim())) {
 }
 // ── End "Yes" intent router ───────────────────────────────────
 
-// ── Main GPT-4o reply ─────────────────────────────────────
-const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
-// ... everything below stays the same ...
 
     // ── Main GPT-4o reply ─────────────────────────────────────
     const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
