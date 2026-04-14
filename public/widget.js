@@ -2210,7 +2210,7 @@
     updatePersonalityBadge();
     setInputPlaceholder();
     refs.messages.innerHTML = '';
-    renderOnboardingScreen3();
+    renderOnboardingScreen1();
   }
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
