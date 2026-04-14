@@ -968,6 +968,26 @@ function upgradeCardRecentlyShown(messages = [], lookback = 4) {
   );
 }
 
+async function detectMeaningfulInfo(userMessage, openai) {
+  try {
+    const check = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0,
+      max_tokens: 5,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a classifier. Reply only "yes" or "no". Does this message contain meaningful information about the user's business, idea, revenue, location, challenge, industry, team, product, or pricing? Message: "${userMessage}"`
+        }
+      ]
+    });
+    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
+    return answer === 'yes';
+  } catch {
+    return false;
+  }
+}
+
 // ── Main Handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   setCors(req, res);
@@ -1321,7 +1341,7 @@ If a user profile is provided below, use it naturally — reference their busine
       max_tokens: maxTokens
     });
     const rawReply = completion.choices?.[0]?.message?.content || '';
-    return res.status(200).json({ reply: ensureHtmlReply(rawReply) });
+    return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo });
   } catch (err) {
     console.error('[GPT ERROR]', err?.message);
     return res.status(500).json({ error: 'AI service temporarily unavailable. Please try again.' });
