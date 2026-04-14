@@ -1679,7 +1679,7 @@
             </div>
           </div>
           <div id="nabad-header-actions">
-            <button class="nabad-icon-btn" id="nabad-new-chat" type="button" title="New chat">⟳</button>
+            <button class="nabad-icon-btn" id="nabad-new-chat" type="button" title="Options">⊙</button>
             <button class="nabad-icon-btn nabad-desktop-only" id="nabad-close" type="button" title="Close">×</button>
           </div>
         </div>
