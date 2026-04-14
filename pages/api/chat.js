@@ -251,17 +251,21 @@ function buildPollinationsUrl(prompt = '', options = {}) {
   if (seed !== undefined) url += `&seed=${seed}`;
   return url;
 }
-function extractLastImageMeta(messages = []) {
-  for (let i = messages.length - 1; i >= 0; i--) {
+function extractLastImageMeta(messages = [], lookback = 15) {
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - lookback); i--) {
     const text = getMessageText(messages[i].content);
     const urlMatch = text.match(/https?:\/\/image\.pollinations\.ai\/prompt\/([^\s"'<]+)/);
-    if (urlMatch) return { url: urlMatch[0], prompt: decodeURIComponent(urlMatch[1].split('?')[0] || ''), source: 'pollinations' };
+    if (urlMatch) return {
+      url: urlMatch[0],
+      prompt: decodeURIComponent(urlMatch[1].split('?')[0] || ''),
+      source: 'pollinations'
+    };
     const ideogramMatch = text.match(/https?:\/\/ideogram\.ai\/[^\s"'<]+|https?:\/\/img\.ideogram\.ai\/[^\s"'<]+/);
     if (ideogramMatch) return { url: ideogramMatch[0], prompt: '', source: 'ideogram' };
   }
   return null;
 }
-function conversationRecentlyHadImage(messages = [], lookback = 6) {
+function conversationRecentlyHadImage(messages = [], lookback = 10) {
   return messages.slice(-lookback).some(m => {
     const text = getMessageText(m.content);
     return /image\.pollinations\.ai|ideogram\.ai|img\.ideogram\.ai/.test(text);
@@ -903,6 +907,14 @@ function getLastOffer(msgs = []) {
   return null;
 }
 
+// ── Premium image helper ──────────────────────────────────────────────────────
+function upgradeCardRecentlyShown(messages = [], lookback = 4) {
+  return messages.slice(-lookback).some(m =>
+    m.role === 'assistant' &&
+    /use premium.*ideogram|want a sharper result|ideogram 2\.0/i.test(getMessageText(m.content))
+  );
+}
+
 // ── Main Handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   setCors(req, res);
@@ -949,25 +961,26 @@ export default async function handler(req, res) {
   }
 
   // ── Premium image confirmed → generate with Ideogram ──
-  if (isPremiumImageConfirmation(lastUserMessage) && conversationRecentlyHadImage(messages)) {
-    const lastOffer = getLastOffer(messages);
-    if (lastOffer === 'premium-image' || /use premium|ideogram|sharper|upgrade/i.test(lastUserMessage)) {
-      try {
-        const lastMeta = extractLastImageMeta(messages);
-        const prompt = lastMeta?.prompt
-          ? enrichImagePrompt(lastMeta.prompt, detectImageType(lastMeta.prompt))
-          : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
-        const ideogramUrl = await generateWithIdeogram(prompt);
-        const imageType = detectImageType(prompt);
-        return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
-      } catch (err) {
-        console.error('[IDEOGRAM ERROR]', err?.message);
-        return res.status(200).json({
-          reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key' : 'try again in a moment'}</strong>. Falling back to standard generation.</p>`
-        });
-      }
-    }
+if (
+  isPremiumImageConfirmation(lastUserMessage) &&
+  (conversationRecentlyHadImage(messages) || upgradeCardRecentlyShown(messages))
+) {
+  try {
+    const lastMeta = extractLastImageMeta(messages);
+    const basePrompt = lastMeta?.prompt || '';
+    const prompt = basePrompt
+      ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
+      : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+    const ideogramUrl = await generateWithIdeogram(prompt);
+    const imageType = detectImageType(prompt);
+    return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
+  } catch (err) {
+    console.error('[IDEOGRAM ERROR]', err?.message);
+    return res.status(200).json({
+      reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`
+    });
   }
+}
 
   // ── Standard image generation (Pollinations) ──
   if (shouldGenerateImage(lastUserMessage, messages)) {
