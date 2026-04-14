@@ -2180,13 +2180,21 @@
   }
 
   function _doStartNewChat() {
-    state.messages = [];
-    saveMessages();
-    refs.messages.innerHTML = '';
-    if (!state.personalityChosen) {
-      renderOnboardingScreen3();
-    } else {
-      renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+  state.messages = [];
+  state.onboarded = false;
+  state.personalityChosen = false;
+  state.personality = 'auto';
+  state.userProfile = {};
+  state.onboardingPath = null;
+  state.onboardingAnswers = {};
+  saveMessages();
+  savePersonality('');
+  saveOnboarded();
+  saveUserProfile({});
+  updatePersonalityBadge();
+  setInputPlaceholder();
+  refs.messages.innerHTML = '';
+  renderOnboardingScreen1();
     }
   }
 
