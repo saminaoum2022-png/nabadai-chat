@@ -1791,11 +1791,11 @@
     renderInitialState();
   }
 
-  // ── EVENTS ───────────────────────────────────────────────────
+    // ── EVENTS ───────────────────────────────────────────────────
+  function bindEvents(root) {
     root.querySelector('#nabad-new-chat').addEventListener('click', showOptionsPopup);
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
-    root.querySelector('#nabad-new-chat').addEventListener('click', startNewChat);
 
     refs.input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
