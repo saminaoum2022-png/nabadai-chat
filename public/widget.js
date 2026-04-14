@@ -403,18 +403,29 @@
       }
 
       #nabad-logo {
-        width: 42px;
-        height: 42px;
-        border-radius: 999px;
-        background: radial-gradient(circle at 30% 30%, #67e8f9 0%, #2563eb 45%, #1e3a8a 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        font-weight: 900;
-        font-size: 14px;
-        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35);
-      }
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 0 rgba(37,99,235,0.4);
+  animation: nabadBreath 2.5s ease-in-out infinite;
+  overflow: hidden;
+}
+
+#nabad-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 999px;
+}
+
+@keyframes nabadBreath {
+  0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.35); }
+  50%  { box-shadow: 0 0 0 7px rgba(37,99,235,0.10); }
+  100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.35); }
+}
 
       #nabad-title-wrap { min-width: 0; }
 
@@ -1609,7 +1620,7 @@
       <div id="nabad-panel" aria-hidden="true">
         <div id="nabad-header">
           <div id="nabad-header-left">
-            <div id="nabad-logo">N</div>
+            <div id="nabad-logo"><img src="/logo.png" alt="Nabad" /></div>
             <div id="nabad-title-wrap">
               <div id="nabad-title">${escapeHtml(CONFIG.title)}</div>
               <div id="nabad-subtitle">${escapeHtml(CONFIG.subtitle)}</div>
