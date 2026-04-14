@@ -2216,7 +2216,7 @@
 
   function showTyping(show) {
   refs.typing.style.display = show ? 'flex' : 'none';
-  refs.sendBtn.disabled = show;
+  refs.send.disabled = show;
   const logo = document.getElementById('nabad-logo');
   if (logo) logo.classList.toggle('thinking', show);
 }
