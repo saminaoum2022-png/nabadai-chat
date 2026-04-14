@@ -1642,9 +1642,19 @@
         pointer-events: none;
       }
 
-      .nabad-detected-pill.show {
+            .nabad-detected-pill.show {
         opacity: 1;
         transform: translateY(0);
+      }
+
+      #nabad-logo.thinking {
+        animation: nabadThinking 0.8s ease-in-out infinite;
+      }
+
+      @keyframes nabadThinking {
+        0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
+        50%  { box-shadow: 0 0 0 14px rgba(37,99,235,0.15); }
+        100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
       }
 
     `;
@@ -2205,10 +2215,11 @@
   }
 
   function showTyping(show) {
-    refs.typing.classList.toggle('show', !!show);
-    refs.send.disabled = !!show;
-    scrollToBottom();
-  }
+  refs.typing.style.display = show ? 'flex' : 'none';
+  refs.sendBtn.disabled = show;
+  const logo = document.getElementById('nabad-logo');
+  if (logo) logo.classList.toggle('thinking', show);
+}
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -2264,6 +2275,7 @@
 
 // ── NABAD DETECTED EFFECT ─────────────────────────────────────
 function triggerNabadDetected(bubbleEl) {
+  navigator.vibrate && navigator.vibrate(40);
     // 1. Input pulse
     const input = document.getElementById('nabad-input');
     if (input) {
