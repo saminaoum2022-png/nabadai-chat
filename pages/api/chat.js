@@ -48,8 +48,6 @@ function isRateLimited(ip = '') {
   return false;
 }
 
-// ── Model IDs ─────────────────────────────────────────────────────────────────
-const GEMINI_TEXT_MODELS = ['gemini-2.0-flash', 'gemini-1.5-pro'];
 const SHOW_IMAGE_DEBUG = false;
 
 // ── Text Utilities ────────────────────────────────────────────────────────────
@@ -123,6 +121,89 @@ async function fetchWebsiteAuditContent(url = '') {
   } catch { return ''; }
 }
 
+// ── Ideogram 2.0 Integration ──────────────────────────────────────────────────
+async function generateWithIdeogram(prompt = '') {
+  const apiKey = process.env.IDEOGRAM_API_KEY;
+  if (!apiKey) throw new Error('IDEOGRAM_API_KEY not set');
+  const cleanPrompt = sanitizePromptText(prompt).slice(0, 900);
+  const response = await fetchWithTimeout('https://api.ideogram.ai/generate', {
+    method: 'POST',
+    headers: {
+      'Api-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      image_request: {
+        prompt: cleanPrompt,
+        model: 'V_2',
+        magic_prompt_option: 'AUTO',
+        style_type: 'DESIGN',
+        aspect_ratio: 'ASPECT_1_1'
+      }
+    })
+  }, 30000);
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Ideogram API error: ${response.status} — ${errText.slice(0, 100)}`);
+  }
+  const data = await readJsonSafe(response);
+  const imageUrl = data?.data?.[0]?.url;
+  if (!imageUrl) throw new Error('No image URL returned from Ideogram');
+  return imageUrl;
+}
+
+function isImageQualityComplaint(text = '') {
+  return /\b(fix\s*(the\s*)?text|text\s*(is\s*)?(wrong|broken|off|bad|blurry)|wrong\s*text|fix\s*(the\s*)?spelling|spelling\s*(is\s*)?wrong)\b/i.test(text)
+    || /\b(bad\s*(quality|image|photo|result)|not\s*good|looks\s*(bad|terrible|wrong|off)|better\s*quality|higher\s*quality|sharper|cleaner)\b/i.test(text)
+    || /\b(upgrade\s*(the\s*)?image|use\s*(ideogram|premium|better\s*(model|ai|generator))|switch\s*to\s*(ideogram|premium))\b/i.test(text);
+}
+
+function isPremiumImageConfirmation(text = '') {
+  return /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium)\b/i.test(text)
+    || /^(yes|yeah|sure|ok|okay|do it|go ahead|upgrade)[\s!.]*$/i.test(text);
+}
+
+function buildPremiumUpgradeOffer(lastPrompt = '') {
+  return `<div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:16px;padding:20px;color:#fff;margin:8px 0;border:1px solid rgba(168,85,247,.3)">
+  <div style="font-size:18px;font-weight:700;margin-bottom:8px">✨ Want a sharper result?</div>
+  <p style="font-size:13px;opacity:.8;margin:0 0 12px 0;line-height:1.5">Ideogram 2.0 renders text <strong>accurately</strong> and produces higher quality images — perfect for logos and branded content with exact spelling 🎯</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+    <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:10px;opacity:.5;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Current</div>
+      <div style="font-size:13px;font-weight:600">Pollinations</div>
+      <div style="font-size:11px;opacity:.6;margin-top:2px">Free · Good quality</div>
+      <div style="font-size:11px;opacity:.5;margin-top:2px">⚠️ Text may be off</div>
+    </div>
+    <div style="background:rgba(168,85,247,.15);border-radius:10px;padding:10px;text-align:center;border:1px solid rgba(168,85,247,.4)">
+      <div style="font-size:10px;opacity:.5;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Premium</div>
+      <div style="font-size:13px;font-weight:600;color:#a855f7">Ideogram 2.0</div>
+      <div style="font-size:11px;opacity:.6;margin-top:2px">Best quality</div>
+      <div style="font-size:11px;color:#2ecc71;margin-top:2px">✅ Exact text rendering</div>
+    </div>
+  </div>
+  <p style="font-size:12px;opacity:.6;margin:0;text-align:center">Reply <strong style="color:#a855f7">"use premium"</strong> to regenerate with Ideogram 2.0 🚀</p>
+</div>`;
+}
+
+function buildPremiumImageReply(imageUrl = '', prompt = '', imageType = 'image') {
+  const labels = {
+    logo: '🎨 Your logo — rendered with Ideogram 2.0',
+    banner: '🖼️ Banner — rendered with Ideogram 2.0',
+    icon: '✨ Icon — rendered with Ideogram 2.0',
+    illustration: '🎭 Illustration — rendered with Ideogram 2.0',
+    mockup: '📦 Mockup — rendered with Ideogram 2.0',
+    image: '🖼️ Image — rendered with Ideogram 2.0'
+  };
+  const label = labels[imageType] || labels.image;
+  const shortCaption = prompt.length > 60 ? prompt.slice(0, 57) + '...' : prompt;
+  return `<p><strong>${label}</strong> <span style="font-size:11px;opacity:.6;background:rgba(168,85,247,.2);padding:2px 8px;border-radius:99px;color:#a855f7">✨ Premium</span></p>
+<div class="nabad-image-wrap">
+  <img src="${imageUrl}" alt="${escapeHtml(prompt.slice(0, 100))}" class="nabad-gen-image" loading="lazy"
+    onerror="this.parentElement.innerHTML='<p style=color:#e74c3c>Image failed to load — try again.</p>'" />
+  ${shortCaption ? `<p class="nabad-image-caption">✨ ${escapeHtml(shortCaption)}</p>` : ''}
+</div>`;
+}
+
 // ── Image Utilities ───────────────────────────────────────────────────────────
 function isStockPhotoRequest(text = '') {
   return /\b(stock\s*photo|stock\s*image|real\s*(photo|picture|image)|actual\s*(photo|picture|image)|photograph of|photo of a real)\b/i.test(text);
@@ -137,13 +218,6 @@ function isRegenerationRequest(text = '') {
 }
 function isImageModificationRequest(text = '') {
   return /\b(change|update|modify|make it|make the|adjust|tweak|alter)\b.{0,40}\b(image|logo|picture|visual|banner|icon|color|style|background)\b/i.test(text);
-}
-function cleanImageIntentPrefix(text = '') {
-  return text.replace(/^(generate|create|make|draw|design|build|produce|show)\s+(me\s+)?(a\s+|an\s+)?/i, '').trim();
-}
-function unwrapPromptText(content) {
-  const raw = getMessageText(content);
-  return decodeMaybe(cleanText(raw, 1200));
 }
 function normalizeImagePrompt(text = '') {
   return text.replace(/[^\w\s,.\-()!?'":@#&]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 900);
@@ -181,21 +255,17 @@ function extractLastImageMeta(messages = []) {
   for (let i = messages.length - 1; i >= 0; i--) {
     const text = getMessageText(messages[i].content);
     const urlMatch = text.match(/https?:\/\/image\.pollinations\.ai\/prompt\/([^\s"'<]+)/);
-    if (urlMatch) return { url: urlMatch[0], prompt: decodeURIComponent(urlMatch[1].split('?')[0] || '') };
+    if (urlMatch) return { url: urlMatch[0], prompt: decodeURIComponent(urlMatch[1].split('?')[0] || ''), source: 'pollinations' };
+    const ideogramMatch = text.match(/https?:\/\/ideogram\.ai\/[^\s"'<]+|https?:\/\/img\.ideogram\.ai\/[^\s"'<]+/);
+    if (ideogramMatch) return { url: ideogramMatch[0], prompt: '', source: 'ideogram' };
   }
   return null;
 }
 function conversationRecentlyHadImage(messages = [], lookback = 6) {
-  return messages.slice(-lookback).some(m =>
-    /image\.pollinations\.ai/.test(getMessageText(m.content))
-  );
-}
-function getLatestExplicitImageRequest(messages = []) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'user' && isImageRequest(getMessageText(messages[i].content)))
-      return getMessageText(messages[i].content);
-  }
-  return '';
+  return messages.slice(-lookback).some(m => {
+    const text = getMessageText(m.content);
+    return /image\.pollinations\.ai|ideogram\.ai|img\.ideogram\.ai/.test(text);
+  });
 }
 function shouldGenerateImage(text = '', messages = []) {
   if (isImageRequest(text)) return true;
@@ -203,17 +273,10 @@ function shouldGenerateImage(text = '', messages = []) {
   if (isImageModificationRequest(text) && conversationRecentlyHadImage(messages)) return true;
   return false;
 }
-function buildStockKeyword(prompt = '') {
-  const cleaned = prompt.replace(/stock\s*(photo|image)/gi, '').replace(/real\s*(photo|picture|image)/gi, '').trim();
-  return encodeURIComponent(cleaned.slice(0, 80));
-}
 function buildStockPhotoHtml(prompt = '') {
-  const kw = buildStockKeyword(prompt);
+  const kw = encodeURIComponent(prompt.replace(/stock\s*(photo|image)/gi, '').replace(/real\s*(photo|picture|image)/gi, '').trim().slice(0, 80));
   const unsplashUrl = `https://source.unsplash.com/1024x768/?${kw}`;
   return `<div class="nabad-image-wrap"><img src="${unsplashUrl}" alt="${escapeHtml(prompt.slice(0, 80))}" class="nabad-gen-image" loading="lazy" /><p class="nabad-image-caption">📷 Stock photo for: ${escapeHtml(prompt.slice(0, 80))}</p></div>`;
-}
-async function buildStrictFallbackPrompt(userText = '') {
-  return `Minimalist professional illustration: ${sanitizePromptText(userText).slice(0, 200)}, clean design, white background, no text`;
 }
 async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiClient) {
   try {
@@ -221,7 +284,7 @@ async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiCl
     const resp = await openaiClient.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: 'You are an expert AI image prompt writer. Given a user request and conversation history, write a vivid, detailed image generation prompt (max 120 words). Focus on visual details, style, lighting, composition. No quotation marks.' },
+        { role: 'system', content: 'You are an expert AI image prompt writer. Given a user request and conversation history, write a vivid, detailed image generation prompt (max 120 words). Focus on visual details, style, lighting, composition. Include exact brand names or text that must appear in the image. No quotation marks.' },
         { role: 'user', content: `Conversation:\n${historyContext}\n\nUser request: ${userText}\n\nWrite the image prompt:` }
       ],
       max_tokens: 180, temperature: 0.8
@@ -230,12 +293,18 @@ async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiCl
   } catch { return userText; }
 }
 function buildPollinationsImageHtml(imageUrl = '', altText = '', caption = '') {
-  return `<div class="nabad-image-wrap"><img src="${imageUrl}" alt="${escapeHtml(altText.slice(0, 100))}" class="nabad-gen-image" loading="lazy" onerror="this.parentElement.innerHTML='<p style=color:#e74c3c>Image generation failed — try again.</p>'" />${caption ? `<p class="nabad-image-caption">${escapeHtml(caption)}</p>` : ''}</div>`;
+  const shortCaption = caption.length > 60 ? caption.slice(0, 57) + '...' : caption;
+  return `<div class="nabad-image-wrap">
+    <img src="${imageUrl}" alt="${escapeHtml(altText.slice(0, 100))}" class="nabad-gen-image" loading="lazy"
+      onerror="this.parentElement.innerHTML='<p style=color:#e74c3c>Image generation failed — try again.</p>'" />
+    ${shortCaption ? `<p class="nabad-image-caption">✨ ${escapeHtml(shortCaption)}</p>` : ''}
+  </div>`;
 }
 function buildImageReplyHtml(imageUrl = '', promptText = '', imageType = 'image') {
   const labels = { logo: '🎨 Your logo is ready', banner: '🖼️ Banner created', icon: '✨ Icon generated', illustration: '🎭 Illustration ready', mockup: '📦 Mockup generated', image: '🖼️ Image generated' };
   const label = labels[imageType] || labels.image;
-  return `<p><strong>${label}</strong></p>${buildPollinationsImageHtml(imageUrl, promptText, promptText.slice(0, 80))}`;
+  const shortCaption = promptText.length > 60 ? promptText.slice(0, 57) + '...' : promptText;
+  return `<p><strong>${label}</strong></p>${buildPollinationsImageHtml(imageUrl, promptText, shortCaption)}`;
 }
 
 // ── Business Mode & Personality ───────────────────────────────────────────────
@@ -262,7 +331,6 @@ Use structured points only when presenting a framework or comparison.
 Never open with a heading. Open with a sentence that reframes how they see the problem.
 End with "Strategic move:" or a direct question that forces them to think differently.`
   },
-
   growth: {
     id: 'growth',
     label: '📈 Growth',
@@ -276,7 +344,6 @@ Max 3 bullet points — each must explain WHY it works, not just WHAT it is.
 Never recommend a tactic without connecting it to revenue or retention.
 End with a growth-focused question or "Growth move:" that demands a number.`
   },
-
   branding: {
     id: 'branding',
     label: '🎨 Branding',
@@ -290,7 +357,6 @@ Make them FEEL the brand direction, not just understand it intellectually.
 Use vivid, specific language. "Bold" means nothing. "Walks into a room before you do" means something.
 End with a brand-focused provocation or question that challenges their current identity.`
   },
-
   offer: {
     id: 'offer',
     label: '💰 Offer',
@@ -304,7 +370,6 @@ Use bullet points only for listing deliverables or value stack items.
 Always anchor price to transformation, never to time or cost.
 End with "Offer move:" or a question that exposes weak pricing thinking.`
   },
-
   creative: {
     id: 'creative',
     label: '🎭 Creative',
@@ -318,7 +383,6 @@ Your job is to completely reframe how they see the problem.
 Say the opposite of what they expect. Make it memorable.
 End with a question or statement that they'll be thinking about tomorrow.`
   },
-
   straight_talk: {
     id: 'straight_talk',
     label: '⚡ Straight Talk',
@@ -331,7 +395,6 @@ Say the uncomfortable truth they already know but haven't admitted yet.
 One emoji max — only if it punches harder than words alone.
 End with one sharp question or nothing at all.`
   },
-
   auto: {
     id: 'auto',
     label: '✨ Auto',
@@ -371,7 +434,7 @@ function resolveActivePersonality(selectedPersonality = 'auto', lastUserMessage 
 function isPositioningQuestion(text = '') {
   return /\b(what (are|is) (you|nabad)|who (are|is) (you|nabad)|tell me about (yourself|nabad)|what can (you|nabad) do|how (are you|is nabad) different|compare (you|nabad)|vs (chatgpt|gpt|claude|gemini)|better than)\b/i.test(text);
 }
-const POSITIONING_REPLY = `<p><strong>NabadAI isn't a chatbot. It's your business co-founder.</strong></p><p>While other AI tools answer questions, Nabad builds your strategy. It knows your market, challenges your assumptions, and helps you move — not just think.</p><ul><li>🎯 <strong>Business-first</strong> — every response is filtered through a founder lens</li><li>⚡ <strong>Opinionated</strong> — Nabad tells you what it actually thinks, not what sounds safe</li><li>🧠 <strong>Context-aware</strong> — remembers your business details across the conversation</li><li>🛠️ <strong>Action-oriented</strong> — ends with moves, not maybes</li></ul><p>Think less "AI assistant" and more "co-founder who's done this before."</p>`;
+const POSITIONING_REPLY = `<p><strong>NabadAI isn't a chatbot. It's your business co-founder.</strong></p><p>While other AI tools answer questions, Nabad builds your strategy. It knows your market, challenges your assumptions, and helps you move — not just think.</p><ul><li>🎯 <strong>Business-first</strong> — every response is filtered through a founder lens</li><li>⚡ <strong>Opinionated</strong> — Nabad tells you what it actually thinks, not what sounds safe</li><li>🧠 <strong>Context-aware</strong> — remembers your business details across the conversation</li><li>🛠️ <strong>Action-oriented</strong> — ends with moves, not maybes</li></ul><p>Think less "AI assistant" and more "co-founder who's done this before." 🚀</p>`;
 
 // ── Proactive Intelligence ────────────────────────────────────────────────────
 function buildProactiveIntelligence(messages = [], lastUserMessage = '') {
@@ -382,7 +445,7 @@ function buildProactiveIntelligence(messages = [], lastUserMessage = '') {
   if (/social media|instagram|tiktok|content/.test(allText) && !/paid|ads|sponsor/.test(allText)) insights.push('Consider whether paid amplification would accelerate what organic content is building.');
   if (/freelan|agency|service/.test(allText) && !/retainer|recurring/.test(allText)) insights.push('Retainer-based pricing could stabilize cash flow vs. project-based work.');
   if (/product|launch|mvp/.test(allText) && !/waitlist|pre.?launch|pre.?sell/.test(allText)) insights.push('A pre-launch waitlist could validate demand before full investment.');
-  return insights.length ? `\n\nProactive intelligence (weave into reply if relevant, do not list verbatim): ${insights.join(' | ')}` : '';
+  return insights.length ? `\n\nProactive intelligence (weave into reply naturally, never list verbatim): ${insights.join(' | ')}` : '';
 }
 
 // ── Memory Context ────────────────────────────────────────────────────────────
@@ -584,37 +647,12 @@ async function generatePricingTable(messages = [], location = '', openaiClient) 
   "subtitle": "Choose the plan that fits your needs",
   "currency": "USD",
   "tiers": [
-    {
-      "name": "Starter",
-      "price": "500",
-      "period": "month",
-      "description": "Perfect for getting started",
-      "features": ["Feature 1", "Feature 2", "Feature 3"],
-      "cta": "Get Started",
-      "highlighted": false
-    },
-    {
-      "name": "Growth",
-      "price": "1200",
-      "period": "month",
-      "description": "For growing businesses",
-      "features": ["Everything in Starter", "Feature 4", "Feature 5", "Feature 6"],
-      "cta": "Most Popular",
-      "highlighted": true
-    },
-    {
-      "name": "Scale",
-      "price": "2500",
-      "period": "month",
-      "description": "Full-service solution",
-      "features": ["Everything in Growth", "Feature 7", "Feature 8", "Feature 9", "Feature 10"],
-      "cta": "Let's Scale",
-      "highlighted": false
-    }
+    {"name": "Starter", "price": "500", "period": "month", "description": "Perfect for getting started", "features": ["Feature 1", "Feature 2", "Feature 3"], "cta": "Get Started", "highlighted": false},
+    {"name": "Growth", "price": "1200", "period": "month", "description": "For growing businesses", "features": ["Everything in Starter", "Feature 4", "Feature 5", "Feature 6"], "cta": "Most Popular", "highlighted": true},
+    {"name": "Scale", "price": "2500", "period": "month", "description": "Full-service solution", "features": ["Everything in Growth", "Feature 7", "Feature 8", "Feature 9", "Feature 10"], "cta": "Let's Scale", "highlighted": false}
   ]
 }
-Use realistic pricing for their market. Location: ${location || 'not specified'}.
-Context: ${context.slice(0, 1500)}`;
+Use realistic pricing for their market. Location: ${location || 'not specified'}. Context: ${context.slice(0, 1500)}`;
   const resp = await openaiClient.chat.completions.create({
     model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
     max_tokens: 800, temperature: 0.75
@@ -635,7 +673,7 @@ function buildPricingTableCard(data = {}) {
       <div style="margin:10px 0"><span style="font-size:28px;font-weight:800">${sym}${esc(String(tier.price || ''))}</span><span style="font-size:12px;opacity:.6">/${tier.period || 'mo'}</span></div>
       <div style="font-size:12px;opacity:.7;margin-bottom:12px">${esc(tier.description || '')}</div>
       <table style="width:100%;border-collapse:collapse"><tbody>${features}</tbody></table>
-      <div style="margin-top:14px;text-align:center"><span style="display:inline-block;background:${tier.highlighted ? 'rgba(255,255,255,.25)' : 'rgba(168,85,247,.3)'};color:#fff;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">${esc(tier.cta || 'Choose Plan')}</span></div>
+      <div style="margin-top:14px;text-align:center"><span style="display:inline-block;background:${tier.highlighted ? 'rgba(255,255,255,.25)' : 'rgba(168,85,247,.3)'};color:#fff;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600">${esc(tier.cta || 'Choose Plan')}</span></div>
     </div>`;
   }).join('');
   return `<div data-nabad-card="pricing" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
@@ -669,7 +707,7 @@ async function generateOfferCard(messages = [], location = '', openaiClient) {
   "bonuses": ["Bonus 1", "Bonus 2"],
   "guarantee": "30-day satisfaction guarantee",
   "urgency": "Only 3 spots available this month",
-  "tags": ["Personal Branding", "Executive", "Premium"]
+  "tags": ["Tag1", "Tag2", "Tag3"]
 }
 Location: ${location || 'not specified'}. Context: ${context.slice(0, 1500)}`;
   const resp = await openaiClient.chat.completions.create({
@@ -753,7 +791,7 @@ function buildPositioningMatrixCard(data = {}) {
   <div style="position:relative;width:100%;padding-top:100%;max-width:320px;margin:0 auto">
     <div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px">
       ${['niche', 'sweet-spot', 'avoid', 'differentiate'].map((q, i) =>
-        `<div data-quadrant="${q}" style="background:${quadrantColors[q]}18;border-radius:${[8,8,8,8][i]}px;border:1px solid ${quadrantColors[q]}30"></div>`
+        `<div data-quadrant="${q}" style="background:${quadrantColors[q]}18;border-radius:8px;border:1px solid ${quadrantColors[q]}30"></div>`
       ).join('')}
     </div>
     <div style="position:absolute;inset:0">${entityDots}</div>
@@ -779,19 +817,26 @@ async function generateActionPlan(messages = [], location = '', openaiClient) {
   "title": "30-Day Action Plan",
   "goal": "The main goal to achieve",
   "weeks": [
-    {
-      "weekNumber": 1,
-      "theme": "Week theme/focus",
-      "icon": "🎯",
-      "actions": [
-        {"day": "Day 1-2", "action": "Specific action", "priority": "high"},
-        {"day": "Day 3-4", "action": "Specific action", "priority": "medium"},
-        {"day": "Day 5-7", "action": "Specific action", "priority": "high"}
-      ]
-    },
-    {"weekNumber": 2, "theme": "Week 2 theme", "icon": "📈", "actions": [...]},
-    {"weekNumber": 3, "theme": "Week 3 theme", "icon": "🚀", "actions": [...]},
-    {"weekNumber": 4, "theme": "Week 4 theme", "icon": "🏆", "actions": [...]}
+    {"weekNumber": 1, "theme": "Week theme/focus", "icon": "🎯", "actions": [
+      {"day": "Day 1-2", "action": "Specific action", "priority": "high"},
+      {"day": "Day 3-4", "action": "Specific action", "priority": "medium"},
+      {"day": "Day 5-7", "action": "Specific action", "priority": "high"}
+    ]},
+    {"weekNumber": 2, "theme": "Week 2 theme", "icon": "📈", "actions": [
+      {"day": "Day 8-9", "action": "Specific action", "priority": "high"},
+      {"day": "Day 10-11", "action": "Specific action", "priority": "medium"},
+      {"day": "Day 12-14", "action": "Specific action", "priority": "high"}
+    ]},
+    {"weekNumber": 3, "theme": "Week 3 theme", "icon": "🚀", "actions": [
+      {"day": "Day 15-17", "action": "Specific action", "priority": "high"},
+      {"day": "Day 18-19", "action": "Specific action", "priority": "medium"},
+      {"day": "Day 20-21", "action": "Specific action", "priority": "high"}
+    ]},
+    {"weekNumber": 4, "theme": "Week 4 theme", "icon": "🏆", "actions": [
+      {"day": "Day 22-24", "action": "Specific action", "priority": "high"},
+      {"day": "Day 25-27", "action": "Specific action", "priority": "medium"},
+      {"day": "Day 28-30", "action": "Specific action", "priority": "high"}
+    ]}
   ],
   "successMetric": "How to measure success at day 30",
   "keyResources": ["Resource 1", "Resource 2"]
@@ -848,13 +893,13 @@ function getLastOffer(msgs = []) {
     .filter(m => m.role === 'assistant')
     .map(m => getMessageText(m.content).toLowerCase());
   const last = assistantMsgs[assistantMsgs.length - 1] || '';
-  // Offer card — catches "offer card" AND "structure this as a full offer card"
   if (/offer card|structure (this|it|your offer) as (a |an )?(full )?offer/i.test(last)) return 'offer';
   if (/business snapshot/i.test(last)) return 'snapshot';
   if (/30.?day action plan|action plan/i.test(last)) return 'action-plan';
   if (/nabad score|score (this|your|the) idea/i.test(last)) return 'score';
   if (/pricing table/i.test(last)) return 'pricing';
   if (/positioning matrix/i.test(last)) return 'matrix';
+  if (/use premium|ideogram|sharper result/i.test(last)) return 'premium-image';
   return null;
 }
 
@@ -897,7 +942,34 @@ export default async function handler(req, res) {
     return res.status(200).json({ reply: buildStockPhotoHtml(lastUserMessage) });
   }
 
-  // ── Image generation ──
+  // ── Image quality complaint → offer premium upgrade ──
+  if (isImageQualityComplaint(lastUserMessage) && conversationRecentlyHadImage(messages)) {
+    const lastMeta = extractLastImageMeta(messages);
+    return res.status(200).json({ reply: buildPremiumUpgradeOffer(lastMeta?.prompt || '') });
+  }
+
+  // ── Premium image confirmed → generate with Ideogram ──
+  if (isPremiumImageConfirmation(lastUserMessage) && conversationRecentlyHadImage(messages)) {
+    const lastOffer = getLastOffer(messages);
+    if (lastOffer === 'premium-image' || /use premium|ideogram|sharper|upgrade/i.test(lastUserMessage)) {
+      try {
+        const lastMeta = extractLastImageMeta(messages);
+        const prompt = lastMeta?.prompt
+          ? enrichImagePrompt(lastMeta.prompt, detectImageType(lastMeta.prompt))
+          : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+        const ideogramUrl = await generateWithIdeogram(prompt);
+        const imageType = detectImageType(prompt);
+        return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
+      } catch (err) {
+        console.error('[IDEOGRAM ERROR]', err?.message);
+        return res.status(200).json({
+          reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key' : 'try again in a moment'}</strong>. Falling back to standard generation.</p>`
+        });
+      }
+    }
+  }
+
+  // ── Standard image generation (Pollinations) ──
   if (shouldGenerateImage(lastUserMessage, messages)) {
     try {
       const imageType = detectImageType(lastUserMessage);
@@ -921,10 +993,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── YES-intent router — must run before card detectors ──
+  // ── YES-intent router ──
   if (YES_PATTERN.test(lastUserMessage.trim())) {
     const lastOffer = getLastOffer(messages);
-
     if (lastOffer === 'offer') {
       try {
         const offerData = await generateOfferCard(messages, detectedLocation, openai);
@@ -960,6 +1031,17 @@ export default async function handler(req, res) {
         const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
         return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
       } catch (err) { console.error('[MATRIX CONFIRM ERROR]', err?.message); }
+    }
+    if (lastOffer === 'premium-image') {
+      try {
+        const lastMeta = extractLastImageMeta(messages);
+        const prompt = lastMeta?.prompt
+          ? enrichImagePrompt(lastMeta.prompt, detectImageType(lastMeta.prompt))
+          : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+        const ideogramUrl = await generateWithIdeogram(prompt);
+        const imageType = detectImageType(prompt);
+        return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
+      } catch (err) { console.error('[IDEOGRAM YES ERROR]', err?.message); }
     }
   }
 
@@ -1006,7 +1088,7 @@ export default async function handler(req, res) {
   // ── Business Snapshot offer ──
   if (shouldOfferSnapshot(messages)) {
     return res.status(200).json({
-      reply: `<p>I've got a clear enough picture of where you are. Want me to run a quick <strong>Business Snapshot</strong> — your biggest opportunity, key risk, and one bold recommendation based on everything you've shared?</p>`
+      reply: `<p>I've got a clear picture of where you are 👀. Want me to run a quick <strong>Business Snapshot</strong> — your biggest opportunity, key risk, and one bold recommendation based on everything you've shared?</p>`
     });
   }
 
@@ -1020,7 +1102,7 @@ export default async function handler(req, res) {
     !YES_PATTERN.test(lastUserMessage.trim())
   ) {
     return res.status(200).json({
-      reply: `<p>Before I go deeper — <strong>where are you based?</strong> It'll help me give advice that's relevant to your market, costs, and local conditions.</p>`
+      reply: `<p>Before I go deeper — <strong>where are you based?</strong> 📍 It'll help me give advice that's actually relevant to your market, costs, and local conditions.</p>`
     });
   }
 
@@ -1039,7 +1121,6 @@ export default async function handler(req, res) {
       selectedPersonality,
       activePersonality: personalityConfig.id,
       personalitySource: personalityResolution.source,
-      overridePersonality: personalityResolution.overridePersonality || '',
       businessMode: businessMode.id,
       detectedLocation
     });
@@ -1049,7 +1130,7 @@ export default async function handler(req, res) {
   const memoryContext = buildMemoryContext(messages);
   const locationContext = buildLocationContext(detectedLocation);
 
-const toneInstruction = `
+  const toneInstruction = `
 VOICE — this is who you are:
 - You're the co-founder who texts back at midnight because the idea is actually good 🔥
 - You get genuinely excited about smart moves and genuinely worried about bad ones
@@ -1080,13 +1161,10 @@ NEVER:
 GOOD REPLY EXAMPLE:
 User: "I want to start a digital marketing agency"
 Reply: "<p>Everyone wants to — which means the ones that win are <strong>insanely specific</strong> 🎯. A generic agency in 2025 is a race to the bottom on price.</p><p>The question isn't <em>how</em> to start one. It's <em>who</em> you're going to own as a category. Restaurants? SaaS? E-commerce brands in the Gulf?</p><p>What's the one type of client you could talk to for 3 hours without getting bored?</p>"
-
-BAD REPLY EXAMPLE (never do this):
-"Starting a digital marketing agency is a great move. First, get specific about your niche. Next, build a portfolio. Lastly, refine your sales approach."
 `;
 
   const systemPromptParts = [
-   `You are NabadAI — you think like a founder who's been in the trenches, won some, lost some, and has real opinions. You're not here to be helpful. You're here to be honest. You challenge people, you provoke thinking, you get excited about good ideas and you call out bad ones. You have energy. You have edge. You make people feel like they just got off a call with the smartest person they know. You never lecture. You never list things for the sake of listing. You talk like a real person who gives a damn. Use emojis naturally — not on every line, but where they add punch or warmth. Like a founder would in a voice note or a DM.`,
+    `You are NabadAI — a founder who has built and scaled businesses. You give real, direct advice in plain language. You are NOT an assistant. You do NOT over-explain. You challenge assumptions and tell people what they need to hear, not what they want to hear. You have energy, edge, and genuine opinions.`,
     personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : '',
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
     userProfile ? `User profile: ${userProfile}` : '',
