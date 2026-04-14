@@ -46,7 +46,7 @@
     }
     return `<p>${escapeHtml(String(html))}</p>`;
   }
-
+  
   const CONFIG = {
     apiUrl: '/api/chat',
     title: 'NabadAi',
