@@ -1341,7 +1341,9 @@ If a user profile is provided below, use it naturally — reference their busine
       max_tokens: maxTokens
     });
     const rawReply = completion.choices?.[0]?.message?.content || '';
-    return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo });
+    let detectedInfo = false;
+try { detectedInfo = await detectMeaningfulInfo(lastUserMessage, openai); } catch { detectedInfo = false; }
+return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo });
   } catch (err) {
     console.error('[GPT ERROR]', err?.message);
     return res.status(500).json({ error: 'AI service temporarily unavailable. Please try again.' });
