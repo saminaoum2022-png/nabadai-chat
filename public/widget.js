@@ -510,7 +510,15 @@
       }
 
       .nabad-msg.user  { justify-content: flex-end; }
-      .nabad-msg.bot   { justify-content: flex-start; }
+      .nabad-msg.bot {
+  justify-content: flex-start;
+  animation: nabadBotAppear 0.35s ease-out both;
+}
+
+@keyframes nabadBotAppear {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
 
       .nabad-bubble {
         max-width: 88%;
@@ -883,27 +891,32 @@
         overflow: visible;
       }
 
-      #nabad-input {
-        flex: 1;
-        resize: none;
-        border: 1px solid rgba(37,99,235,0.14);
-        border-radius: 16px;
-        padding: 10px 14px;
-        min-height: 44px;
-        max-height: 150px;
-        font-size: 16px;
-        color: #0f172a;
-        outline: none;
-        background: rgba(255,255,255,0.98);
-        box-shadow: 0 0 0 0px rgba(37,99,235,0.35);
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        animation: nabadBreath 2.5s ease-in-out infinite;
-      }
+ #nabad-input {
+  flex: 1;
+  resize: none;
+  border: 1px solid rgba(37,99,235,0.14);
+  border-radius: 16px;
+  padding: 10px 14px;
+  min-height: 44px;
+  max-height: 150px;
+  font-size: 16px;
+  color: #0f172a;
+  outline: none;
+  background: rgba(255,255,255,0.98);
+  box-shadow:
+    inset 0 1px 2px rgba(15,23,42,0.03),
+    0 0 8px rgba(37,99,235,0.12),
+    0 0 16px rgba(6,182,212,0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
 
-      #nabad-input:focus {
-        border-color: rgba(37,99,235,0.30);
-        box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
-      }
+#nabad-input:focus {
+  border-color: rgba(37,99,235,0.30);
+  box-shadow:
+    inset 0 1px 2px rgba(15,23,42,0.03),
+    0 0 10px rgba(37,99,235,0.22),
+    0 0 22px rgba(6,182,212,0.14);
+}
 
       #nabad-send {
         width: 44px;
@@ -1669,11 +1682,10 @@
         <div id="nabad-messages" aria-live="polite" aria-label="Chat messages"></div>
 
         <div id="nabad-typing">
-          <div class="inner">
-            <span>Nabad is thinking</span>
-            <span class="nabad-dots"><span></span><span></span><span></span></span>
-          </div>
-        </div>
+  <div class="inner">
+    <span class="nabad-dots"><span></span><span></span><span></span></span>
+  </div>
+</div>
 
         <div id="nabad-input-wrap">
           <div id="nabad-input-row">
