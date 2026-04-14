@@ -2184,7 +2184,7 @@
     saveMessages();
     refs.messages.innerHTML = '';
     if (!state.personalityChosen) {
-      renderOnboardingScreen3();
+      renderOnboardingScreen1();
     } else {
       renderMessage('assistant', getPersonalityGreeting(state.personality), false);
     }
@@ -2210,7 +2210,7 @@
     updatePersonalityBadge();
     setInputPlaceholder();
     refs.messages.innerHTML = '';
-    renderOnboardingScreen1();
+    renderOnboardingScreen3();
   }
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
