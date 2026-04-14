@@ -1651,10 +1651,65 @@
         animation: nabadThinking 0.8s ease-in-out infinite;
       }
 
-      @keyframes nabadThinking {
+            @keyframes nabadThinking {
         0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
         50%  { box-shadow: 0 0 0 14px rgba(37,99,235,0.15); }
         100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
+      }
+
+      /* ── Options Popup ── */
+      .nabad-options-popup {
+        position: absolute;
+        top: 58px;
+        right: 14px;
+        background: #fff;
+        border: 1px solid rgba(37,99,235,0.12);
+        border-radius: 16px;
+        box-shadow: 0 12px 40px rgba(15,23,42,0.14);
+        overflow: hidden;
+        z-index: 999;
+        min-width: 180px;
+        opacity: 0;
+        transform: translateY(-6px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        pointer-events: none;
+      }
+
+      .nabad-options-popup.show {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+
+      .nabad-options-btn {
+        width: 100%;
+        padding: 13px 16px;
+        border: none;
+        background: transparent;
+        text-align: left;
+        font-size: 14px;
+        font-weight: 700;
+        color: #0f172a;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: inherit;
+        transition: background 0.15s ease;
+      }
+
+      .nabad-options-btn:hover {
+        background: rgba(37,99,235,0.05);
+      }
+
+      .nabad-options-btn.danger {
+        color: #ef4444;
+      }
+
+      .nabad-options-divider {
+        height: 1px;
+        background: rgba(15,23,42,0.06);
+        margin: 0;
       }
 
     `;
@@ -1682,11 +1737,6 @@
             <button class="nabad-icon-btn" id="nabad-new-chat" type="button" title="Options">⊙</button>
             <button class="nabad-icon-btn nabad-desktop-only" id="nabad-close" type="button" title="Close">×</button>
           </div>
-        </div>
-
-        <div id="nabad-selected-personality">
-          <div class="label"></div>
-          <button class="change" id="nabad-change-personality" type="button">Change</button>
         </div>
 
         <div id="nabad-messages" aria-live="polite" aria-label="Chat messages"></div>
@@ -1742,12 +1792,10 @@
   }
 
   // ── EVENTS ───────────────────────────────────────────────────
-  function bindEvents(root) {
-    refs.launcher.addEventListener('click', () => toggleWidget(true));
+    root.querySelector('#nabad-new-chat').addEventListener('click', showOptionsPopup);
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
     root.querySelector('#nabad-new-chat').addEventListener('click', startNewChat);
-    root.querySelector('#nabad-change-personality').addEventListener('click', changePersonalityFlow);
 
     refs.input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -2272,6 +2320,114 @@
     refs.messages.innerHTML = '';
     renderOnboardingScreen3();
   }
+
+// ── OPTIONS POPUP ─────────────────────────────────────────────
+function showOptionsPopup() {
+  const existing = document.querySelector('.nabad-options-popup');
+  if (existing) { existing.remove(); return; }
+
+  const popup = document.createElement('div');
+  popup.className = 'nabad-options-popup';
+  popup.innerHTML = `
+    <button class="nabad-options-btn" id="nabad-opt-memory" type="button">🧠 What Nabad knows</button>
+    <div class="nabad-options-divider"></div>
+    <button class="nabad-options-btn" id="nabad-opt-newchat" type="button">⟳ New Chat</button>
+    <div class="nabad-options-divider"></div>
+    <button class="nabad-options-btn" id="nabad-opt-personality" type="button">🎭 Change Advisor</button>
+    <div class="nabad-options-divider"></div>
+    <button class="nabad-options-btn danger" id="nabad-opt-clear" type="button">🗑️ Clear Memory</button>
+  `;
+
+  const panel = document.getElementById('nabad-panel');
+  panel.appendChild(popup);
+  setTimeout(() => popup.classList.add('show'), 20);
+
+  popup.querySelector('#nabad-opt-memory').addEventListener('click', () => {
+    popup.remove();
+    renderMemoryScreen();
+  });
+
+  popup.querySelector('#nabad-opt-newchat').addEventListener('click', () => {
+    popup.remove();
+    startNewChat();
+  });
+
+  popup.querySelector('#nabad-opt-personality').addEventListener('click', () => {
+    popup.remove();
+    changePersonalityFlow();
+  });
+
+  popup.querySelector('#nabad-opt-clear').addEventListener('click', () => {
+    popup.remove();
+    confirmAction('Clear everything Nabad knows about you?', () => {
+      state.userProfile = {};
+      saveUserProfile({});
+    });
+  });
+
+  // close when clicking outside
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!popup.contains(e.target)) {
+        popup.remove();
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 100);
+}
+
+// ── MEMORY SCREEN ─────────────────────────────────────────────
+function renderMemoryScreen() {
+  const p = state.userProfile || {};
+  const fields = [
+    { icon: '👤', label: 'Path',         value: p.path },
+    { icon: '🏢', label: 'Business',     value: p.businessName },
+    { icon: '📦', label: 'What you sell',value: p.whatYouSell },
+    { icon: '💰', label: 'Revenue',      value: p.revenue },
+    { icon: '🎯', label: 'Challenge',    value: p.biggestChallenge },
+    { icon: '💡', label: 'Idea',         value: p.ideaSummary },
+    { icon: '👥', label: 'Customer',     value: p.targetCustomer },
+    { icon: '📈', label: 'Progress',     value: p.currentProgress },
+    { icon: '🚧', label: 'Blocker',      value: p.biggestBlock },
+    { icon: '⚡', label: 'Skills',       value: p.skills },
+    { icon: '🔍', label: 'Problems',     value: p.problems },
+    { icon: '⏰', label: 'Time',         value: p.timeCommitment },
+  ].filter(f => f.value);
+
+  const isEmpty = fields.length === 0;
+
+  refs.messages.innerHTML = `
+    <div id="nabad-onboarding">
+      <h3>🧠 What Nabad knows</h3>
+      <p>${isEmpty
+        ? "Nabad doesn't know anything about you yet. Start chatting to let Nabad learn!"
+        : "Here's what Nabad has learned about you so far."
+      }</p>
+      ${!isEmpty ? `
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+          ${fields.map(f => `
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.98);border:1px solid rgba(37,99,235,0.08);border-radius:14px;box-shadow:0 4px 12px rgba(15,23,42,0.04);">
+              <span style="font-size:18px;flex-shrink:0">${f.icon}</span>
+              <div>
+                <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#94a3b8;margin-bottom:3px">${escapeHtml(f.label)}</div>
+                <div style="font-size:14px;font-weight:600;color:#0f172a;line-height:1.4">${escapeHtml(f.value)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      <button class="nabad-ob-back" id="nabad-memory-back" type="button" style="margin-top:16px">← Back to chat</button>
+    </div>
+  `;
+
+  refs.messages.querySelector('#nabad-memory-back').addEventListener('click', () => {
+    refs.messages.innerHTML = '';
+    state.messages.forEach(m => renderMessage(m.role, m.content, false));
+    scrollToBottom();
+  });
+
+  scrollToBottom();
+}
 
 // ── NABAD DETECTED EFFECT ─────────────────────────────────────
 function triggerNabadDetected(bubbleEl) {
