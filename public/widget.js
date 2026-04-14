@@ -1625,6 +1625,9 @@
   50%  { box-shadow: 0 0 0 12px rgba(37,99,235,0.15); }
   100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
 }
+    `;
+    document.head.appendChild(style);
+  }
 
   // ── SHELL ────────────────────────────────────────────────────
   function buildShell() {
