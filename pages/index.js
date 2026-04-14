@@ -50,38 +50,59 @@ export default function Home() {
   const [splashHiding, setSplashHiding] = useState(false);
 
   useEffect(() => {
-    // [FIX-5] Fade first, then unmount
-    const fadeTimer   = window.setTimeout(() => setSplashHiding(true), 1200);
-    const removeTimer = window.setTimeout(() => setShowSplash(false), 1650);
+  // [FIX-5] Fade first, then unmount
+  const fadeTimer   = window.setTimeout(() => setSplashHiding(true), 1200);
+  const removeTimer = window.setTimeout(() => setShowSplash(false), 1650);
 
-    let autoOpenTimer = null;
-    let pollTimer     = null;
+  // [FIX-3] Register SW with immediate update check
+  const registerServiceWorker = () => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      reg.update();
+    }).catch(() => {});
+  };
 
-    // [FIX-3] Register SW with immediate update check
-    const registerServiceWorker = () => {
-      if (!('serviceWorker' in navigator)) return;
-      navigator.serviceWorker.register('/sw.js').then(reg => {
-        reg.update();
-      }).catch(() => {});
-    };
+  if (document.readyState === 'complete') {
+    registerServiceWorker();
+  } else {
+    window.addEventListener('load', registerServiceWorker, { once: true });
+  }
 
-    if (document.readyState === 'complete') {
-      registerServiceWorker();
-    } else {
-      window.addEventListener('load', registerServiceWorker, { once: true });
+  // [FIX-2] Open widget via public API exposed by widget.js
+  const openWidget = () => {
+    if (window.__NABAD_OPEN_WIDGET__) {
+      window.__NABAD_OPEN_WIDGET__();
+      return true;
     }
+    // Fallback to launcher click
+    const launcher = document.getElementById('nabad-launcher');
+    if (launcher) { launcher.click(); return true; }
+    return false;
+  };
 
-    // [FIX-2] Open widget via public API exposed by widget.js
-    const openWidget = () => {
-      if (window.__NABAD_OPEN_WIDGET__) {
-        window.__NABAD_OPEN_WIDGET__();
-        return true;
-      }
-      // Fallback to launcher click
-      const launcher = document.getElementById('nabad-launcher');
-      if (launcher) { launcher.click(); return true; }
-      return false;
-    };
+  // [FIX-4] Auto-open after splash finishes — retry until widget is ready
+  let autoOpenTimer = null;
+  let pollTimer     = null;
+
+  autoOpenTimer = window.setTimeout(() => {
+    if (!openWidget()) {
+      let attempts = 0;
+      pollTimer = window.setInterval(() => {
+        attempts++;
+        if (openWidget() || attempts > 60) {
+          window.clearInterval(pollTimer);
+        }
+      }, 100);
+    }
+  }, 1800); // 1800ms = after splash fully fades (1650ms) + small buffer
+
+  return () => {
+    window.clearTimeout(fadeTimer);
+    window.clearTimeout(removeTimer);
+    window.clearTimeout(autoOpenTimer);
+    window.clearInterval(pollTimer);
+  };
+}, []);
 
     const autoOpenMobileWidget = () => {
       if (typeof window === 'undefined') return;
@@ -114,29 +135,6 @@ export default function Home() {
       window.removeEventListener('load', registerServiceWorker);
     };
   }, []);
-
-  // [FIX-4] Retry with interval instead of a single 300ms guess
-  const handleOpenWidget = () => {
-    if (window.__NABAD_OPEN_WIDGET__) {
-      window.__NABAD_OPEN_WIDGET__();
-      return;
-    }
-    const launcher = document.getElementById('nabad-launcher');
-    if (launcher) { launcher.click(); return; }
-
-    let attempts = 0;
-    const retry = window.setInterval(() => {
-      attempts++;
-      if (window.__NABAD_OPEN_WIDGET__) {
-        window.__NABAD_OPEN_WIDGET__();
-        window.clearInterval(retry);
-      } else {
-        const l = document.getElementById('nabad-launcher');
-        if (l) { l.click(); window.clearInterval(retry); }
-        else if (attempts >= 10) window.clearInterval(retry);
-      }
-    }, 150);
-  };
 
   return (
     <>
@@ -243,18 +241,6 @@ export default function Home() {
                 </button>
               </div>
             </aside>
-          </div>
-        </section>
-
-        {/* [FIX-1] Mobile shell now correctly shown on mobile */}
-        <section id="nabad-mobile-shell" aria-label="Open Nabad on mobile">
-          <div className="nabad-mobile-card">
-            <img src="/logo.png" alt="NabadAi" className="nabad-mobile-logo" />
-            <h2>NabadAi</h2>
-            <p>Your business AI for strategy, branding, growth, and offer ideas.</p>
-            <button type="button" className="nabad-cta" onClick={handleOpenWidget}>
-              Open chat
-            </button>
           </div>
         </section>
 
