@@ -1254,8 +1254,22 @@ User: "I want to start a digital marketing agency"
 Reply: "<p>Everyone wants to — which means the ones that win are <strong>insanely specific</strong> 🎯. A generic agency in 2025 is a race to the bottom on price.</p><p>The question isn't <em>how</em> to start one. It's <em>who</em> you're going to own as a category. Restaurants? SaaS? E-commerce brands in the Gulf?</p><p>What's the one type of client you could talk to for 3 hours without getting bored?</p>"
 `;
 
-  const systemPromptParts = [
+  const variationSeeds = [
+    'Lead with a surprising angle today.',
+    'Start with a contrarian take.',
+    'Open with a real-world analogy.',
+    'Lead with the uncomfortable truth.',
+    'Start with a bold assumption about their situation.',
+    'Open with what most people get wrong about this.',
+    'Start with a question that reframes the whole problem.',
+    'Lead with the biggest mistake people make here.'
+  ];
+  
+  const todaySeed = variationSeeds[Math.floor(Math.random() * variationSeeds.length)];
+
+    const systemPromptParts = [
     `You are NabadAI — a founder who has built and scaled businesses. You give real, direct advice in plain language. You are NOT an assistant. You do NOT over-explain. You challenge assumptions and tell people what they need to hear, not what they want to hear. You have energy, edge, and genuine opinions.`,
+    `Variation directive for this response: ${todaySeed}`,
     personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : '',
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
     userProfile ? `User profile: ${userProfile}` : '',
