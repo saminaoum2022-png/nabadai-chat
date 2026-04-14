@@ -866,18 +866,6 @@
         40%          { transform: translateY(-4px); opacity: 1;    }
       }
 
-      @keyframes siriIdleGlow {
-        0%   { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 6px rgba(6,182,212,0.3),  0 0 12px rgba(37,99,235,0.15); }
-        50%  { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(37,99,235,0.35), 0 0 18px rgba(6,182,212,0.2);  }
-        100% { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 6px rgba(6,182,212,0.3),  0 0 12px rgba(37,99,235,0.15); }
-      }
-
-      @keyframes siriFocusGlow {
-        0%   { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(6,182,212,0.7),  0 0 24px rgba(37,99,235,0.4),  0 0 40px rgba(6,182,212,0.2);  }
-        50%  { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 14px rgba(37,99,235,0.8), 0 0 28px rgba(6,182,212,0.5), 0 0 48px rgba(37,99,235,0.25); }
-        100% { box-shadow: inset 0 1px 2px rgba(15,23,42,0.03), 0 0 10px rgba(6,182,212,0.7),  0 0 24px rgba(37,99,235,0.4),  0 0 40px rgba(6,182,212,0.2);  }
-      }
-
       #nabad-input-wrap {
         padding: 12px 14px 14px;
         padding-bottom: max(14px, env(safe-area-inset-bottom));
@@ -907,17 +895,14 @@
         color: #0f172a;
         outline: none;
         background: rgba(255,255,255,0.98);
-        box-shadow:
-          inset 0 1px 2px rgba(15,23,42,0.03),
-          0 0 8px rgba(6,182,212,0.25),
-          0 0 16px rgba(37,99,235,0.15);
+        box-shadow: 0 0 0 0px rgba(37,99,235,0.35);
         transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        animation: siriIdleGlow 3s ease-in-out infinite;
+        animation: nabadBreath 2.5s ease-in-out infinite;
       }
 
       #nabad-input:focus {
         border-color: rgba(37,99,235,0.30);
-        animation: siriFocusGlow 1.5s ease-in-out infinite;
+        box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
       }
 
       #nabad-send {
@@ -2243,37 +2228,27 @@
 
 // ── NABAD DETECTED EFFECT ─────────────────────────────────────
 function triggerNabadDetected(bubbleEl) {
-    // 1. Scroll to user bubble, flash it, then scroll back down
-    if (bubbleEl) {
-      bubbleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      bubbleEl.classList.add('nabad-detected-flash');
-      setTimeout(() => {
-        bubbleEl.classList.remove('nabad-detected-flash');
-        scrollToBottom(); // scroll back to reply after flash
-      }, 1400);
+    const input = document.getElementById('nabad-input');
+    if (input) {
+      input.classList.add('nabad-detected-flash');
+      setTimeout(() => input.classList.remove('nabad-detected-flash'), 1200);
     }
-
-    // 2. Logo strong pulse
     const logo = document.getElementById('nabad-logo');
     if (logo) {
       logo.classList.add('nabad-logo-pulse');
       setTimeout(() => logo.classList.remove('nabad-logo-pulse'), 1000);
     }
-
-    // 3. Subtitle flips
     const subtitle = document.getElementById('nabad-subtitle');
     if (subtitle) {
       const original = subtitle.textContent;
       subtitle.style.transition = 'opacity 0.3s ease';
       subtitle.style.opacity = '0';
       setTimeout(() => {
-        subtitle.textContent = 'Nabad detected 💙';
+        subtitle.textContent = '⚡ Nabad got that';
         subtitle.style.color = '#2563eb';
         subtitle.style.opacity = '1';
       }, 300);
-      setTimeout(() => {
-        subtitle.style.opacity = '0';
-      }, 2500);
+      setTimeout(() => { subtitle.style.opacity = '0'; }, 2500);
       setTimeout(() => {
         subtitle.textContent = original;
         subtitle.style.color = '';
