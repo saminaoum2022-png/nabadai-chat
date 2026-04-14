@@ -152,10 +152,13 @@ async function generateWithIdeogram(prompt = '') {
   return imageUrl;
 }
 
+// FIX: expanded to catch font, text style, and "didn't like" complaints
 function isImageQualityComplaint(text = '') {
   return /\b(fix\s*(the\s*)?text|text\s*(is\s*)?(wrong|broken|off|bad|blurry)|wrong\s*text|fix\s*(the\s*)?spelling|spelling\s*(is\s*)?wrong)\b/i.test(text)
     || /\b(bad\s*(quality|image|photo|result)|not\s*good|looks\s*(bad|terrible|wrong|off)|better\s*quality|higher\s*quality|sharper|cleaner)\b/i.test(text)
-    || /\b(upgrade\s*(the\s*)?image|use\s*(ideogram|premium|better\s*(model|ai|generator))|switch\s*to\s*(ideogram|premium))\b/i.test(text);
+    || /\b(upgrade\s*(the\s*)?image|use\s*(ideogram|premium|better\s*(model|ai|generator))|switch\s*to\s*(ideogram|premium))\b/i.test(text)
+    || /\b(change\s*(the\s*)?(font|typography|text\s*style)|different\s*font|new\s*font)\b/i.test(text)
+    || /\b(didn['']?t|didnt|dont|don['']?t)\s*like\s*(the\s*)?(text|font|logo|image|result|design)\b/i.test(text);
 }
 
 function isPremiumImageConfirmation(text = '') {
@@ -216,8 +219,10 @@ function isRegenerationRequest(text = '') {
   return /\b(regenerate|redo|try again|another version|different version|new version)\b.{0,30}\b(image|logo|picture|visual|photo|banner|icon)\b/i.test(text)
     || /\b(regenerate|redo|new one|try again)\b$/i.test(text);
 }
+// FIX: added colour (British spelling) and font/typography variants
 function isImageModificationRequest(text = '') {
-  return /\b(change|update|modify|make it|make the|adjust|tweak|alter)\b.{0,40}\b(image|logo|picture|visual|banner|icon|color|style|background)\b/i.test(text);
+  return /\b(change|update|modify|make it|make the|adjust|tweak|alter)\b.{0,40}\b(image|logo|picture|visual|banner|icon|color|colour|style|background|font|text|typography)\b/i.test(text)
+    || /\b(different|new)\b.{0,20}\b(font|style|color|colour|background)\b/i.test(text);
 }
 function normalizeImagePrompt(text = '') {
   return text.replace(/[^\w\s,.\-()!?'":@#&]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 900);
@@ -251,20 +256,22 @@ function buildPollinationsUrl(prompt = '', options = {}) {
   if (seed !== undefined) url += `&seed=${seed}`;
   return url;
 }
+// FIX: extended lookback and catches both Pollinations and Ideogram URLs
 function extractLastImageMeta(messages = [], lookback = 15) {
   for (let i = messages.length - 1; i >= Math.max(0, messages.length - lookback); i--) {
     const text = getMessageText(messages[i].content);
-    const urlMatch = text.match(/https?:\/\/image\.pollinations\.ai\/prompt\/([^\s"'<]+)/);
+    const urlMatch = text.match(/https?:\/\/image\.pollinations\.ai\/prompt\/([^\s"'<&]+)/);
     if (urlMatch) return {
       url: urlMatch[0],
-      prompt: decodeURIComponent(urlMatch[1].split('?')[0] || ''),
+      prompt: decodeMaybe(urlMatch[1].split('?')[0] || ''),
       source: 'pollinations'
     };
-    const ideogramMatch = text.match(/https?:\/\/ideogram\.ai\/[^\s"'<]+|https?:\/\/img\.ideogram\.ai\/[^\s"'<]+/);
+    const ideogramMatch = text.match(/https?:\/\/(?:img\.)?ideogram\.ai\/[^\s"'<]+/);
     if (ideogramMatch) return { url: ideogramMatch[0], prompt: '', source: 'ideogram' };
   }
   return null;
 }
+// FIX: broader URL pattern matching
 function conversationRecentlyHadImage(messages = [], lookback = 10) {
   return messages.slice(-lookback).some(m => {
     const text = getMessageText(m.content);
@@ -690,8 +697,9 @@ function buildPricingTableCard(data = {}) {
 }
 
 // ── Offer Card ────────────────────────────────────────────────────────────────
+// FIX: broader regex to catch "structure this as a full offer card" and similar phrases
 function isOfferCardRequest(text = '') {
-  return /\b(offer card|build (me )?(an? )?offer|create (an? )?offer|design (an? )?offer|make (an? )?offer card|structure (my |the |this )?offer)\b/i.test(text)
+  return /\b(offer card|build (me )?(an? )?offer|create (an? )?offer|design (an? )?offer|make (an? )?offer card|structure (my |the |this |it )?(as )?(a |an )?(full )?offer)\b/i.test(text)
     || /\b(flagship (offer|package|product)|signature (offer|package|service)|premium (offer|package))\b.{0,30}\b(card|build|create|design)\b/i.test(text)
     || /\b(build|create|design|make)\b.{0,30}\b(flagship|signature|premium)\b.{0,30}\b(offer|package|service)\b/i.test(text);
 }
@@ -794,7 +802,7 @@ function buildPositioningMatrixCard(data = {}) {
   <div style="text-align:center;margin-bottom:16px"><div style="font-size:18px;font-weight:700">${esc(data.title || 'Positioning Matrix')}</div></div>
   <div style="position:relative;width:100%;padding-top:100%;max-width:320px;margin:0 auto">
     <div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px">
-      ${['niche', 'sweet-spot', 'avoid', 'differentiate'].map((q, i) =>
+      ${['niche', 'sweet-spot', 'avoid', 'differentiate'].map((q) =>
         `<div data-quadrant="${q}" style="background:${quadrantColors[q]}18;border-radius:8px;border:1px solid ${quadrantColors[q]}30"></div>`
       ).join('')}
     </div>
@@ -892,18 +900,19 @@ function ensureHtmlReply(text = '') {
 // ── YES-intent router helper ──────────────────────────────────────────────────
 const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|yea|sounds good|let's go|let's do it|do that|go for it)[\s!.]*$/i;
 
+// FIX: broader offer detection — catches "structure this as a full offer card" and similar
 function getLastOffer(msgs = []) {
   const assistantMsgs = msgs
     .filter(m => m.role === 'assistant')
     .map(m => getMessageText(m.content).toLowerCase());
   const last = assistantMsgs[assistantMsgs.length - 1] || '';
-  if (/offer card|structure (this|it|your offer) as (a |an )?(full )?offer/i.test(last)) return 'offer';
+  if (/offer card|structure (this|it|your offer|the offer) as (a |an )?(full )?offer|present it.{0,30}offer card/i.test(last)) return 'offer';
   if (/business snapshot/i.test(last)) return 'snapshot';
   if (/30.?day action plan|action plan/i.test(last)) return 'action-plan';
   if (/nabad score|score (this|your|the) idea/i.test(last)) return 'score';
   if (/pricing table/i.test(last)) return 'pricing';
   if (/positioning matrix/i.test(last)) return 'matrix';
-  if (/use premium|ideogram|sharper result/i.test(last)) return 'premium-image';
+  if (/use premium|ideogram|sharper result|want a sharper/i.test(last)) return 'premium-image';
   return null;
 }
 
@@ -954,33 +963,40 @@ export default async function handler(req, res) {
     return res.status(200).json({ reply: buildStockPhotoHtml(lastUserMessage) });
   }
 
-  // ── Image quality complaint → offer premium upgrade ──
-  if (isImageQualityComplaint(lastUserMessage) && conversationRecentlyHadImage(messages)) {
+  // FIX: Premium image confirmation MUST come before quality complaint check
+  // to prevent "use premium" from being swallowed by the complaint block
+  if (
+    isPremiumImageConfirmation(lastUserMessage) &&
+    (conversationRecentlyHadImage(messages) || upgradeCardRecentlyShown(messages))
+  ) {
+    try {
+      const lastMeta = extractLastImageMeta(messages);
+      const basePrompt = lastMeta?.prompt || '';
+      const prompt = basePrompt
+        ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
+        : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+      const ideogramUrl = await generateWithIdeogram(prompt);
+      const imageType = detectImageType(prompt);
+      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
+    } catch (err) {
+      console.error('[IDEOGRAM ERROR]', err?.message);
+      return res.status(200).json({
+        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`
+      });
+    }
+  }
+
+  // FIX: quality complaint check now guarded against premium confirmation
+  // and against showing the upgrade card again if it was already shown
+  if (
+    isImageQualityComplaint(lastUserMessage) &&
+    conversationRecentlyHadImage(messages) &&
+    !isPremiumImageConfirmation(lastUserMessage) &&
+    !upgradeCardRecentlyShown(messages)
+  ) {
     const lastMeta = extractLastImageMeta(messages);
     return res.status(200).json({ reply: buildPremiumUpgradeOffer(lastMeta?.prompt || '') });
   }
-
-  // ── Premium image confirmed → generate with Ideogram ──
-if (
-  isPremiumImageConfirmation(lastUserMessage) &&
-  (conversationRecentlyHadImage(messages) || upgradeCardRecentlyShown(messages))
-) {
-  try {
-    const lastMeta = extractLastImageMeta(messages);
-    const basePrompt = lastMeta?.prompt || '';
-    const prompt = basePrompt
-      ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
-      : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
-    const ideogramUrl = await generateWithIdeogram(prompt);
-    const imageType = detectImageType(prompt);
-    return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
-  } catch (err) {
-    console.error('[IDEOGRAM ERROR]', err?.message);
-    return res.status(200).json({
-      reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`
-    });
-  }
-}
 
   // ── Standard image generation (Pollinations) ──
   if (shouldGenerateImage(lastUserMessage, messages)) {
@@ -1105,14 +1121,16 @@ if (
     });
   }
 
-  // ── Location ask (Fix 2) ──
+  // FIX: location ask now guarded against image requests so image prompts
+  // don't get intercepted and replaced with a location question
   const userMsgCount = messages.filter(m => m.role === 'user').length;
   if (
     userMsgCount >= 2 &&
     hasBusinessContext(lastUserMessage) &&
     !detectedLocation &&
     !locationAlreadyAsked(messages) &&
-    !YES_PATTERN.test(lastUserMessage.trim())
+    !YES_PATTERN.test(lastUserMessage.trim()) &&
+    !shouldGenerateImage(lastUserMessage, messages)
   ) {
     return res.status(200).json({
       reply: `<p>Before I go deeper — <strong>where are you based?</strong> 📍 It'll help me give advice that's actually relevant to your market, costs, and local conditions.</p>`
