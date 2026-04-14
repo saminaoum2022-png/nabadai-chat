@@ -1626,34 +1626,6 @@
   100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
 }
 
-.nabad-detected-toast {
-  position: absolute;
-  top: 70px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-8px);
-  background: rgba(255,255,255,0.95);
-  border: 1px solid rgba(37,99,235,0.15);
-  color: #1e40af;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 16px;
-  border-radius: 999px;
-  box-shadow: 0 8px 24px rgba(37,99,235,0.12);
-  opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  pointer-events: none;
-  z-index: 9999;
-  white-space: nowrap;
-}
-
-.nabad-detected-toast.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-    `;
-    document.head.appendChild(style);
-  }
-
   // ── SHELL ────────────────────────────────────────────────────
   function buildShell() {
     const root = document.createElement('div');
@@ -2267,11 +2239,15 @@
   }
 
 // ── NABAD DETECTED EFFECT ─────────────────────────────────────
-  function triggerNabadDetected(bubbleEl) {
-    // 1. Flash the user bubble
+function triggerNabadDetected(bubbleEl) {
+    // 1. Scroll to user bubble, flash it, then scroll back down
     if (bubbleEl) {
+      bubbleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       bubbleEl.classList.add('nabad-detected-flash');
-      setTimeout(() => bubbleEl.classList.remove('nabad-detected-flash'), 1200);
+      setTimeout(() => {
+        bubbleEl.classList.remove('nabad-detected-flash');
+        scrollToBottom(); // scroll back to reply after flash
+      }, 1400);
     }
 
     // 2. Logo strong pulse
@@ -2281,16 +2257,26 @@
       setTimeout(() => logo.classList.remove('nabad-logo-pulse'), 1000);
     }
 
-    // 3. Toast notification
-    const toast = document.createElement('div');
-    toast.className = 'nabad-detected-toast';
-    toast.innerHTML = '💙 Nabad noted this';
-    document.getElementById('nabad-panel').appendChild(toast);
-    setTimeout(() => toast.classList.add('show'), 50);
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 400);
-    }, 2500);
+    // 3. Subtitle flips
+    const subtitle = document.getElementById('nabad-subtitle');
+    if (subtitle) {
+      const original = subtitle.textContent;
+      subtitle.style.transition = 'opacity 0.3s ease';
+      subtitle.style.opacity = '0';
+      setTimeout(() => {
+        subtitle.textContent = 'Nabad detected 💙';
+        subtitle.style.color = '#2563eb';
+        subtitle.style.opacity = '1';
+      }, 300);
+      setTimeout(() => {
+        subtitle.style.opacity = '0';
+      }, 2500);
+      setTimeout(() => {
+        subtitle.textContent = original;
+        subtitle.style.color = '';
+        subtitle.style.opacity = '1';
+      }, 2800);
+    }
   }
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
