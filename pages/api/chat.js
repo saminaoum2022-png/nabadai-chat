@@ -162,8 +162,7 @@ function isImageQualityComplaint(text = '') {
 }
 
 function isPremiumImageConfirmation(text = '') {
-  return /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium)\b/i.test(text)
-    || /^(yes|yeah|sure|ok|okay|do it|go ahead|upgrade)[\s!.]*$/i.test(text);
+  return /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium)\b/i.test(text);
 }
 
 function buildPremiumUpgradeOffer(lastPrompt = '') {
@@ -705,7 +704,9 @@ function isOfferCardRequest(text = '') {
 }
 async function generateOfferCard(messages = [], location = '', openaiClient) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
-  const prompt = `Create an irresistible offer card JSON for this business:
+  const prompt = `You MUST return valid JSON only. No explanation. No markdown wrapping. No code blocks. No backticks. Just the raw JSON object with real values filled in based on the business context below.
+
+Return ONLY this JSON structure:
 {
   "offerName": "The Offer Name",
   "tagline": "Compelling one-line value proposition",
@@ -714,19 +715,54 @@ async function generateOfferCard(messages = [], location = '', openaiClient) {
   "period": "one-time",
   "duration": "90 days",
   "targetClient": "Who this is for",
-  "transformation": "The main transformation/outcome",
+  "transformation": "The main transformation or outcome the client gets",
   "inclusions": ["Deliverable 1", "Deliverable 2", "Deliverable 3", "Deliverable 4", "Deliverable 5"],
   "bonuses": ["Bonus 1", "Bonus 2"],
   "guarantee": "30-day satisfaction guarantee",
   "urgency": "Only 3 spots available this month",
   "tags": ["Tag1", "Tag2", "Tag3"]
 }
-Location: ${location || 'not specified'}. Context: ${context.slice(0, 1500)}`;
+
+Business context: ${context.slice(0, 1500)}
+Location: ${location || 'not specified'}`;
+
   const resp = await openaiClient.chat.completions.create({
-    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
-    max_tokens: 700, temperature: 0.8
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: 'You are a JSON generator. Return only valid JSON. No markdown. No explanation. No code blocks. No backticks.' },
+      { role: 'user', content: prompt }
+    ],
+    max_tokens: 800,
+    temperature: 0.7
   });
-  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+
+  const raw = resp.choices?.[0]?.message?.content?.trim() || '';
+  const parsed = tryParseJsonBlock(raw);
+
+  if (!parsed || !parsed.offerName) {
+    return {
+      offerName: '90-Day Brand Transformation',
+      tagline: 'From invisible to irresistible — in 90 days',
+      price: '3500',
+      currency: 'USD',
+      period: 'one-time',
+      duration: '90 days',
+      targetClient: 'Founders and businesses ready to invest in their brand',
+      transformation: 'A complete brand identity that attracts premium clients and commands higher prices',
+      inclusions: [
+        'Brand strategy and positioning document',
+        'Full visual identity — logo, colours, typography',
+        'Brand messaging and tone of voice guide',
+        'Social media templates (12 designs)',
+        '60-minute brand review call'
+      ],
+      bonuses: ['Brand launch checklist', '30-day content calendar'],
+      guarantee: '100% satisfaction — revisions until you love it',
+      urgency: 'Only 3 spots available this month',
+      tags: ['Branding', 'Strategy', 'Premium']
+    };
+  }
+  return parsed;
 }
 function buildOfferCard(data = {}) {
   const esc = escapeHtml;
@@ -986,12 +1022,36 @@ export default async function handler(req, res) {
     }
   }
 
-  // FIX: quality complaint check now guarded against premium confirmation
-  // and against showing the upgrade card again if it was already shown
+    // ── Premium image confirmed → generate with Ideogram ──
+  const upgradeVeryRecent = upgradeCardRecentlyShown(messages, 2);
+  const explicitPremiumIntent = /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium)\b/i.test(lastUserMessage);
+
+  if (
+    (explicitPremiumIntent || (YES_PATTERN.test(lastUserMessage.trim()) && upgradeVeryRecent)) &&
+    (conversationRecentlyHadImage(messages) || upgradeCardRecentlyShown(messages))
+  ) {
+    try {
+      const lastMeta = extractLastImageMeta(messages);
+      const basePrompt = lastMeta?.prompt || '';
+      const prompt = basePrompt
+        ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
+        : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+      const ideogramUrl = await generateWithIdeogram(prompt);
+      const imageType = detectImageType(prompt);
+      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
+    } catch (err) {
+      console.error('[IDEOGRAM ERROR]', err?.message);
+      return res.status(200).json({
+        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`
+      });
+    }
+  }
+
+  // ── Image quality complaint → offer premium upgrade ──
   if (
     isImageQualityComplaint(lastUserMessage) &&
     conversationRecentlyHadImage(messages) &&
-    !isPremiumImageConfirmation(lastUserMessage) &&
+    !explicitPremiumIntent &&
     !upgradeCardRecentlyShown(messages)
   ) {
     const lastMeta = extractLastImageMeta(messages);
@@ -1061,7 +1121,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
       } catch (err) { console.error('[MATRIX CONFIRM ERROR]', err?.message); }
     }
-    if (lastOffer === 'premium-image') {
+    if (lastOffer === 'premium-image' && upgradeCardRecentlyShown(messages, 2)) {
       try {
         const lastMeta = extractLastImageMeta(messages);
         const prompt = lastMeta?.prompt
