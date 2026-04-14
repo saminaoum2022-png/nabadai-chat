@@ -1610,6 +1610,30 @@
   50%  { box-shadow: 0 0 0 12px rgba(37,99,235,0.15); }
   100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
 }
+
+      .nabad-detected-pill {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 16px;
+        background: linear-gradient(135deg, #2563eb, #06b6d4);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+        border-radius: 999px;
+        margin: 0 auto 6px;
+        width: fit-content;
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        pointer-events: none;
+      }
+
+      .nabad-detected-pill.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
     `;
     document.head.appendChild(style);
   }
@@ -2228,32 +2252,36 @@
 
 // ── NABAD DETECTED EFFECT ─────────────────────────────────────
 function triggerNabadDetected(bubbleEl) {
+    // 1. Input pulse
     const input = document.getElementById('nabad-input');
     if (input) {
       input.classList.add('nabad-detected-flash');
       setTimeout(() => input.classList.remove('nabad-detected-flash'), 1200);
     }
+
+    // 2. Logo strong pulse
     const logo = document.getElementById('nabad-logo');
     if (logo) {
       logo.classList.add('nabad-logo-pulse');
       setTimeout(() => logo.classList.remove('nabad-logo-pulse'), 1000);
     }
-    const subtitle = document.getElementById('nabad-subtitle');
-    if (subtitle) {
-      const original = subtitle.textContent;
-      subtitle.style.transition = 'opacity 0.3s ease';
-      subtitle.style.opacity = '0';
-      setTimeout(() => {
-        subtitle.textContent = '⚡ Nabad got that';
-        subtitle.style.color = '#2563eb';
-        subtitle.style.opacity = '1';
-      }, 300);
-      setTimeout(() => { subtitle.style.opacity = '0'; }, 2500);
-      setTimeout(() => {
-        subtitle.textContent = original;
-        subtitle.style.color = '';
-        subtitle.style.opacity = '1';
-      }, 2800);
+
+    // 3. Pill above input
+    const panel = document.getElementById('nabad-panel');
+    if (panel) {
+      const existing = panel.querySelector('.nabad-detected-pill');
+      if (existing) existing.remove();
+
+      const pill = document.createElement('div');
+      pill.className = 'nabad-detected-pill';
+      pill.textContent = '⚡ Nabad got that';
+
+      const inputWrap = document.getElementById('nabad-input-wrap');
+      panel.insertBefore(pill, inputWrap);
+
+      setTimeout(() => pill.classList.add('show'), 50);
+      setTimeout(() => pill.classList.remove('show'), 2200);
+      setTimeout(() => pill.remove(), 2600);
     }
   }
 
