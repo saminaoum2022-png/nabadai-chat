@@ -152,7 +152,6 @@ async function generateWithIdeogram(prompt = '') {
   return imageUrl;
 }
 
-// FIX: expanded to catch font, text style, and "didn't like" complaints
 function isImageQualityComplaint(text = '') {
   return /\b(fix\s*(the\s*)?text|text\s*(is\s*)?(wrong|broken|off|bad|blurry)|wrong\s*text|fix\s*(the\s*)?spelling|spelling\s*(is\s*)?wrong)\b/i.test(text)
     || /\b(bad\s*(quality|image|photo|result)|not\s*good|looks\s*(bad|terrible|wrong|off)|better\s*quality|higher\s*quality|sharper|cleaner)\b/i.test(text)
@@ -218,7 +217,6 @@ function isRegenerationRequest(text = '') {
   return /\b(regenerate|redo|try again|another version|different version|new version)\b.{0,30}\b(image|logo|picture|visual|photo|banner|icon)\b/i.test(text)
     || /\b(regenerate|redo|new one|try again)\b$/i.test(text);
 }
-// FIX: added colour (British spelling) and font/typography variants
 function isImageModificationRequest(text = '') {
   return /\b(change|update|modify|make it|make the|adjust|tweak|alter)\b.{0,40}\b(image|logo|picture|visual|banner|icon|color|colour|style|background|font|text|typography)\b/i.test(text)
     || /\b(different|new)\b.{0,20}\b(font|style|color|colour|background)\b/i.test(text);
@@ -255,7 +253,6 @@ function buildPollinationsUrl(prompt = '', options = {}) {
   if (seed !== undefined) url += `&seed=${seed}`;
   return url;
 }
-// FIX: extended lookback and catches both Pollinations and Ideogram URLs
 function extractLastImageMeta(messages = [], lookback = 15) {
   for (let i = messages.length - 1; i >= Math.max(0, messages.length - lookback); i--) {
     const text = getMessageText(messages[i].content);
@@ -270,7 +267,6 @@ function extractLastImageMeta(messages = [], lookback = 15) {
   }
   return null;
 }
-// FIX: broader URL pattern matching
 function conversationRecentlyHadImage(messages = [], lookback = 10) {
   return messages.slice(-lookback).some(m => {
     const text = getMessageText(m.content);
@@ -527,9 +523,15 @@ function shouldOfferSnapshot(messages = []) {
   if (snapshotAlreadyOffered(messages)) return false;
   return hasRichBusinessContext(messages);
 }
-async function generateBusinessSnapshot(messages = [], location = '', openaiClient) {
+
+// CHANGE 5a — generateBusinessSnapshot now accepts and uses userProfile
+async function generateBusinessSnapshot(messages = [], location = '', openaiClient, userProfile = '') {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
-  const prompt = `Based on this business conversation, create a concise Business Snapshot JSON with these exact fields:
+
+  // Prepend onboarding profile context if available so GPT has richer input
+  const profileContext = userProfile ? `User onboarding profile:\n${userProfile}\n\n` : '';
+
+  const prompt = `${profileContext}Based on this business conversation, create a concise Business Snapshot JSON with these exact fields:
 {
   "businessType": "one-line description",
   "stage": "idea/early/growing/scaling",
@@ -541,12 +543,14 @@ async function generateBusinessSnapshot(messages = [], location = '', openaiClie
 }
 Context: ${context.slice(0, 2000)}
 Location: ${location || 'not specified'}`;
+
   const resp = await openaiClient.chat.completions.create({
     model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
     max_tokens: 600, temperature: 0.7
   });
   return tryParseJsonBlock(resp.choices[0].message.content) || {};
 }
+
 function buildSnapshotCard(data = {}, location = '') {
   const esc = escapeHtml;
   const quickWins = normalizeList(data.quickWins || []).slice(0, 3).map(w => `<li>${esc(w)}</li>`).join('');
@@ -696,15 +700,20 @@ function buildPricingTableCard(data = {}) {
 }
 
 // ── Offer Card ────────────────────────────────────────────────────────────────
-// FIX: broader regex to catch "structure this as a full offer card" and similar phrases
 function isOfferCardRequest(text = '') {
   return /\b(offer card|build (me )?(an? )?offer|create (an? )?offer|design (an? )?offer|make (an? )?offer card|structure (my |the |this |it )?(as )?(a |an )?(full )?offer)\b/i.test(text)
     || /\b(flagship (offer|package|product)|signature (offer|package|service)|premium (offer|package))\b.{0,30}\b(card|build|create|design)\b/i.test(text)
     || /\b(build|create|design|make)\b.{0,30}\b(flagship|signature|premium)\b.{0,30}\b(offer|package|service)\b/i.test(text);
 }
-async function generateOfferCard(messages = [], location = '', openaiClient) {
+
+// CHANGE 5b — generateOfferCard now accepts and uses userProfile
+async function generateOfferCard(messages = [], location = '', openaiClient, userProfile = '') {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
-  const prompt = `You MUST return valid JSON only. No explanation. No markdown wrapping. No code blocks. No backticks. Just the raw JSON object with real values filled in based on the business context below.
+
+  // Prepend onboarding profile context if available
+  const profileContext = userProfile ? `User onboarding profile:\n${userProfile}\n\n` : '';
+
+  const prompt = `${profileContext}You MUST return valid JSON only. No explanation. No markdown wrapping. No code blocks. No backticks. Just the raw JSON object with real values filled in based on the business context below.
 
 Return ONLY this JSON structure:
 {
@@ -764,6 +773,7 @@ Location: ${location || 'not specified'}`;
   }
   return parsed;
 }
+
 function buildOfferCard(data = {}) {
   const esc = escapeHtml;
   const symbols = { USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SAR: 'SAR ', EGP: 'EGP ' };
@@ -936,7 +946,6 @@ function ensureHtmlReply(text = '') {
 // ── YES-intent router helper ──────────────────────────────────────────────────
 const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|yea|sounds good|let's go|let's do it|do that|go for it)[\s!.]*$/i;
 
-// FIX: broader offer detection — catches "structure this as a full offer card" and similar
 function getLastOffer(msgs = []) {
   const assistantMsgs = msgs
     .filter(m => m.role === 'assistant')
@@ -952,7 +961,6 @@ function getLastOffer(msgs = []) {
   return null;
 }
 
-// ── Premium image helper ──────────────────────────────────────────────────────
 function upgradeCardRecentlyShown(messages = [], lookback = 4) {
   return messages.slice(-lookback).some(m =>
     m.role === 'assistant' &&
@@ -986,8 +994,16 @@ export default async function handler(req, res) {
 
   const selectedPersonality = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'].includes(body?.personality)
     ? body.personality : 'auto';
-  const userProfile = cleanText(body?.userProfile || '', 300);
+
+  // CHANGE 1 — extract userProfile from request body (sent by widget onboarding)
+  const userProfile = cleanText(body?.userProfile || '', 500);
+
   const detectedLocation = extractLocationFromMessages(messages);
+
+  // CHANGE 4 — check if userProfile already contains location so we don't ask again
+  const profileHasLocation = userProfile
+    ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
+    : false;
 
   // ── Positioning question ──
   if (isPositioningQuestion(lastUserMessage)) {
@@ -999,8 +1015,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ reply: buildStockPhotoHtml(lastUserMessage) });
   }
 
-  // FIX: Premium image confirmation MUST come before quality complaint check
-  // to prevent "use premium" from being swallowed by the complaint block
+  // ── Premium image confirmation (explicit phrases like "use premium") ──
   if (
     isPremiumImageConfirmation(lastUserMessage) &&
     (conversationRecentlyHadImage(messages) || upgradeCardRecentlyShown(messages))
@@ -1022,7 +1037,7 @@ export default async function handler(req, res) {
     }
   }
 
-    // ── Premium image confirmed → generate with Ideogram ──
+  // ── Premium image via plain "yes" only when upgrade card shown in last 2 messages ──
   const upgradeVeryRecent = upgradeCardRecentlyShown(messages, 2);
   const explicitPremiumIntent = /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium)\b/i.test(lastUserMessage);
 
@@ -1085,18 +1100,23 @@ export default async function handler(req, res) {
   // ── YES-intent router ──
   if (YES_PATTERN.test(lastUserMessage.trim())) {
     const lastOffer = getLastOffer(messages);
+
+    // CHANGE 5c — pass userProfile into generateOfferCard
     if (lastOffer === 'offer') {
       try {
-        const offerData = await generateOfferCard(messages, detectedLocation, openai);
+        const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
         return res.status(200).json({ reply: buildOfferCard(offerData) });
       } catch (err) { console.error('[OFFER CONFIRM ERROR]', err?.message); }
     }
+
+    // CHANGE 5d — pass userProfile into generateBusinessSnapshot
     if (lastOffer === 'snapshot' && snapshotAlreadyOffered(messages) && hasRichBusinessContext(messages)) {
       try {
-        const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai);
+        const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai, userProfile);
         return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
       } catch (err) { console.error('[SNAPSHOT CONFIRM ERROR]', err?.message); }
     }
+
     if (lastOffer === 'action-plan') {
       try {
         const planData = await generateActionPlan(messages, detectedLocation, openai);
@@ -1150,10 +1170,11 @@ export default async function handler(req, res) {
     } catch (err) { console.error('[PRICING ERROR]', err?.message); }
   }
 
-  // ── Offer Card ──
+  // ── Offer Card (direct request, not via YES) ──
+  // CHANGE 5e — pass userProfile into generateOfferCard for direct requests too
   if (isOfferCardRequest(lastUserMessage)) {
     try {
-      const offerData = await generateOfferCard(messages, detectedLocation, openai);
+      const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
       return res.status(200).json({ reply: buildOfferCard(offerData) });
     } catch (err) { console.error('[OFFER ERROR]', err?.message); }
   }
@@ -1181,13 +1202,13 @@ export default async function handler(req, res) {
     });
   }
 
-  // FIX: location ask now guarded against image requests so image prompts
-  // don't get intercepted and replaced with a location question
+  // CHANGE 4 — location ask now also skips if userProfile already contains location
   const userMsgCount = messages.filter(m => m.role === 'user').length;
   if (
     userMsgCount >= 2 &&
     hasBusinessContext(lastUserMessage) &&
     !detectedLocation &&
+    !profileHasLocation &&
     !locationAlreadyAsked(messages) &&
     !YES_PATTERN.test(lastUserMessage.trim()) &&
     !shouldGenerateImage(lastUserMessage, messages)
@@ -1213,7 +1234,8 @@ export default async function handler(req, res) {
       activePersonality: personalityConfig.id,
       personalitySource: personalityResolution.source,
       businessMode: businessMode.id,
-      detectedLocation
+      detectedLocation,
+      userProfile: userProfile ? userProfile.slice(0, 80) + '...' : 'none' // CHANGE 1 debug log
     });
   }
 
@@ -1264,15 +1286,19 @@ Reply: "<p>Everyone wants to — which means the ones that win are <strong>insan
     'Start with a question that reframes the whole problem.',
     'Lead with the biggest mistake people make here.'
   ];
-  
+
   const todaySeed = variationSeeds[Math.floor(Math.random() * variationSeeds.length)];
 
-    const systemPromptParts = [
-    `You are NabadAI — a founder who has built and scaled businesses. You give real, direct advice in plain language. You are NOT an assistant. You do NOT over-explain. You challenge assumptions and tell people what they need to hear, not what they want to hear. You have energy, edge, and genuine opinions.`,
+  // CHANGE 2 & 3 — userProfile line confirmed present; main prompt instructs Nabad to use it naturally
+  const systemPromptParts = [
+    `You are NabadAI — a founder who has built and scaled businesses. You give real, direct advice in plain language. You are NOT an assistant. You do NOT over-explain. You challenge assumptions and tell people what they need to hear, not what they want to hear. You have energy, edge, and genuine opinions.
+
+If a user profile is provided below, use it naturally — reference their business name, revenue, idea, or challenge when it's relevant. Do NOT ask for information they already gave during onboarding. If they are at the idea stage, treat them as a co-founder validating a startup. If they are still figuring things out, act as a discovery partner helping them find their direction.`,
     `Variation directive for this response: ${todaySeed}`,
     personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : '',
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
-    userProfile ? `User profile: ${userProfile}` : '',
+    // CHANGE 2 — userProfile injected here from onboarding answers
+    userProfile ? `User profile (from onboarding): ${userProfile}` : '',
     proactiveIntelligence,
     memoryContext,
     locationContext,
@@ -1285,7 +1311,8 @@ Reply: "<p>Everyone wants to — which means the ones that win are <strong>insan
       { role: 'system', content: systemPromptParts },
       ...messages.filter(m => m.role !== 'system')
     ];
-    const temperature = personalityConfig.temperature || businessMode.temperature || 0.82;
+    const baseTemp = personalityConfig.temperature || businessMode.temperature || 0.82;
+    const temperature = Math.min(1.0, baseTemp + (Math.random() * 0.1 - 0.05));
     const maxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
