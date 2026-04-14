@@ -1988,8 +1988,9 @@
         if (key && val) state.onboardingAnswers[key] = val;
       });
       state.userProfile = { ...state.onboardingAnswers };
-      saveUserProfile(state.userProfile);
-      renderOnboardingScreen3();
+saveUserProfile(state.userProfile);
+triggerNabadDetected(null);
+renderOnboardingScreen3();
     });
 
     refs.messages.querySelector('#nabad-ob-back').addEventListener('click', () => {
