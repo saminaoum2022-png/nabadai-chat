@@ -1773,11 +1773,7 @@
           scrollToBottom();
           return;
         }
-        if (!state.personalityChosen && !state.messages.length) {
-          renderPersonalityScreen();
-          scrollToBottom();
-          return;
-        }
+        
         scrollToBottom();
         if (refs.input) refs.input.focus();
       }, 40);
