@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────
 //  NabadAI — index.js (Next.js Page)
 //  Fixes applied:
-//   [FIX-1]  Mobile shell permanently hidden — corrected media queries
+//   [FIX-1]  Mobile shell removed — widget auto-opens on mobile
 //   [FIX-2]  Auto-open uses public widget API instead of hidden launcher click
 //   [FIX-3]  Service worker update check added on every revisit
-//   [FIX-4]  handleOpenWidget uses retry interval not a single 300ms guess
+//   [FIX-4]  Auto-open uses retry interval not a single guess
 //   [FIX-5]  Splash fade-out animation before unmount
 //   [FIX-6]  Dead window.NABAD_API variable removed
 //   [FIX-7]  Open Graph and Twitter meta tags added
@@ -46,95 +46,71 @@ const FEATURE_POINTS = [
 
 export default function Home() {
   const [showSplash, setShowSplash]     = useState(true);
-  // [FIX-5] Separate hiding state for fade-out before unmount
   const [splashHiding, setSplashHiding] = useState(false);
 
   useEffect(() => {
-  // [FIX-5] Fade first, then unmount
-  const fadeTimer   = window.setTimeout(() => setSplashHiding(true), 1200);
-  const removeTimer = window.setTimeout(() => setShowSplash(false), 1650);
+    // [FIX-5] Fade first, then unmount
+    const fadeTimer   = window.setTimeout(() => setSplashHiding(true), 1200);
+    const removeTimer = window.setTimeout(() => setShowSplash(false), 1650);
 
-  // [FIX-3] Register SW with immediate update check
-  const registerServiceWorker = () => {
-    if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('/sw.js').then(reg => {
-      reg.update();
-    }).catch(() => {});
-  };
-
-  if (document.readyState === 'complete') {
-    registerServiceWorker();
-  } else {
-    window.addEventListener('load', registerServiceWorker, { once: true });
-  }
-
-  // [FIX-2] Open widget via public API exposed by widget.js
-  const openWidget = () => {
-    if (window.__NABAD_OPEN_WIDGET__) {
-      window.__NABAD_OPEN_WIDGET__();
-      return true;
-    }
-    // Fallback to launcher click
-    const launcher = document.getElementById('nabad-launcher');
-    if (launcher) { launcher.click(); return true; }
-    return false;
-  };
-
-  // [FIX-4] Auto-open after splash finishes — retry until widget is ready
-  let autoOpenTimer = null;
-  let pollTimer     = null;
-
-  autoOpenTimer = window.setTimeout(() => {
-    if (!openWidget()) {
-      let attempts = 0;
-      pollTimer = window.setInterval(() => {
-        attempts++;
-        if (openWidget() || attempts > 60) {
-          window.clearInterval(pollTimer);
-        }
-      }, 100);
-    }
-  }, 1800); // 1800ms = after splash fully fades (1650ms) + small buffer
-
-  return () => {
-    window.clearTimeout(fadeTimer);
-    window.clearTimeout(removeTimer);
-    window.clearTimeout(autoOpenTimer);
-    window.clearInterval(pollTimer);
-  };
-}, []);
-
-    const autoOpenMobileWidget = () => {
-      if (typeof window === 'undefined') return;
-      if (window.innerWidth >= 768) return;
-
-      let tries = 0;
-      pollTimer = window.setInterval(() => {
-        tries++;
-        if (openWidget()) {
-          window.clearInterval(pollTimer);
-          pollTimer = null;
-          return;
-        }
-        if (tries >= 50) {
-          window.clearInterval(pollTimer);
-          pollTimer = null;
-        }
-      }, 120);
+    // [FIX-3] Register SW with immediate update check
+    const registerServiceWorker = () => {
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        reg.update();
+      }).catch(() => {});
     };
 
+    if (document.readyState === 'complete') {
+      registerServiceWorker();
+    } else {
+      window.addEventListener('load', registerServiceWorker, { once: true });
+    }
+
+    // [FIX-2] Open widget via public API exposed by widget.js
+    const openWidget = () => {
+      if (window.__NABAD_OPEN_WIDGET__) {
+        window.__NABAD_OPEN_WIDGET__();
+        return true;
+      }
+      const launcher = document.getElementById('nabad-launcher');
+      if (launcher) { launcher.click(); return true; }
+      return false;
+    };
+
+    // [FIX-4] Auto-open after splash finishes — retry until widget is ready
+    let autoOpenTimer = null;
+    let pollTimer     = null;
+
     autoOpenTimer = window.setTimeout(() => {
-      autoOpenMobileWidget();
-    }, 1300);
+      if (!openWidget()) {
+        let attempts = 0;
+        pollTimer = window.setInterval(() => {
+          attempts++;
+          if (openWidget() || attempts > 60) {
+            window.clearInterval(pollTimer);
+          }
+        }, 100);
+      }
+    }, 1800);
 
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(removeTimer);
-      if (autoOpenTimer) window.clearTimeout(autoOpenTimer);
-      if (pollTimer) window.clearInterval(pollTimer);
-      window.removeEventListener('load', registerServiceWorker);
+      window.clearTimeout(autoOpenTimer);
+      window.clearInterval(pollTimer);
     };
   }, []);
+
+  // [FIX-2] Manual open for desktop chips and CTA button
+  const handleOpenWidget = () => {
+    if (window.__NABAD_OPEN_WIDGET__) {
+      window.__NABAD_OPEN_WIDGET__();
+      return;
+    }
+    const launcher = document.getElementById('nabad-launcher');
+    if (launcher) { launcher.click(); return; }
+  };
 
   return (
     <>
@@ -493,70 +469,13 @@ export default function Home() {
             0 0 22px rgba(34,211,238,0.15);
         }
 
-        /* [FIX-1] Mobile shell base — hidden by default, shown on mobile */
-        #nabad-mobile-shell {
-          display: none;
-          position: relative;
-          z-index: 1;
-          min-height: 100dvh;
-          padding: max(22px, env(safe-area-inset-top)) 18px
-            max(24px, env(safe-area-inset-bottom));
-          align-items: center;
-          justify-content: center;
-        }
-
-        .nabad-mobile-card {
-          width: 100%;
-          max-width: 420px;
-          padding: 28px 22px;
-          text-align: center;
-          border-radius: 28px;
-          background: rgba(255,255,255,0.84);
-          border: 1px solid rgba(255,255,255,0.88);
-          box-shadow:
-            0 18px 46px rgba(15,23,42,0.08),
-            inset 0 1px 0 rgba(255,255,255,0.75);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-        }
-
-        .nabad-mobile-logo {
-          width: 68px;
-          height: 68px;
-          object-fit: contain;
-          margin-bottom: 14px;
-          filter: drop-shadow(0 10px 22px rgba(37,99,235,0.14));
-        }
-
-        .nabad-mobile-card h2 {
-          margin: 0 0 10px;
-          font-size: 28px;
-          line-height: 1.05;
-          letter-spacing: -0.03em;
-          color: #020617;
-        }
-
-        .nabad-mobile-card p {
-          margin: 0 0 18px;
-          color: #5b6473;
-          line-height: 1.6;
-          font-size: 16px;
-        }
-
         #nabad-widget-root { z-index: 2147483000 !important; }
         #nabad-launcher, #nabad-panel { z-index: 2147483001 !important; }
 
-        /* [FIX-1] Correct responsive layout */
+        /* Responsive layout */
         @media (max-width: 767px) {
           #nabad-desktop-hero { display: none; }
           #nabad-launcher { display: none !important; }
-
-          /* Mobile shell shows as fallback until widget opens */
-          #nabad-mobile-shell { display: flex; }
-        }
-
-        @media (min-width: 768px) {
-          #nabad-mobile-shell { display: none; }
         }
       `}</style>
     </>
