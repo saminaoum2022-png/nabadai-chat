@@ -5,13 +5,13 @@
 //  Tier 2: [T2-2] Business Snapshot  [T2-7] Nabad Score
 //  Tier 3: [T3-6] Pricing Table  [T3-6b] Offer Card
 //          [T3-6c] Positioning Matrix  [T3-6d] 30-Day Action Plan
+//  NEW: [OB-1] 3-screen onboarding flow
 // ─────────────────────────────────────────────────────────────
 
 (() => {
   if (window.__NABAD_WIDGET_LOADED__) return;
   window.__NABAD_WIDGET_LOADED__ = true;
 
-  // ── [FIX-1] Load DOMPurify once, then boot the widget ──────
   function loadDOMPurify(cb) {
     if (window.DOMPurify) { cb(); return; }
     const s = document.createElement('script');
@@ -25,7 +25,6 @@
     document.head.appendChild(s);
   }
 
-  // ── [T3-6] Extended PURIFY_CONFIG to allow Tier 3 card attrs ─
   const PURIFY_CONFIG = {
     ALLOWED_TAGS: [
       'p','b','i','strong','em','h3','h4',
@@ -47,7 +46,6 @@
     return `<p>${escapeHtml(String(html))}</p>`;
   }
 
-  // ── CONFIG ───────────────────────────────────────────────────
   const CONFIG = {
     apiUrl: '/api/chat',
     title: 'NabadAi',
@@ -60,7 +58,9 @@
 
   const STORAGE_KEYS = {
     messages:    `${CONFIG.storageNamespace}:messages`,
-    personality: `${CONFIG.storageNamespace}:personality`
+    personality: `${CONFIG.storageNamespace}:personality`,
+    userProfile: `${CONFIG.storageNamespace}:userProfile`,
+    onboarded:   `${CONFIG.storageNamespace}:onboarded`
   };
 
   const PERSONALITIES = [
@@ -73,13 +73,60 @@
     { id: 'auto',          icon: '✨', title: 'Let Nabad choose',    desc: 'Automatically adapt based on your goal' }
   ];
 
+  // ── [OB-1] ONBOARDING PATHS ──────────────────────────────────
+  const ONBOARDING_PATHS = [
+    {
+      id: 'existing',
+      icon: '🚀',
+      title: 'I have a business',
+      desc: 'Help me grow, fix problems, and scale it'
+    },
+    {
+      id: 'idea',
+      icon: '💡',
+      title: 'I have an idea',
+      desc: 'Help me validate and build it from scratch'
+    },
+    {
+      id: 'figuring',
+      icon: '🔍',
+      title: "I'm still figuring it out",
+      desc: 'Help me find the right direction for me'
+    }
+  ];
+
+  const ONBOARDING_QUESTIONS = {
+    existing: [
+      { key: 'businessName',    label: "What's your business called?",              placeholder: 'e.g. Apex Studio' },
+      { key: 'whatYouSell',     label: 'What do you sell and who buys it?',          placeholder: 'e.g. Social media management for restaurants' },
+      { key: 'revenue',         label: "What's your monthly revenue roughly?",       placeholder: 'e.g. $3,000/month or just starting' },
+      { key: 'biggestChallenge',label: "What's your biggest challenge right now?",   placeholder: 'e.g. Getting more clients, retention, pricing...' }
+    ],
+    idea: [
+      { key: 'ideaSummary',     label: 'Describe your idea in one sentence',         placeholder: 'e.g. A subscription box for specialty coffee' },
+      { key: 'targetCustomer',  label: 'Who would pay for this?',                    placeholder: 'e.g. Coffee lovers aged 25-40 in the UAE' },
+      { key: 'currentProgress', label: 'Have you made any money from it yet?',       placeholder: 'e.g. No, just started / Made $500 testing it' },
+      { key: 'biggestBlock',    label: "What's stopping you from launching?",        placeholder: 'e.g. Not sure if there\'s demand, need funding...' }
+    ],
+    figuring: [
+      { key: 'skills',          label: "What are you good at?",                      placeholder: 'e.g. Design, sales, cooking, coding...' },
+      { key: 'problems',        label: 'What problems do you notice around you?',    placeholder: 'e.g. People waste money on bad marketing' },
+      { key: 'preference',      label: 'Product or service business?',               placeholder: 'e.g. Service — I like working with people' },
+      { key: 'timeCommitment',  label: 'How much time can you commit per week?',     placeholder: 'e.g. 10 hours, full time, evenings only' }
+    ]
+  };
+
   // ── STATE ────────────────────────────────────────────────────
   const state = {
     open: false,
     sending: false,
     messages: loadMessages(),
     personality: loadPersonality() || 'auto',
-    personalityChosen: !!loadPersonality()
+    personalityChosen: !!loadPersonality(),
+    onboarded: loadOnboarded(),
+    userProfile: loadUserProfile(),
+    onboardingPath: null,
+    onboardingAnswers: {}
   };
 
   const refs = {
@@ -128,6 +175,29 @@
     } catch {}
   }
 
+  function loadOnboarded() {
+    try { return localStorage.getItem(STORAGE_KEYS.onboarded) === 'true'; }
+    catch { return false; }
+  }
+
+  function saveOnboarded() {
+    try { localStorage.setItem(STORAGE_KEYS.onboarded, 'true'); }
+    catch {}
+  }
+
+  function loadUserProfile() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.userProfile);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+
+  function saveUserProfile(profile = {}) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.userProfile, JSON.stringify(profile));
+    } catch {}
+  }
+
   // ── UTILS ────────────────────────────────────────────────────
   function escapeHtml(text = '') {
     return String(text)
@@ -146,23 +216,46 @@
   }
 
   function getPersonalityGreeting(id = 'auto') {
+    const profile = state.userProfile || {};
+    const name = profile.businessName || profile.ideaSummary || '';
+    const nameStr = name ? ` — I can see you're working on <strong>${escapeHtml(name)}</strong>` : '';
+
     switch (id) {
       case 'strategist':
-        return `<h3>🧠 Strategist mode selected</h3><p>I'll help you make sharper business decisions, choose the right direction, and avoid weak moves.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>🧠 Strategist mode</h3><p>Sharp decisions, clear direction, no wasted moves${nameStr}. Let's think big picture.</p><p><b>What are you working on?</b></p>`;
       case 'growth':
-        return `<h3>📈 Growth Expert mode selected</h3><p>I'll focus on traction, marketing, leads, conversion, and practical growth opportunities.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>📈 Growth Expert mode</h3><p>Traction, leads, conversion — let's find what moves the needle${nameStr}.</p><p><b>What are you working on?</b></p>`;
       case 'branding':
-        return `<h3>🎨 Brand Builder mode selected</h3><p>I'll focus on identity, positioning, perception, naming, and premium brand thinking.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>🎨 Brand Builder mode</h3><p>Identity, positioning, how the world sees you${nameStr}. Let's build something memorable.</p><p><b>What are you working on?</b></p>`;
       case 'offer':
-        return `<h3>💼 Offer Architect mode selected</h3><p>I'll help you shape stronger offers, pricing, packaging, and monetization.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>💼 Offer Architect mode</h3><p>Packaging, pricing, monetization${nameStr}. Let's turn what you do into something people can't say no to.</p><p><b>What are you working on?</b></p>`;
       case 'creative':
-        return `<h3>⚡ Creative Challenger mode selected</h3><p>I'll push for fresher, bolder, more differentiated business ideas.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>⚡ Creative Challenger mode</h3><p>Fresh angles, bold ideas, unexpected thinking${nameStr}. Let's break the obvious.</p><p><b>What are you working on?</b></p>`;
       case 'straight_talk':
-        return `<h3>🎯 Straight Talk mode selected</h3><p>I'll give direct, no-fluff, commercially honest advice.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>🎯 Straight Talk mode</h3><p>No fluff. No padding. Just what you need to hear${nameStr}.</p><p><b>What's the situation?</b></p>`;
       case 'auto':
       default:
-        return `<h3>✨ Nabad will adapt to you</h3><p>I'll adjust my style based on your goal and give business-focused advice.</p><p><b>What are you working on?</b></p>`;
+        return `<h3>✨ Nabad is ready</h3><p>I'll adapt to what you need${nameStr}. Ask me anything about your business.</p><p><b>What's on your mind?</b></p>`;
     }
+  }
+
+  function buildProfileSummary() {
+    const p = state.userProfile || {};
+    const parts = [];
+    if (p.path)             parts.push(`User type: ${p.path}`);
+    if (p.businessName)     parts.push(`Business: ${p.businessName}`);
+    if (p.whatYouSell)      parts.push(`What they sell: ${p.whatYouSell}`);
+    if (p.revenue)          parts.push(`Revenue: ${p.revenue}`);
+    if (p.biggestChallenge) parts.push(`Challenge: ${p.biggestChallenge}`);
+    if (p.ideaSummary)      parts.push(`Idea: ${p.ideaSummary}`);
+    if (p.targetCustomer)   parts.push(`Target customer: ${p.targetCustomer}`);
+    if (p.currentProgress)  parts.push(`Progress: ${p.currentProgress}`);
+    if (p.biggestBlock)     parts.push(`Blocker: ${p.biggestBlock}`);
+    if (p.skills)           parts.push(`Skills: ${p.skills}`);
+    if (p.problems)         parts.push(`Problems noticed: ${p.problems}`);
+    if (p.preference)       parts.push(`Preference: ${p.preference}`);
+    if (p.timeCommitment)   parts.push(`Time available: ${p.timeCommitment}`);
+    return parts.join(' | ');
   }
 
   function setInputPlaceholder() {
@@ -179,7 +272,6 @@
     refs.input.placeholder = map[state.personality] || 'Ask Nabad anything...';
   }
 
-  // ── [FIX-5] Inline confirm modal ─────────────────────────────
   function confirmAction(message, onConfirm) {
     const overlay = document.createElement('div');
     overlay.style.cssText = [
@@ -485,6 +577,7 @@
         100% { box-shadow: 0 0 22px rgba(6,182,212,0.42), 0 12px 34px rgba(37,99,235,0.18); opacity: 1; }
       }
 
+      /* ── [OB-1] ONBOARDING SCREENS ───────────────────────── */
       #nabad-onboarding { padding: 4px 2px 10px; }
 
       #nabad-onboarding h3 {
@@ -501,6 +594,179 @@
         line-height: 1.45;
       }
 
+      /* Path cards — Screen 1 */
+      .nabad-path-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-top: 4px;
+      }
+
+      .nabad-path-card {
+        width: 100%;
+        text-align: left;
+        border: 1px solid rgba(37,99,235,0.12);
+        background: rgba(255,255,255,0.98);
+        border-radius: 18px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 6px 18px rgba(15,23,42,0.05);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .nabad-path-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(37,99,235,0.26);
+        box-shadow: 0 10px 24px rgba(37,99,235,0.08);
+      }
+
+      .nabad-path-icon {
+        font-size: 28px;
+        flex-shrink: 0;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .nabad-path-text { flex: 1; min-width: 0; }
+
+      .nabad-path-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 3px;
+      }
+
+      .nabad-path-desc {
+        font-size: 13px;
+        color: #475569;
+        line-height: 1.4;
+      }
+
+      .nabad-path-arrow {
+        font-size: 18px;
+        color: #94a3b8;
+        flex-shrink: 0;
+      }
+
+      /* Questions — Screen 2 */
+      .nabad-questions-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 4px;
+      }
+
+      .nabad-question-field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .nabad-question-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+      }
+
+      .nabad-question-input {
+        width: 100%;
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 14px;
+        color: #0f172a;
+        background: rgba(255,255,255,0.98);
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        font-family: inherit;
+      }
+
+      .nabad-question-input:focus {
+        border-color: rgba(37,99,235,0.35);
+        box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+      }
+
+      .nabad-question-input::placeholder { color: #94a3b8; }
+
+      .nabad-ob-btn {
+        width: 100%;
+        padding: 13px;
+        border: none;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+        margin-top: 4px;
+        box-shadow: 0 8px 20px rgba(37,99,235,0.18);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .nabad-ob-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(37,99,235,0.22);
+      }
+
+      .nabad-ob-back {
+        background: transparent;
+        border: 1px solid rgba(37,99,235,0.14);
+        color: #2563eb;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 9px;
+        border-radius: 12px;
+        cursor: pointer;
+        margin-top: 4px;
+        width: 100%;
+        font-family: inherit;
+      }
+
+      .nabad-ob-skip {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px;
+        cursor: pointer;
+        width: 100%;
+        font-family: inherit;
+        margin-top: 2px;
+      }
+
+      .nabad-ob-skip:hover { color: #64748b; }
+
+      /* Progress dots */
+      .nabad-ob-progress {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
+
+      .nabad-ob-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        transition: background 0.2s ease, width 0.2s ease;
+      }
+
+      .nabad-ob-dot.active {
+        background: linear-gradient(135deg, #2563eb, #06b6d4);
+        width: 20px;
+      }
+
+      /* Personality grid — Screen 3 (same as before) */
       .nabad-personality-grid {
         display: grid;
         grid-template-columns: 1fr;
@@ -742,7 +1008,6 @@
         border: 1px solid rgba(255,255,255,0.12);
       }
 
-      /* ── IMAGE LOADING PLACEHOLDER ───────────────────────── */
       .nabad-img-placeholder {
         width: 280px;
         height: 280px;
@@ -794,7 +1059,6 @@
         100% { transform: translateX(200%); }
       }
 
-      /* ── [T2-2] BUSINESS SNAPSHOT CARD ──────────────────── */
       .nabad-bubble [data-nabad-card="snapshot"] {
         background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%);
         border: 1px solid rgba(37,99,235,0.12);
@@ -834,7 +1098,6 @@
         line-height: 1.55;
       }
 
-      /* ── [T2-7] NABAD SCORE CARD ─────────────────────────── */
       .nabad-bubble [data-nabad-card="score"] {
         background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
         border: 1px solid rgba(37,99,235,0.10);
@@ -867,7 +1130,6 @@
         box-shadow: 0 4px 12px rgba(15,23,42,0.04);
       }
 
-      /* ── [T3-6] SCORE BARS ──────────────────────────────── */
       .nabad-score-bar-row {
         display: flex;
         align-items: center;
@@ -907,7 +1169,6 @@
         text-align: right;
       }
 
-      /* ── [T3-6] PRICING TABLE CARD ──────────────────────── */
       .nabad-bubble [data-nabad-card="pricing"] {
         background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
         border: 1px solid rgba(37,99,235,0.12);
@@ -982,7 +1243,6 @@
         font-style: italic;
       }
 
-      /* ── [T3-6b] OFFER CARD ─────────────────────────────── */
       .nabad-bubble [data-nabad-card="offer"] {
         background: linear-gradient(180deg, #fffbf0 0%, #ffffff 100%);
         border: 1px solid rgba(234,179,8,0.22);
@@ -998,9 +1258,7 @@
         margin: 0 0 12px;
       }
 
-      .nabad-offer-section {
-        margin-bottom: 14px;
-      }
+      .nabad-offer-section { margin-bottom: 14px; }
 
       .nabad-offer-section-title {
         font-size: 11px;
@@ -1055,7 +1313,6 @@
         margin: 12px 0;
       }
 
-      /* ── [T3-6c] POSITIONING MATRIX CARD ───────────────── */
       .nabad-bubble [data-nabad-card="matrix"] {
         background: linear-gradient(180deg, #fdf4ff 0%, #ffffff 100%);
         border: 1px solid rgba(139,92,246,0.15);
@@ -1102,28 +1359,24 @@
         line-height: 1.45;
       }
 
-      /* Q1: High Value / Low Competition — "Sweet Spot" */
       .nabad-matrix-cell[data-quadrant="q1"] {
         background: linear-gradient(135deg, #f0fdf4, #dcfce7);
         border-color: rgba(34,197,94,0.20);
       }
       .nabad-matrix-cell[data-quadrant="q1"] .nabad-matrix-cell-label { color: #15803d; }
 
-      /* Q2: High Value / High Competition — "Differentiate" */
       .nabad-matrix-cell[data-quadrant="q2"] {
         background: linear-gradient(135deg, #eff6ff, #dbeafe);
         border-color: rgba(37,99,235,0.18);
       }
       .nabad-matrix-cell[data-quadrant="q2"] .nabad-matrix-cell-label { color: #1d4ed8; }
 
-      /* Q3: Low Value / Low Competition — "Niche" */
       .nabad-matrix-cell[data-quadrant="q3"] {
         background: linear-gradient(135deg, #fefce8, #fef9c3);
         border-color: rgba(234,179,8,0.20);
       }
       .nabad-matrix-cell[data-quadrant="q3"] .nabad-matrix-cell-label { color: #a16207; }
 
-      /* Q4: Low Value / High Competition — "Avoid" */
       .nabad-matrix-cell[data-quadrant="q4"] {
         background: linear-gradient(135deg, #fff1f2, #ffe4e6);
         border-color: rgba(239,68,68,0.18);
@@ -1150,7 +1403,6 @@
         margin-top: 12px;
       }
 
-      /* ── [T3-6d] 30-DAY ACTION PLAN CARD ────────────────── */
       .nabad-bubble [data-nabad-card="action-plan"] {
         background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
         border: 1px solid rgba(34,197,94,0.15);
@@ -1166,9 +1418,7 @@
         margin: 0 0 14px;
       }
 
-      .nabad-action-week {
-        margin-bottom: 14px;
-      }
+      .nabad-action-week { margin-bottom: 14px; }
 
       .nabad-action-week-header {
         display: flex;
@@ -1235,7 +1485,6 @@
         margin-top: 12px;
       }
 
-      /* ── RESPONSIVE ──────────────────────────────────────── */
       @media (max-width: 640px) {
         #nabad-widget-root {
           position: fixed;
@@ -1305,13 +1554,10 @@
         }
 
         .nabad-matrix-cell { padding: 10px 8px; }
-
         .nabad-pricing-table { font-size: 12px; }
         .nabad-pricing-table th,
         .nabad-pricing-table td { padding: 8px 8px; }
-
         .nabad-score-bar-label { min-width: 100px; font-size: 12px; }
-
         .nabad-offer-price { font-size: 26px; }
       }
 
@@ -1334,7 +1580,6 @@
         }
       }
 
-      /* ── REDUCED MOTION ──────────────────────────────────── */
       @media (prefers-reduced-motion: reduce) {
         #nabad-launcher,
         #nabad-input,
@@ -1511,8 +1756,13 @@
     if (state.open) {
       applyScrollLock();
       setTimeout(() => {
+        if (!state.onboarded && !state.messages.length) {
+          renderOnboardingScreen1();
+          scrollToBottom();
+          return;
+        }
         if (!state.personalityChosen && !state.messages.length) {
-          renderPersonalityOnboarding();
+          renderPersonalityScreen();
           scrollToBottom();
           return;
         }
@@ -1535,8 +1785,12 @@
 
   function renderInitialState() {
     refs.messages.innerHTML = '';
+    if (!state.onboarded && !state.messages.length) {
+      renderOnboardingScreen1();
+      return;
+    }
     if (!state.personalityChosen && !state.messages.length) {
-      renderPersonalityOnboarding();
+      renderPersonalityScreen();
       return;
     }
     updatePersonalityBadge();
@@ -1548,7 +1802,104 @@
     scrollToBottom();
   }
 
-  function renderPersonalityOnboarding() {
+  // ── [OB-1] ONBOARDING SCREEN 1 — Path selection ─────────────
+  function renderOnboardingScreen1() {
+    refs.messages.innerHTML = `
+      <div id="nabad-onboarding">
+        <div class="nabad-ob-progress">
+          <div class="nabad-ob-dot active"></div>
+          <div class="nabad-ob-dot"></div>
+          <div class="nabad-ob-dot"></div>
+        </div>
+        <h3>Welcome to Nabad 👋</h3>
+        <p>Where are you at right now?</p>
+        <div class="nabad-path-grid">
+          ${ONBOARDING_PATHS.map(p => `
+            <button class="nabad-path-card" data-path="${p.id}" type="button">
+              <div class="nabad-path-icon">${p.icon}</div>
+              <div class="nabad-path-text">
+                <div class="nabad-path-title">${escapeHtml(p.title)}</div>
+                <div class="nabad-path-desc">${escapeHtml(p.desc)}</div>
+              </div>
+              <div class="nabad-path-arrow">›</div>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    refs.messages.querySelectorAll('.nabad-path-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.onboardingPath = btn.getAttribute('data-path');
+        state.onboardingAnswers = { path: state.onboardingPath };
+        renderOnboardingScreen2();
+      });
+    });
+
+    scrollToBottom();
+  }
+
+  // ── [OB-1] ONBOARDING SCREEN 2 — Profile questions ──────────
+  function renderOnboardingScreen2() {
+    const questions = ONBOARDING_QUESTIONS[state.onboardingPath] || ONBOARDING_QUESTIONS.existing;
+    const pathMeta  = ONBOARDING_PATHS.find(p => p.id === state.onboardingPath);
+
+    refs.messages.innerHTML = `
+      <div id="nabad-onboarding">
+        <div class="nabad-ob-progress">
+          <div class="nabad-ob-dot"></div>
+          <div class="nabad-ob-dot active"></div>
+          <div class="nabad-ob-dot"></div>
+        </div>
+        <h3>${escapeHtml(pathMeta?.icon || '')} Tell me about yourself</h3>
+        <p>Just a few quick questions so Nabad can give you advice that actually fits your situation.</p>
+        <div class="nabad-questions-form">
+          ${questions.map(q => `
+            <div class="nabad-question-field">
+              <label class="nabad-question-label">${escapeHtml(q.label)}</label>
+              <input
+                class="nabad-question-input"
+                type="text"
+                data-key="${escapeHtml(q.key)}"
+                placeholder="${escapeHtml(q.placeholder)}"
+                autocomplete="off"
+              />
+            </div>
+          `).join('')}
+          <button class="nabad-ob-btn" id="nabad-ob-next" type="button">Continue →</button>
+          <button class="nabad-ob-back" id="nabad-ob-back" type="button">← Go back</button>
+          <button class="nabad-ob-skip" id="nabad-ob-skip" type="button">Skip for now</button>
+        </div>
+      </div>
+    `;
+
+    refs.messages.querySelector('#nabad-ob-next').addEventListener('click', () => {
+      const inputs = refs.messages.querySelectorAll('.nabad-question-input');
+      inputs.forEach(input => {
+        const key = input.getAttribute('data-key');
+        const val = input.value.trim();
+        if (key && val) state.onboardingAnswers[key] = val;
+      });
+      state.userProfile = { ...state.onboardingAnswers };
+      saveUserProfile(state.userProfile);
+      renderOnboardingScreen3();
+    });
+
+    refs.messages.querySelector('#nabad-ob-back').addEventListener('click', () => {
+      renderOnboardingScreen1();
+    });
+
+    refs.messages.querySelector('#nabad-ob-skip').addEventListener('click', () => {
+      state.userProfile = { path: state.onboardingPath };
+      saveUserProfile(state.userProfile);
+      renderOnboardingScreen3();
+    });
+
+    scrollToBottom();
+  }
+
+  // ── [OB-1] ONBOARDING SCREEN 3 — Personality selection ──────
+  function renderPersonalityScreen() {
     refs.messages.innerHTML = `
       <div id="nabad-onboarding">
         <h3>Choose your Nabad AI personality</h3>
@@ -1575,7 +1926,9 @@
       btn.addEventListener('click', () => {
         state.personality       = btn.getAttribute('data-personality') || 'auto';
         state.personalityChosen = true;
+        state.onboarded         = true;
         savePersonality(state.personality);
+        saveOnboarded();
         updatePersonalityBadge();
         setInputPlaceholder();
         refs.messages.innerHTML = '';
@@ -1587,7 +1940,53 @@
     scrollToBottom();
   }
 
-  // ── IMAGE LOADING PLACEHOLDER ─────────────────────────────
+  function renderOnboardingScreen3() {
+    refs.messages.innerHTML = `
+      <div id="nabad-onboarding">
+        <div class="nabad-ob-progress">
+          <div class="nabad-ob-dot"></div>
+          <div class="nabad-ob-dot"></div>
+          <div class="nabad-ob-dot active"></div>
+        </div>
+        <h3>How should Nabad advise you?</h3>
+        <p>Pick the style that fits you best. You can always change it later.</p>
+        <div class="nabad-personality-grid">
+          ${PERSONALITIES.map(p => `
+            <button
+              class="nabad-personality-card ${state.personality === p.id ? 'active' : ''}"
+              data-personality="${p.id}"
+              type="button"
+            >
+              <div class="nabad-personality-title">
+                <span class="icon">${p.icon}</span>
+                <span>${escapeHtml(p.title)}</span>
+              </div>
+              <div class="nabad-personality-desc">${escapeHtml(p.desc)}</div>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    refs.messages.querySelectorAll('.nabad-personality-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.personality       = btn.getAttribute('data-personality') || 'auto';
+        state.personalityChosen = true;
+        state.onboarded         = true;
+        savePersonality(state.personality);
+        saveOnboarded();
+        updatePersonalityBadge();
+        setInputPlaceholder();
+        refs.messages.innerHTML = '';
+        renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+        setTimeout(() => { refs.input.focus(); scrollToBottom(); }, 50);
+      });
+    });
+
+    scrollToBottom();
+  }
+
+  // ── IMAGE LOADING PLACEHOLDER ─────────────────────────────────
   const IMAGE_LOADING_TEXTS = [
     '✦ Crafting your image...',
     '✦ Building the visual...',
@@ -1637,7 +2036,7 @@
     placeholder.remove();
   }
 
-  // ── RENDER MESSAGE ───────────────────────────────────────────
+  // ── RENDER MESSAGE ────────────────────────────────────────────
   function renderMessage(role, content, persist = true) {
     const isUser = role === 'user';
     const msg    = document.createElement('div');
@@ -1668,32 +2067,25 @@
     scrollToBottom();
   }
 
-  // ── [T3-6] POST-RENDER CARD ENHANCER ─────────────────────────
-  // Runs after sanitizeHtml — animates score bars and enriches
-  // card elements that need JS to come alive.
+  // ── CARD ENHANCER ─────────────────────────────────────────────
   function enhanceCards(bubble) {
-
-    // Score bars — find all [data-score] bar-fill elements
     bubble.querySelectorAll('.nabad-score-bar-fill[data-score]').forEach(fill => {
       const raw   = parseInt(fill.getAttribute('data-score') || '0', 10);
       const pct   = Math.min(100, Math.max(0, raw));
       fill.style.setProperty('--nabad-score-target', `${pct}%`);
-      // Trigger animation on next frame so CSS transition fires
       requestAnimationFrame(() => {
         requestAnimationFrame(() => { fill.style.width = `${pct}%`; });
       });
     });
 
-    // Pricing table — highlight "Popular" / "Recommended" badge rows
     bubble.querySelectorAll('.nabad-pricing-badge').forEach(badge => {
       const row = badge.closest('tr');
       if (row) row.style.background = 'rgba(37,99,235,0.05)';
     });
   }
 
-  // ── PROCESS ASSISTANT BUBBLE ─────────────────────────────────
+  // ── PROCESS ASSISTANT BUBBLE ──────────────────────────────────
   function processAssistantBubble(bubble) {
-    // Standard link & image processing
     bubble.querySelectorAll('a').forEach(a => {
       a.setAttribute('target', '_blank');
       a.setAttribute('rel', 'noopener noreferrer');
@@ -1743,11 +2135,10 @@
       });
     });
 
-    // [T3-6] Enhance Tier 2 & 3 cards after DOM is ready
     enhanceCards(bubble);
   }
 
-  // ── LIGHTBOX ─────────────────────────────────────────────────
+  // ── LIGHTBOX ──────────────────────────────────────────────────
   function openImageLightbox(src, alt = 'Generated image') {
     currentLightboxSrc   = src;
     refs.lightboxImg.src = src;
@@ -1792,7 +2183,7 @@
     saveMessages();
     refs.messages.innerHTML = '';
     if (!state.personalityChosen) {
-      renderPersonalityOnboarding();
+      renderOnboardingScreen3();
     } else {
       renderMessage('assistant', getPersonalityGreeting(state.personality), false);
     }
@@ -1818,10 +2209,10 @@
     updatePersonalityBadge();
     setInputPlaceholder();
     refs.messages.innerHTML = '';
-    renderPersonalityOnboarding();
+    renderOnboardingScreen3();
   }
 
-  // ── SEND MESSAGE ─────────────────────────────────────────────
+  // ── SEND MESSAGE ──────────────────────────────────────────────
   async function sendMessage() {
     if (state.sending) return;
 
@@ -1831,7 +2222,9 @@
     if (!state.personalityChosen) {
       state.personality       = 'auto';
       state.personalityChosen = true;
+      state.onboarded         = true;
       savePersonality(state.personality);
+      saveOnboarded();
       updatePersonalityBadge();
       setInputPlaceholder();
       refs.messages.innerHTML = '';
@@ -1852,10 +2245,12 @@
     showTyping(true);
 
     try {
+      const profileSummary = buildProfileSummary();
+
       const payload = {
         messages:    historySnapshot,
         personality: state.personality,
-        profile: {}
+        userProfile: profileSummary
       };
 
       const response = await fetch(CONFIG.apiUrl, {
@@ -1886,7 +2281,7 @@
     }
   }
 
-  // ── INIT ─────────────────────────────────────────────────────
+  // ── INIT ──────────────────────────────────────────────────────
   function init() {
     injectStyles();
     buildShell();
