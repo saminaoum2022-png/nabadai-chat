@@ -419,6 +419,47 @@ End with a direct question, a provocation, or "Next move:" 🚀`
   }
 };
 
+const WAR_ROOM_CONFIG = {
+  temperature: 0.88,
+  maxTokens: 900,
+  instruction: `You are running a War Room — a high-stakes decision analysis session.
+The user is facing a significant business decision or crossroads.
+You will present exactly 3 perspectives followed by a verdict.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — no deviation:
+
+<div data-nabad-card="warroom">
+<h3>⚔️ War Room</h3>
+
+<div class="nabad-warroom-voice" data-voice="skeptic">
+<div class="nabad-warroom-voice-label">🔴 The Skeptic</div>
+<div class="nabad-warroom-voice-content">[Skeptic's argument — 2-3 sentences, finds the real risks and holes]</div>
+</div>
+
+<div class="nabad-warroom-voice" data-voice="optimist">
+<div class="nabad-warroom-voice-label">🟢 The Optimist</div>
+<div class="nabad-warroom-voice-content">[Optimist's argument — 2-3 sentences, finds the real opportunity and upside]</div>
+</div>
+
+<div class="nabad-warroom-voice" data-voice="realist">
+<div class="nabad-warroom-voice-label">🟡 The Realist</div>
+<div class="nabad-warroom-voice-content">[Realist's argument — 2-3 sentences, what will actually happen based on the numbers and context]</div>
+</div>
+
+<div class="nabad-warroom-verdict">
+<div class="nabad-warroom-verdict-label">⚡ Nabad's Verdict</div>
+<div class="nabad-warroom-verdict-content">[1-2 sentences — the single clearest move based on the user's specific situation and profile]</div>
+</div>
+</div>
+
+RULES:
+- Each voice must disagree with at least one other
+- The Skeptic must find a real risk, not a fake one
+- The Realist must reference the user's actual situation from their profile
+- The Verdict must take a clear side — no "it depends"
+- Never break the HTML format`
+};
+
 function getPersonalityConfig(id = 'auto') {
   return PERSONALITY_CONFIGS[id] || PERSONALITY_CONFIGS.auto;
 }
@@ -988,6 +1029,44 @@ async function detectMeaningfulInfo(userMessage, openai) {
   }
 }
 
+async function detectWarRoom(userMessage, recentMessages, userProfile, openai) {
+  try {
+    const context = recentMessages.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n');
+    const check = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0,
+      max_tokens: 5,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a classifier. Reply only "yes" or "no".
+Is the user facing a significant business decision, conflict, or crossroads that would benefit from multiple perspectives?
+
+Look for:
+- Two options being weighed
+- Conflict language (but, however, although, except, or)
+- Big decisions (investment, pricing, hiring, pivoting, launching, quitting)
+- Asking "should I", "is this a good idea", "what would you do"
+- Contradicting something they said before
+- Mentioning someone else's opinion
+- Asking about timing
+- Unusually long message showing overthinking
+- Early stage business making a big move
+
+User profile: ${userProfile}
+Recent conversation:
+${context}
+Current message: "${userMessage}"`
+        }
+      ]
+    });
+    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
+    return answer === 'yes';
+  } catch {
+    return false;
+  }
+}
+
 // ── Main Handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   setCors(req, res);
@@ -1342,8 +1421,17 @@ If a user profile is provided below, use it naturally — reference their busine
     });
     const rawReply = completion.choices?.[0]?.message?.content || '';
     let detectedInfo = false;
-try { detectedInfo = await detectMeaningfulInfo(lastUserMessage, openai); } catch { detectedInfo = false; }
-return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo });
+let suggestWarRoom = false;
+try {
+  [detectedInfo, suggestWarRoom] = await Promise.all([
+    detectMeaningfulInfo(lastUserMessage, openai),
+    detectWarRoom(lastUserMessage, messages, userProfile || '', openai)
+  ]);
+} catch {
+  detectedInfo = false;
+  suggestWarRoom = false;
+}
+return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo, suggestWarRoom });
   } catch (err) {
     console.error('[GPT ERROR]', err?.message);
     return res.status(500).json({ error: 'AI service temporarily unavailable. Please try again.' });
