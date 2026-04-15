@@ -2859,7 +2859,7 @@ if (data?.detectedInfo === true) {
 
 // ── War Room suggestion ──
 if (data?.suggestWarRoom === true) {
-  showWarRoomSuggestion(userText || '');
+  showWarRoomSuggestion(Text || '');
 }
       renderMessage(
         'assistant',
