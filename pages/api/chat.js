@@ -1457,3 +1457,41 @@ If a user profile is provided below, use it naturally — reference their busine
   websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
   toneInstruction
 ].filter(Boolean).join('\n');
+  try {
+    const chatMessages = [
+      { role: 'system', content: systemPromptParts },
+      ...messages.filter(m => m.role !== 'system')
+    ];
+    const baseTemp = personalityConfig.temperature || businessMode.temperature || 0.82;
+    const temperature = Math.min(1.0, baseTemp + (Math.random() * 0.1 - 0.05));
+    const maxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: chatMessages,
+      temperature,
+      max_tokens: maxTokens
+    });
+    const rawReply = completion.choices?.[0]?.message?.content || '';
+
+    let detectedInfo = false;
+    let suggestWarRoom = false;
+    try {
+      detectedInfo = await detectMeaningfulInfo(lastUserMessage, openai);
+    } catch {
+      detectedInfo = false;
+    }
+    try {
+      suggestWarRoom = await detectWarRoom(lastUserMessage, messages, userProfile || '', openai);
+    } catch {
+      suggestWarRoom = false;
+    }
+
+    return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo, suggestWarRoom });
+  } catch (err) {
+    console.error('[GPT ERROR]', err?.message);
+    return res.status(500).json({ error: 'AI service temporarily unavailable. Please try again.' });
+  }
+}
+
+export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
+
