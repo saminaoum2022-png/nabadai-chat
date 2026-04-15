@@ -1389,12 +1389,14 @@ Reply: "<p>Everyone wants to — which means the ones that win are <strong>insan
   const todaySeed = variationSeeds[Math.floor(Math.random() * variationSeeds.length)];
 
   // CHANGE 2 & 3 — userProfile line confirmed present; main prompt instructs Nabad to use it naturally
+const isWarRoom = body?.warRoom === true;
+const warRoomAdvisor = body?.warRoomAdvisor || null;
   const systemPromptParts = [
     `You are NabadAI — a founder who has built and scaled businesses. You give real, direct advice in plain language. You are NOT an assistant. You do NOT over-explain. You challenge assumptions and tell people what they need to hear, not what they want to hear. You have energy, edge, and genuine opinions.
 
 If a user profile is provided below, use it naturally — reference their business name, revenue, idea, or challenge when it's relevant. Do NOT ask for information they already gave during onboarding. If they are at the idea stage, treat them as a co-founder validating a startup. If they are still figuring things out, act as a discovery partner helping them find their direction.`,
     `Variation directive for this response: ${todaySeed}`,
-    personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : '',
+    (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
     // CHANGE 2 — userProfile injected here from onboarding answers
     userProfile ? `User profile (from onboarding): ${userProfile}` : '',
