@@ -121,6 +121,7 @@
   const state = {
     open: false,
     sending: false,
+    warRoom: false,
     messages: loadMessages(),
     personality: loadPersonality() || 'auto',
     personalityChosen: !!loadPersonality(),
@@ -1712,6 +1713,64 @@
         margin: 0;
       }
 
+/* ── War Room Suggestion Banner ── */
+#nabad-warroom-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #1e3a8a, #0e7490);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  flex-wrap: nowrap;
+  min-height: 42px;
+  box-sizing: border-box;
+}
+#nabad-warroom-suggestion.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+#nabad-warroom-suggestion span {
+  flex: 1;
+  line-height: 1.3;
+  font-size: 11px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#nabad-warroom-suggestion button {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+#nabad-warroom-suggestion button:hover {
+  background: rgba(255,255,255,0.28);
+}
+#nabad-warroom-suggestion #nabad-warroom-dismiss {
+  padding: 4px 6px;
+  background: transparent;
+  border-color: transparent;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
     `;
     document.head.appendChild(style);
   }
@@ -2439,6 +2498,11 @@ function renderMemoryScreen() {
 
 // ── WAR ROOM ──────────────────────────────────────────────────
 function startWarRoom() {
+  state.warRoom = true;
+  refs.input.disabled = true;
+  refs.send.disabled = true;
+  refs.input.placeholder = 'War Room active — use the form above';
+
   refs.messages.innerHTML = `
     <div id="nabad-warroom-screen">
       <div class="nabad-wr-header">
@@ -2459,7 +2523,8 @@ function startWarRoom() {
   `;
 
   refs.messages.querySelector('#nabad-warroom-submit').addEventListener('click', () => {
-    const text = refs.messages.querySelector('#nabad-warroom-input').value.trim();
+    const textarea = document.getElementById('nabad-warroom-input');
+    const text = textarea ? textarea.value.trim() : '';
     if (!text) return;
     runWarRoomSession(text);
   });
@@ -2541,12 +2606,17 @@ async function fetchAdvisorReply(situation, advisor) {
 }
 
 function backToChat() {
+  state.warRoom = false;
+  refs.input.disabled = false;
+  refs.send.disabled = false;
+  refs.input.placeholder = 'Ask Nabad anything...';
   refs.messages.innerHTML = '';
   state.messages.forEach(m => renderMessage(m.role, m.content, false));
   scrollToBottom();
 }
 
 function showWarRoomSuggestion() {
+  if (state.warRoom) return;
   const existing = document.getElementById('nabad-warroom-suggestion');
   if (existing) return;
 
