@@ -3001,16 +3001,19 @@ function showWarRoomSuggestion(triggerMessage = '') {
   font-weight: 700;
   color: #0f172a;
 }
-.nabad-brief-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0 14px;
-  margin-top: 4px;
-}
+      .nabad-brief-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 0 14px;
+        margin-top: 4px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
-// ── NABAD DETECTED EFFECT ─────────────────────────────────────
-function triggerNabadDetected(bubbleEl) {
+  // ── NABAD DETECTED EFFECT ─────────────────────────────────────
+  function triggerNabadDetected(bubbleEl) {
   navigator.vibrate && navigator.vibrate(40);
     // 1. Input pulse
     const input = document.getElementById('nabad-input');
