@@ -119,17 +119,18 @@
 
   // ── STATE ────────────────────────────────────────────────────
   const state = {
-    open: false,
-    sending: false,
-    warRoom: false,
-    messages: loadMessages(),
-    personality: loadPersonality() || 'auto',
-    personalityChosen: !!loadPersonality(),
-    onboarded: loadOnboarded(),
-    userProfile: loadUserProfile(),
-    onboardingPath: null,
-    onboardingAnswers: {}
-  };
+  open: false,
+  sending: false,
+  warRoom: false,
+  messages: loadMessages(),
+  personality: loadPersonality() || 'auto',
+  personalityChosen: !!loadPersonality(),
+  onboarded: loadOnboarded(),
+  userProfile: loadUserProfile(),
+  onboardingPath: null,
+  onboardingAnswers: {},
+  briefShown: false   // ← ADD THIS
+};
 
   const refs = {
     root: null, launcher: null, panel: null,
@@ -2058,24 +2059,160 @@
     refs.badge.classList.add('show');
   }
 
-  function renderInitialState() {
-    refs.messages.innerHTML = '';
-    if (!state.onboarded) {
-      renderOnboardingScreen1();
-      return;
-    }
-    if (!state.personalityChosen && !state.messages.length) {
-      renderPersonalityScreen();
-      return;
-    }
-    updatePersonalityBadge();
-    if (!state.messages.length) {
-      renderMessage('assistant', getPersonalityGreeting(state.personality), false);
-      return;
-    }
-    state.messages.forEach(m => renderMessage(m.role, m.content, false));
+// ── MORNING BRIEF ─────────────────────────────────────────────
+function shouldShowMorningBrief() {
+  const hour = new Date().getHours();
+  const isMorning = hour >= 6 && hour < 10;
+  const isReturning = state.onboarded && state.messages.length > 0;
+  const hasProfile = state.userProfile && Object.keys(state.userProfile).length > 0;
+  return isMorning && isReturning && hasProfile && !state.briefShown;
+}
+
+async function showMorningBrief() {
+  state.briefShown = true;
+
+  // Show loading card first
+  refs.messages.innerHTML = `
+    <div id="nabad-morning-brief">
+      <div class="nabad-brief-hero">
+        <div class="nabad-brief-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+        <div class="nabad-brief-title">☀️ Good morning</div>
+        <div class="nabad-brief-subtitle">Getting your brief ready...</div>
+      </div>
+      <div class="nabad-brief-loading">
+        <span class="nabad-dots"><span></span><span></span><span></span></span>
+      </div>
+    </div>
+  `;
+  scrollToBottom();
+
+  try {
+    const profile = buildProfileSummary();
+    const lastMessages = state.messages.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
+    const hour = new Date().getHours();
+    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const month = new Date().getMonth() + 1;
+    const quarter = Math.ceil(month / 3);
+
+    const seasonHint =
+      month === 3 || month === 4 ? 'Q2 UAE — slower season, good for building systems' :
+      month >= 6 && month <= 8   ? 'UAE summer — decision makers travelling, internal work season' :
+      month === 9 || month === 10 ? 'September–October UAE — strongest sales window of the year' :
+      month === 11 || month === 12 ? 'Q4 — year end push, budgets being spent or frozen' :
+      'New year energy — high momentum window';
+
+    const resp = await fetch(CONFIG.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'user',
+            content: `Generate a morning brief for this founder. Return ONLY valid JSON, no markdown, no explanation:
+{
+  "greeting": "personal one-line greeting using their name or business if known",
+  "focus": "their single most important focus for today based on their profile and last conversation — 2 sentences max",
+  "pulse": "one market or timing insight relevant to their business and current season — 2 sentences max",
+  "question": "one powerful question that will make them think differently today — max 15 words"
+}
+
+Founder profile: ${profile}
+Last conversation: ${lastMessages}
+Today: ${day}, Q${quarter}
+Season context: ${seasonHint}
+Time: ${hour}:00`
+          }
+        ],
+        personality: 'auto',
+        userProfile: profile,
+        morningBrief: true
+      })
+    });
+
+    const data = await resp.json().catch(() => ({}));
+    let brief = null;
+
+    // Try to parse JSON from reply
+    try {
+      const raw = data?.reply || '';
+      const stripped = raw.replace(/<[^>]+>/g, '').trim();
+      const match = stripped.match(/\{[\s\S]*\}/);
+      if (match) brief = JSON.parse(match[0]);
+    } catch { brief = null; }
+
+    // Render the brief card
+    refs.messages.innerHTML = `
+      <div id="nabad-morning-brief">
+        <div class="nabad-brief-hero">
+          <div class="nabad-brief-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+          <div class="nabad-brief-title">☀️ Morning Brief</div>
+          <div class="nabad-brief-greeting">${escapeHtml(brief?.greeting || 'Good morning — here\'s your focus for today.')}</div>
+        </div>
+
+        <div class="nabad-brief-card nabad-brief-focus">
+          <div class="nabad-brief-card-label">📍 Your Focus Today</div>
+          <div class="nabad-brief-card-text">${escapeHtml(brief?.focus || 'Start with the one thing that moves the needle most.')}</div>
+        </div>
+
+        <div class="nabad-brief-card nabad-brief-pulse">
+          <div class="nabad-brief-card-label">⚡ Market Pulse</div>
+          <div class="nabad-brief-card-text">${escapeHtml(brief?.pulse || 'Q2 is a window — use it to build, not just chase.')}</div>
+        </div>
+
+        <div class="nabad-brief-card nabad-brief-question">
+          <div class="nabad-brief-card-label">🎯 One Question</div>
+          <div class="nabad-brief-card-text nabad-brief-q-text">"${escapeHtml(brief?.question || 'What is the one thing that makes this week a win?')}"</div>
+        </div>
+
+        <div class="nabad-brief-actions">
+          <button class="nabad-ob-btn" id="nabad-brief-chat" type="button">💬 Let's talk about it</button>
+          <button class="nabad-ob-back" id="nabad-brief-skip" type="button">Go to chat →</button>
+        </div>
+      </div>
+    `;
+
+    refs.messages.querySelector('#nabad-brief-chat').addEventListener('click', () => {
+      const q = brief?.question || '';
+      backToChat();
+      if (q) {
+        refs.input.value = q;
+        refs.input.focus();
+      }
+    });
+
+    refs.messages.querySelector('#nabad-brief-skip').addEventListener('click', backToChat);
     scrollToBottom();
+
+  } catch {
+    // If anything fails, just go to normal chat
+    backToChat();
   }
+}
+// ──────────────────────────────────────────────────────────────
+
+  function renderInitialState() {
+  refs.messages.innerHTML = '';
+  if (!state.onboarded && !state.messages.length) {
+    renderOnboardingScreen1();
+    return;
+  }
+  if (!state.personalityChosen && !state.messages.length) {
+    renderPersonalityScreen();
+    return;
+  }
+  // ── Morning Brief check ──
+  if (shouldShowMorningBrief()) {
+    showMorningBrief();
+    return;
+  }
+  updatePersonalityBadge();
+  if (!state.messages.length) {
+    renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+    return;
+  }
+  state.messages.forEach(m => renderMessage(m.role, m.content, false));
+  scrollToBottom();
+}
 
   // ── [OB-1] ONBOARDING SCREEN 1 — Path selection ─────────────
   function renderOnboardingScreen1() {
@@ -2773,6 +2910,103 @@ function showWarRoomSuggestion(triggerMessage = '') {
     suggestion.classList.remove('show');
     setTimeout(() => suggestion.remove(), 300);
   }, 8000);
+}
+
+/* ── Morning Brief ── */
+#nabad-morning-brief {
+  padding: 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: nabadBotAppear 0.4s ease-out both;
+}
+.nabad-brief-hero {
+  background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 55%, #0e7490 100%);
+  border-radius: 0 0 28px 28px;
+  padding: 28px 20px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.nabad-brief-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 60% 40%, rgba(37,99,235,0.3) 0%, transparent 65%);
+  pointer-events: none;
+}
+.nabad-brief-date {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+}
+.nabad-brief-title {
+  font-size: 24px;
+  font-weight: 900;
+  color: #fff;
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
+}
+.nabad-brief-subtitle {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+}
+.nabad-brief-greeting {
+  font-size: 14px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+.nabad-brief-loading {
+  text-align: center;
+  padding: 24px;
+}
+.nabad-brief-card {
+  margin: 0 14px;
+  background: #fff;
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 4px 18px rgba(15,23,42,0.08);
+  border: 1px solid rgba(15,23,42,0.06);
+}
+.nabad-brief-card-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+.nabad-brief-card-text {
+  font-size: 14px;
+  color: #1e293b;
+  line-height: 1.6;
+  font-weight: 500;
+}
+.nabad-brief-focus {
+  border-left: 3px solid #2563eb;
+}
+.nabad-brief-pulse {
+  border-left: 3px solid #f59e0b;
+}
+.nabad-brief-question {
+  border-left: 3px solid #10b981;
+  background: linear-gradient(135deg, #f0fdf4, #fff);
+}
+.nabad-brief-q-text {
+  font-style: italic;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.nabad-brief-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 14px;
+  margin-top: 4px;
 }
 
 // ── NABAD DETECTED EFFECT ─────────────────────────────────────
