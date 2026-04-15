@@ -2859,8 +2859,9 @@ if (data?.detectedInfo === true) {
 
 // ── War Room suggestion ──
 if (data?.suggestWarRoom === true) {
-  showWarRoomSuggestion(Text || '');
+  showWarRoomSuggestion(String(text) || '');
 }
+
       renderMessage(
         'assistant',
         data?.reply || '<p>Sorry — I could not generate a response right now.</p>',
