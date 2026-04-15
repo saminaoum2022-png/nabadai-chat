@@ -2060,7 +2060,7 @@
 
   function renderInitialState() {
     refs.messages.innerHTML = '';
-    if (!state.onboarded && !state.messages.length) {
+    if (!state.onboarded) {
       renderOnboardingScreen1();
       return;
     }
@@ -2537,7 +2537,17 @@ popup.querySelector('#nabad-opt-warroom').addEventListener('click', () => {
     popup.remove();
     confirmAction('Clear everything Nabad knows about you?', () => {
       state.userProfile = {};
+      state.messages = [];
+      state.personalityChosen = false;
+      state.onboarded = false;
+      state.onboardingPath = null;
+      state.onboardingAnswers = {};
       saveUserProfile({});
+      saveMessages([]);
+      savePersonality(null);
+      saveOnboarded(false);
+      refs.messages.innerHTML = '';
+      renderOnboardingScreen1();
     });
   });
 
