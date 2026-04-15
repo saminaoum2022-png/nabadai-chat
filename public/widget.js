@@ -1881,6 +1881,98 @@
   margin-bottom: 0;
 }
 
+          /* ── Morning Brief ── */
+      #nabad-morning-brief {
+        padding: 0 0 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        animation: nabadBotAppear 0.4s ease-out both;
+      }
+      .nabad-brief-hero {
+        background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 55%, #0e7490 100%);
+        border-radius: 0 0 28px 28px;
+        padding: 28px 20px 24px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .nabad-brief-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at 60% 40%, rgba(37,99,235,0.3) 0%, transparent 65%);
+        pointer-events: none;
+      }
+      .nabad-brief-date {
+        font-size: 11px;
+        color: rgba(255,255,255,0.5);
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 8px;
+      }
+      .nabad-brief-title {
+        font-size: 24px;
+        font-weight: 900;
+        color: #fff;
+        margin-bottom: 8px;
+        letter-spacing: -0.3px;
+      }
+      .nabad-brief-subtitle {
+        font-size: 13px;
+        color: rgba(255,255,255,0.6);
+      }
+      .nabad-brief-greeting {
+        font-size: 14px;
+        color: rgba(255,255,255,0.85);
+        line-height: 1.5;
+        margin-top: 6px;
+      }
+      .nabad-brief-loading {
+        text-align: center;
+        padding: 24px;
+      }
+      .nabad-brief-card {
+        margin: 0 14px;
+        background: #fff;
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 0 4px 18px rgba(15,23,42,0.08);
+        border: 1px solid rgba(15,23,42,0.06);
+      }
+      .nabad-brief-card-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #94a3b8;
+        margin-bottom: 8px;
+      }
+      .nabad-brief-card-text {
+        font-size: 14px;
+        color: #1e293b;
+        line-height: 1.6;
+        font-weight: 500;
+      }
+      .nabad-brief-focus { border-left: 3px solid #2563eb; }
+      .nabad-brief-pulse { border-left: 3px solid #f59e0b; }
+      .nabad-brief-question {
+        border-left: 3px solid #10b981;
+        background: linear-gradient(135deg, #f0fdf4, #fff);
+      }
+      .nabad-brief-q-text {
+        font-style: italic;
+        font-size: 15px;
+        font-weight: 700;
+        color: #0f172a;
+      }
+      .nabad-brief-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 0 14px;
+        margin-top: 4px;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -2906,106 +2998,6 @@ function showWarRoomSuggestion(triggerMessage = '') {
     setTimeout(() => suggestion.remove(), 300);
   }, 8000);
 }
-
-/* ── Morning Brief ── */
-#nabad-morning-brief {
-  padding: 0 0 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  animation: nabadBotAppear 0.4s ease-out both;
-}
-.nabad-brief-hero {
-  background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 55%, #0e7490 100%);
-  border-radius: 0 0 28px 28px;
-  padding: 28px 20px 24px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-.nabad-brief-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 60% 40%, rgba(37,99,235,0.3) 0%, transparent 65%);
-  pointer-events: none;
-}
-.nabad-brief-date {
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  margin-bottom: 8px;
-}
-.nabad-brief-title {
-  font-size: 24px;
-  font-weight: 900;
-  color: #fff;
-  margin-bottom: 8px;
-  letter-spacing: -0.3px;
-}
-.nabad-brief-subtitle {
-  font-size: 13px;
-  color: rgba(255,255,255,0.6);
-}
-.nabad-brief-greeting {
-  font-size: 14px;
-  color: rgba(255,255,255,0.85);
-  line-height: 1.5;
-  margin-top: 6px;
-}
-.nabad-brief-loading {
-  text-align: center;
-  padding: 24px;
-}
-.nabad-brief-card {
-  margin: 0 14px;
-  background: #fff;
-  border-radius: 18px;
-  padding: 16px;
-  box-shadow: 0 4px 18px rgba(15,23,42,0.08);
-  border: 1px solid rgba(15,23,42,0.06);
-}
-.nabad-brief-card-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #94a3b8;
-  margin-bottom: 8px;
-}
-.nabad-brief-card-text {
-  font-size: 14px;
-  color: #1e293b;
-  line-height: 1.6;
-  font-weight: 500;
-}
-.nabad-brief-focus {
-  border-left: 3px solid #2563eb;
-}
-.nabad-brief-pulse {
-  border-left: 3px solid #f59e0b;
-}
-.nabad-brief-question {
-  border-left: 3px solid #10b981;
-  background: linear-gradient(135deg, #f0fdf4, #fff);
-}
-.nabad-brief-q-text {
-  font-style: italic;
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-}
-      .nabad-brief-actions {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        padding: 0 14px;
-        margin-top: 4px;
-      }
-    `;
-    document.head.appendChild(style);
-  }
 
   // ── NABAD DETECTED EFFECT ─────────────────────────────────────
   function triggerNabadDetected(bubbleEl) {
