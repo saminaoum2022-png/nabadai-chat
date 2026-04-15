@@ -2331,8 +2331,10 @@ function showOptionsPopup() {
   popup.className = 'nabad-options-popup';
   popup.innerHTML = `
     <button class="nabad-options-btn" id="nabad-opt-memory" type="button">🧠 What Nabad knows</button>
-    <div class="nabad-options-divider"></div>
-    <button class="nabad-options-btn" id="nabad-opt-newchat" type="button">⟳ New Chat</button>
+<div class="nabad-options-divider"></div>
+<button class="nabad-options-btn" id="nabad-opt-warroom" type="button">⚔️ War Room</button>
+<div class="nabad-options-divider"></div>
+<button class="nabad-options-btn" id="nabad-opt-newchat" type="button">⟳ New Chat</button>
     <div class="nabad-options-divider"></div>
     <button class="nabad-options-btn" id="nabad-opt-personality" type="button">🎭 Change Advisor</button>
     <div class="nabad-options-divider"></div>
@@ -2347,6 +2349,11 @@ function showOptionsPopup() {
     popup.remove();
     renderMemoryScreen();
   });
+
+popup.querySelector('#nabad-opt-warroom').addEventListener('click', () => {
+  popup.remove();
+  startWarRoom();
+});
 
   popup.querySelector('#nabad-opt-newchat').addEventListener('click', () => {
     popup.remove();
@@ -2428,6 +2435,151 @@ function renderMemoryScreen() {
   });
 
   scrollToBottom();
+}
+
+// ── WAR ROOM ──────────────────────────────────────────────────
+function startWarRoom() {
+  refs.messages.innerHTML = `
+    <div id="nabad-warroom-screen">
+      <div class="nabad-wr-header">
+        <div class="nabad-wr-icon">⚔️</div>
+        <h3>War Room</h3>
+        <p>Describe your situation or decision. Three advisors will each give you their honest take.</p>
+      </div>
+      <div class="nabad-wr-input-block">
+        <textarea
+          id="nabad-warroom-input"
+          placeholder="e.g. Should I raise my prices 30% or focus on volume first? We have 200 clients and margins are tight."
+          rows="4"
+        ></textarea>
+        <button class="nabad-ob-btn" id="nabad-warroom-submit" type="button">⚔️ Run War Room</button>
+        <button class="nabad-ob-back" id="nabad-warroom-cancel" type="button">← Back to chat</button>
+      </div>
+    </div>
+  `;
+
+  refs.messages.querySelector('#nabad-warroom-submit').addEventListener('click', () => {
+    const text = refs.messages.querySelector('#nabad-warroom-input').value.trim();
+    if (!text) return;
+    runWarRoomSession(text);
+  });
+
+  refs.messages.querySelector('#nabad-warroom-cancel').addEventListener('click', backToChat);
+  scrollToBottom();
+}
+
+async function runWarRoomSession(situation) {
+  const advisors = [
+    { id: 'strategist', icon: '🧠', name: 'The Strategist', desc: 'Thinks long-term. Challenges your assumptions.' },
+    { id: 'operator',   icon: '⚙️', name: 'The Operator',   desc: 'Focused on execution. What can be done now.' },
+    { id: 'devil',      icon: '😈', name: "Devil's Advocate", desc: "Finds what everyone else is ignoring." }
+  ];
+
+  refs.messages.innerHTML = `
+    <div id="nabad-warroom-screen">
+      <div class="nabad-wr-header">
+        <div class="nabad-wr-icon">⚔️</div>
+        <h3>War Room</h3>
+        <p class="nabad-wr-situation">"${escapeHtml(situation)}"</p>
+      </div>
+      <div id="nabad-wr-advisors">
+        ${advisors.map(a => `
+          <div class="nabad-wr-card" id="nabad-wr-${a.id}">
+            <div class="nabad-wr-card-header">
+              <span class="nabad-wr-card-icon">${a.icon}</span>
+              <div>
+                <div class="nabad-wr-card-name">${a.name}</div>
+                <div class="nabad-wr-card-desc">${a.desc}</div>
+              </div>
+            </div>
+            <div class="nabad-wr-card-reply" id="nabad-wr-reply-${a.id}">
+              <span class="nabad-dots"><span></span><span></span><span></span></span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <button class="nabad-ob-back" id="nabad-warroom-back" type="button" style="margin:20px auto 8px;display:block">← Back to chat</button>
+    </div>
+  `;
+
+  refs.messages.querySelector('#nabad-warroom-back').addEventListener('click', backToChat);
+  scrollToBottom();
+
+  await Promise.all(advisors.map(a => fetchAdvisorReply(situation, a)));
+  scrollToBottom();
+}
+
+async function fetchAdvisorReply(situation, advisor) {
+  const replyEl = document.getElementById(`nabad-wr-reply-${advisor.id}`);
+  if (!replyEl) return;
+
+  const advisorInstructions = {
+    strategist: `You are The Strategist — a sharp, long-term thinker. You challenge assumptions and think about positioning, leverage, and second-order effects. Be direct, specific, and challenge the user's thinking. 3-5 sentences max. No fluff.`,
+    operator:   `You are The Operator — execution-focused and practical. You cut through theory and focus on what can actually be done in the next 30 days. Give a concrete action plan. 3-5 sentences max. No fluff.`,
+    devil:      `You are the Devil's Advocate — you find the uncomfortable truth everyone else avoids. What's the risk, the blind spot, or the thing the user is not saying? Be honest and a little provocative. 3-5 sentences max. No fluff.`
+  };
+
+  try {
+    const profileSummary = buildProfileSummary();
+    const response = await fetch(CONFIG.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: `War Room situation: ${situation}` }],
+        personality: 'auto',
+        userProfile: profileSummary,
+        warRoom: true,
+        warRoomAdvisor: advisorInstructions[advisor.id]
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    replyEl.innerHTML = data?.reply || '<p>Could not load this response.</p>';
+  } catch {
+    replyEl.innerHTML = '<p style="color:#ef4444">Failed to load — try again.</p>';
+  }
+}
+
+function backToChat() {
+  refs.messages.innerHTML = '';
+  state.messages.forEach(m => renderMessage(m.role, m.content, false));
+  scrollToBottom();
+}
+
+function showWarRoomSuggestion() {
+  const existing = document.getElementById('nabad-warroom-suggestion');
+  if (existing) return;
+
+  const panel = document.getElementById('nabad-panel');
+  if (!panel) return;
+
+  const suggestion = document.createElement('div');
+  suggestion.id = 'nabad-warroom-suggestion';
+  suggestion.innerHTML = `
+    <span>⚔️ Sounds like a big decision — run a War Room?</span>
+    <button id="nabad-warroom-yes" type="button">Let's go</button>
+    <button id="nabad-warroom-dismiss" type="button">✕</button>
+  `;
+
+  const inputWrap = document.getElementById('nabad-input-wrap');
+  panel.insertBefore(suggestion, inputWrap);
+
+  setTimeout(() => suggestion.classList.add('show'), 50);
+
+  suggestion.querySelector('#nabad-warroom-yes').addEventListener('click', () => {
+    suggestion.remove();
+    startWarRoom();
+  });
+
+  suggestion.querySelector('#nabad-warroom-dismiss').addEventListener('click', () => {
+    suggestion.classList.remove('show');
+    setTimeout(() => suggestion.remove(), 300);
+  });
+
+  setTimeout(() => {
+    suggestion.classList.remove('show');
+    setTimeout(() => suggestion.remove(), 300);
+  }, 8000);
 }
 
 // ── NABAD DETECTED EFFECT ─────────────────────────────────────
@@ -2517,9 +2669,15 @@ function triggerNabadDetected(bubbleEl) {
       if (!response.ok) throw new Error(data?.reply || 'Request failed');
 
       // ── Nabad detected meaningful info ──
-      if (data?.detectedInfo === true) {
-        triggerNabadDetected(userBubble);
-      }
+      // ── Nabad detected meaningful info ──
+if (data?.detectedInfo === true) {
+  triggerNabadDetected(userBubble);
+}
+
+// ── War Room suggestion ──
+if (data?.suggestWarRoom === true) {
+  showWarRoomSuggestion();
+}
 
       renderMessage(
         'assistant',
