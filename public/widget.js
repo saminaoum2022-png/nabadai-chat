@@ -1771,6 +1771,115 @@
   flex-shrink: 0;
 }
 
+/* ── War Room Screen ── */
+#nabad-warroom-screen {
+  padding: 8px 4px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.nabad-wr-header {
+  text-align: center;
+  padding: 12px 0 4px;
+}
+.nabad-wr-icon {
+  font-size: 32px;
+  margin-bottom: 6px;
+}
+.nabad-wr-header h3 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px;
+}
+.nabad-wr-header p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+.nabad-wr-situation {
+  font-size: 13px !important;
+  font-style: italic;
+  color: #2563eb !important;
+  background: rgba(37,99,235,0.06);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-top: 6px !important;
+}
+.nabad-wr-input-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nabad-wr-input-block textarea {
+  width: 100%;
+  border: 1px solid rgba(37,99,235,0.18);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #0f172a;
+  resize: none;
+  outline: none;
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 0 8px rgba(37,99,235,0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+.nabad-wr-input-block textarea:focus {
+  border-color: rgba(37,99,235,0.35);
+  box-shadow: 0 0 12px rgba(37,99,235,0.16);
+}
+#nabad-wr-advisors {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.nabad-wr-card {
+  background: rgba(255,255,255,0.98);
+  border: 1px solid rgba(37,99,235,0.10);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 4px 18px rgba(15,23,42,0.07);
+  animation: nabadBotAppear 0.35s ease-out both;
+}
+.nabad-wr-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.nabad-wr-card-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.nabad-wr-card-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+.nabad-wr-card-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+.nabad-wr-card-reply {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.6;
+  padding-top: 4px;
+  border-top: 1px solid rgba(15,23,42,0.06);
+}
+.nabad-wr-card-reply p {
+  margin: 0 0 8px;
+}
+.nabad-wr-card-reply p:last-child {
+  margin-bottom: 0;
+}
+
     `;
     document.head.appendChild(style);
   }
