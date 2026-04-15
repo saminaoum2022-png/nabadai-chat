@@ -1391,56 +1391,69 @@ Reply: "<p>Everyone wants to — which means the ones that win are <strong>insan
   // CHANGE 2 & 3 — userProfile line confirmed present; main prompt instructs Nabad to use it naturally
 const isWarRoom = body?.warRoom === true;
 const warRoomAdvisor = body?.warRoomAdvisor || null;
-  const systemPromptParts = [
-    `You are NabadAI — a founder who has built and scaled businesses. You give real, direct advice in plain language. You are NOT an assistant. You do NOT over-explain. You challenge assumptions and tell people what they need to hear, not what they want to hear. You have energy, edge, and genuine opinions.
+
+// ── TIMING INTELLIGENCE ──────────────────────────────────────
+const now = new Date();
+const timeHour = now.getHours();
+const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+const fullDate = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+const monthNum = now.getMonth() + 1;
+const quarter = Math.ceil(monthNum / 3);
+
+const timeOfDay =
+  timeHour >= 5  && timeHour < 12 ? 'morning'    :
+  timeHour >= 12 && timeHour < 17 ? 'afternoon'  :
+  timeHour >= 17 && timeHour < 21 ? 'evening'    : 'late night';
+
+const seasonalContext = (() => {
+  if (monthNum === 3 || monthNum === 4) return 'Q2 in the UAE — historically slower for services. Smart founders use this period to build systems, refine offers, and prepare for the Q3 surge.';
+  if (monthNum >= 6 && monthNum <= 8)   return 'Summer in the UAE — many decision-makers are travelling. Best for internal work, team building, and pipeline prep.';
+  if (monthNum === 9 || monthNum === 10) return 'September–October in UAE — one of the strongest sales windows of the year. High urgency, high activity.';
+  if (monthNum === 11 || monthNum === 12) return 'Q4 — year-end push. Budgets are being spent or frozen. Founders should be closing and planning for next year simultaneously.';
+  if (monthNum === 1 || monthNum === 2)  return 'New year energy — founders are setting targets, signing new deals, and making big decisions. High momentum window.';
+  return '';
+})();
+
+const dayContext = (() => {
+  if (dayOfWeek === 'Monday')    return 'Start of the week — the user may be planning, setting priorities, or dealing with weekend carry-over decisions.';
+  if (dayOfWeek === 'Tuesday' || dayOfWeek === 'Wednesday') return 'Mid-week — peak execution time. The user is likely heads-down building or selling.';
+  if (dayOfWeek === 'Thursday') return 'Thursday — end of UAE business week. Good day for closing, reviewing, and making final decisions before the weekend.';
+  if (dayOfWeek === 'Friday')   return 'Friday — most of the UAE business world is winding down. Reflection and strategy over execution.';
+  if (dayOfWeek === 'Saturday') return 'Weekend — the user is either resting or doing deep work by choice. Respect their energy.';
+  if (dayOfWeek === 'Sunday')   return 'Sunday in the UAE is the start of the work week — high energy, lots of planning, inbox is full.';
+  return '';
+})();
+
+const timeContext = (() => {
+  if (timeOfDay === 'morning')    return 'It is morning — the user is fresh. They may want clarity, a plan, or momentum to start the day strong.';
+  if (timeOfDay === 'afternoon')  return 'It is afternoon — the user is in execution mode or hitting a mid-day wall. Be sharp and actionable.';
+  if (timeOfDay === 'evening')    return 'It is evening — the user is winding down or working late by choice. They may need perspective more than tactics.';
+  if (timeOfDay === 'late night') return 'It is late night — the user is either very focused or overthinking something. Be grounding, direct, and calm.';
+  return '';
+})();
+
+const timingIntelligence = `TIMING INTELLIGENCE (use this to colour your response naturally — do NOT recite it robotically):
+- Current date: ${fullDate}
+- Time of day: ${timeOfDay} (${timeHour}:00)
+- Day: ${dayContext}
+- Time: ${timeContext}
+- Season: ${seasonalContext}
+- Quarter: Q${quarter}
+Use this awareness subtly — adjust your tone, urgency, and advice to match where the user actually is in their day, week, and business year. Never say "I notice it's morning" — just let it shape how you respond.`.trim();
+// ─────────────────────────────────────────────────────────────
+
+const systemPromptParts = [
+  `You are NabadAI — a founder who has built and scaled businesses. You give real, direct advice in plain language. You are NOT an assistant. You do NOT over-explain. You challenge assumptions and tell people what they need to hear, not what they want to hear. You have energy, edge, and genuine opinions.
 
 If a user profile is provided below, use it naturally — reference their business name, revenue, idea, or challenge when it's relevant. Do NOT ask for information they already gave during onboarding. If they are at the idea stage, treat them as a co-founder validating a startup. If they are still figuring things out, act as a discovery partner helping them find their direction.`,
-    `Variation directive for this response: ${todaySeed}`,
-    (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
-    businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
-    // CHANGE 2 — userProfile injected here from onboarding answers
-    userProfile ? `User profile (from onboarding): ${userProfile}` : '',
-    proactiveIntelligence,
-    memoryContext,
-    locationContext,
-    websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
-    toneInstruction
-  ].filter(Boolean).join('\n');
-
-  try {
-    const chatMessages = [
-      { role: 'system', content: systemPromptParts },
-      ...messages.filter(m => m.role !== 'system')
-    ];
-    const baseTemp = personalityConfig.temperature || businessMode.temperature || 0.82;
-    const temperature = Math.min(1.0, baseTemp + (Math.random() * 0.1 - 0.05));
-    const maxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: chatMessages,
-      temperature,
-      max_tokens: maxTokens
-    });
-    const rawReply = completion.choices?.[0]?.message?.content || '';
-    
-    let detectedInfo = false;
-let suggestWarRoom = false;
-try {
-  detectedInfo = await detectMeaningfulInfo(lastUserMessage, openai);
-} catch {
-  detectedInfo = false;
-}
-try {
-  suggestWarRoom = await detectWarRoom(lastUserMessage, messages, userProfile || '', openai);
-} catch {
-  suggestWarRoom = false;
-}
-
-return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo, suggestWarRoom });
-  } catch (err) {
-    console.error('[GPT ERROR]', err?.message);
-    return res.status(500).json({ error: 'AI service temporarily unavailable. Please try again.' });
-  }
-}
-
-export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
+  `Variation directive for this response: ${todaySeed}`,
+  timingIntelligence,
+  (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
+  businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
+  userProfile ? `User profile (from onboarding): ${userProfile}` : '',
+  proactiveIntelligence,
+  memoryContext,
+  locationContext,
+  websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
+  toneInstruction
+].filter(Boolean).join('\n');
