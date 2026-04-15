@@ -2059,13 +2059,8 @@
     refs.badge.classList.add('show');
   }
 
-// ── MORNING BRIEF ─────────────────────────────────────────────
 function shouldShowMorningBrief() {
-  const hour = new Date().getHours();
-  const isMorning = hour >= 6 && hour < 10;
-  const isReturning = state.onboarded && state.messages.length > 0;
-  const hasProfile = state.userProfile && Object.keys(state.userProfile).length > 0;
-  return isMorning && isReturning && hasProfile && !state.briefShown;
+  return false; // temporarily disabled for testing
 }
 
 async function showMorningBrief() {
