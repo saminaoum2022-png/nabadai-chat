@@ -2152,7 +2152,7 @@
   }
 
 function shouldShowMorningBrief() {
-  return false; // temporarily disabled for testing
+  return !state.briefShown;
 }
 
 async function showMorningBrief() {
