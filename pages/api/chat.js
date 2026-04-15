@@ -1422,17 +1422,20 @@ If a user profile is provided below, use it naturally — reference their busine
       max_tokens: maxTokens
     });
     const rawReply = completion.choices?.[0]?.message?.content || '';
+    
     let detectedInfo = false;
 let suggestWarRoom = false;
 try {
-  [detectedInfo, suggestWarRoom] = await Promise.all([
-    detectMeaningfulInfo(lastUserMessage, openai),
-    detectWarRoom(lastUserMessage, messages, userProfile || '', openai)
-  ]);
+  detectedInfo = await detectMeaningfulInfo(lastUserMessage, openai);
 } catch {
   detectedInfo = false;
+}
+try {
+  suggestWarRoom = await detectWarRoom(lastUserMessage, messages, userProfile || '', openai);
+} catch {
   suggestWarRoom = false;
 }
+
 return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo, suggestWarRoom });
   } catch (err) {
     console.error('[GPT ERROR]', err?.message);
