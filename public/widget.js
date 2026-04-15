@@ -2120,27 +2120,31 @@
   }
 
   function toggleWidget(force) {
-    state.open = typeof force === 'boolean' ? force : !state.open;
-    refs.panel.classList.toggle('open', state.open);
-    refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
-    refs.root.classList.toggle('nabad-open', state.open);
+  state.open = typeof force === 'boolean' ? force : !state.open;
+  refs.panel.classList.toggle('open', state.open);
+  refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
+  refs.root.classList.toggle('nabad-open', state.open);
 
-    if (state.open) {
-      applyScrollLock();
-      setTimeout(() => {
-        if (!state.onboarded && !state.messages.length) {
-          renderOnboardingScreen1();
-          scrollToBottom();
-          return;
-        }
-        
+  if (state.open) {
+    applyScrollLock();
+    setTimeout(() => {
+      if (!state.onboarded && !state.messages.length) {
+        renderOnboardingScreen1();
         scrollToBottom();
-        if (refs.input) refs.input.focus();
-      }, 40);
-    } else {
-      releaseScrollLock();
-    }
+        return;
+      }
+      // ── Morning Brief check ──
+      if (shouldShowMorningBrief()) {
+        showMorningBrief();
+        return;
+      }
+      scrollToBottom();
+      if (refs.input) refs.input.focus();
+    }, 40);
+  } else {
+    releaseScrollLock();
   }
+}
 
   function updatePersonalityBadge() {
     if (!refs.badge) return;
