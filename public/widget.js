@@ -182,8 +182,8 @@
     catch { return false; }
   }
 
-  function saveOnboarded() {
-    try { localStorage.setItem(STORAGE_KEYS.onboarded, 'true'); }
+  function saveOnboarded(value = true) {
+    try { localStorage.setItem(STORAGE_KEYS.onboarded, String(value)); }
     catch {}
   }
 
