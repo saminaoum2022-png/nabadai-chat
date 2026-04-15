@@ -2606,7 +2606,7 @@ function renderMemoryScreen() {
 }
 
 // ── WAR ROOM ──────────────────────────────────────────────────
-function startWarRoom() {
+function startWarRoom(prefill = '') {
   state.warRoom = true;
   refs.input.disabled = true;
   refs.send.disabled = true;
@@ -2639,6 +2639,10 @@ function startWarRoom() {
   });
 
   refs.messages.querySelector('#nabad-warroom-cancel').addEventListener('click', backToChat);
+  if (prefill) {
+    const textarea = document.getElementById('nabad-warroom-input');
+    if (textarea) textarea.value = prefill;
+  }
   scrollToBottom();
 }
 
@@ -2724,7 +2728,7 @@ function backToChat() {
   scrollToBottom();
 }
 
-function showWarRoomSuggestion() {
+function showWarRoomSuggestion(triggerMessage = '') {
   if (state.warRoom) return;
   const existing = document.getElementById('nabad-warroom-suggestion');
   if (existing) return;
@@ -2747,7 +2751,7 @@ function showWarRoomSuggestion() {
 
   suggestion.querySelector('#nabad-warroom-yes').addEventListener('click', () => {
     suggestion.remove();
-    startWarRoom();
+    startWarRoom(triggerMessage);
   });
 
   suggestion.querySelector('#nabad-warroom-dismiss').addEventListener('click', () => {
@@ -2855,9 +2859,8 @@ if (data?.detectedInfo === true) {
 
 // ── War Room suggestion ──
 if (data?.suggestWarRoom === true) {
-  showWarRoomSuggestion();
+  showWarRoomSuggestion(userText || '');
 }
-
       renderMessage(
         'assistant',
         data?.reply || '<p>Sorry — I could not generate a response right now.</p>',
