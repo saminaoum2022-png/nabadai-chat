@@ -1090,7 +1090,7 @@ export default async function handler(req, res) {
   if (!lastUserMsg) return res.status(400).json({ error: 'No user message found' });
   const lastUserMessage = cleanText(getMessageText(lastUserMsg.content), 1200);
   if (!lastUserMessage) return res.status(400).json({ error: 'Empty message' });
-
+const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|scared|worried|anxious|frustrated|tired|burnout|give up|hopeless|stressed)\b/i.test(lastUserMessage);
   const selectedPersonality = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'].includes(body?.personality)
     ? body.personality : 'auto';
 
@@ -1292,13 +1292,6 @@ export default async function handler(req, res) {
       const planData = await generateActionPlan(messages, detectedLocation, openai);
       return res.status(200).json({ reply: buildActionPlanCard(planData) });
     } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message); }
-  }
-
-  // ── Business Snapshot offer ──
-  if (shouldOfferSnapshot(messages)) {
-    return res.status(200).json({
-      reply: `<p>I've got a clear picture of where you are 👀. Want me to run a quick <strong>Business Snapshot</strong> — your biggest opportunity, key risk, and one bold recommendation based on everything you've shared?</p>`
-    });
   }
 
   // CHANGE 4 — location ask now also skips if userProfile already contains location
