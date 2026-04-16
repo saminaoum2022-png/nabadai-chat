@@ -3367,13 +3367,10 @@ async function initPushNotifications() {
 }
 
 async function requestPushPermission() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    alert('Push not supported on this device');
-    return;
-  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const permission = await Notification.requestPermission();
-    if (permission !== 'granted') { alert('Permission denied: ' + permission); return; }
+    if (permission !== 'granted') return;
 
     const reg = await navigator.serviceWorker.ready;
     const subscription = await reg.pushManager.subscribe({
@@ -3384,7 +3381,7 @@ async function requestPushPermission() {
     state.pushSubscription = subscription;
     localStorage.setItem('nabad_push_sub', JSON.stringify(subscription));
 
-    const resp = await fetch('/api/notify', {
+    await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -3393,13 +3390,7 @@ async function requestPushPermission() {
         body: 'Your AI co-founder is online. Talk to me anytime.'
       })
     });
-
-    const data = await resp.json();
-    alert('Result: ' + JSON.stringify(data));
-
-  } catch(err) {
-    alert('Error: ' + err.message);
-  }
+  } catch { /* fail silently */ }
 }
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
