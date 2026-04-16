@@ -2673,7 +2673,14 @@ renderOnboardingScreen3();
     if (id) clearInterval(Number(id));
     placeholder.remove();
   }
-
+  
+function markdownToHtml(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+}
   // ── RENDER MESSAGE ────────────────────────────────────────────
   function renderMessage(role, content, persist = true) {
     const isUser = role === 'user';
@@ -2685,9 +2692,9 @@ renderOnboardingScreen3();
 
     if (isUser) {
       bubble.innerHTML = `<p>${escapeHtml(String(content || '')).replace(/\n/g, '<br>')}</p>`;
-    } else {
+        } else {
       bubble.innerHTML = sanitizeHtml(
-        String(content || '<p>Sorry — I could not generate a response.</p>')
+        markdownToHtml(String(content || '<p>Sorry — I could not generate a response.</p>'))
       );
     }
 
