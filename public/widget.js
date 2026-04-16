@@ -129,7 +129,8 @@
   userProfile: loadUserProfile(),
   onboardingPath: null,
   onboardingAnswers: {},
-  briefShown: false   // ← ADD THIS
+  briefShown: false,
+  voiceMode: false
 };
 
   const refs = {
@@ -1966,12 +1967,79 @@
         font-weight: 700;
         color: #0f172a;
       }
-      .nabad-brief-actions {
+            .nabad-brief-actions {
         display: flex;
         flex-direction: column;
         gap: 10px;
         padding: 0 14px;
         margin-top: 4px;
+      }
+
+      /* ── Voice Note ── */
+      #nabad-mic {
+        width: 44px;
+        height: 44px;
+        border: none;
+        border-radius: 16px;
+        cursor: pointer;
+        background: rgba(37,99,235,0.08);
+        color: #2563eb;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+      }
+      #nabad-mic:hover {
+        background: rgba(37,99,235,0.14);
+      }
+      #nabad-mic.recording {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: #fff;
+        animation: nabadMicPulse 1s ease-in-out infinite;
+      }
+      @keyframes nabadMicPulse {
+        0%, 100% { box-shadow: 0 0 0 0px rgba(239,68,68,0.4); }
+        50%       { box-shadow: 0 0 0 8px rgba(239,68,68,0.0); }
+      }
+      #nabad-voice-status {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        background: rgba(239,68,68,0.06);
+        border-top: 1px solid rgba(239,68,68,0.10);
+        font-size: 12px;
+        font-weight: 700;
+        color: #ef4444;
+      }
+      #nabad-voice-status.show { display: flex; }
+      .nabad-voice-timer {
+        font-size: 12px;
+        font-weight: 800;
+        color: #ef4444;
+        min-width: 32px;
+      }
+      .nabad-voice-wave {
+        display: flex;
+        gap: 3px;
+        align-items: center;
+      }
+      .nabad-voice-wave span {
+        width: 3px;
+        border-radius: 99px;
+        background: #ef4444;
+        animation: nabadWave 0.8s ease-in-out infinite;
+      }
+      .nabad-voice-wave span:nth-child(1) { height: 8px;  animation-delay: 0.0s; }
+      .nabad-voice-wave span:nth-child(2) { height: 14px; animation-delay: 0.1s; }
+      .nabad-voice-wave span:nth-child(3) { height: 10px; animation-delay: 0.2s; }
+      .nabad-voice-wave span:nth-child(4) { height: 16px; animation-delay: 0.3s; }
+      .nabad-voice-wave span:nth-child(5) { height: 8px;  animation-delay: 0.4s; }
+      @keyframes nabadWave {
+        0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
+        50%       { transform: scaleY(1.2); opacity: 1;   }
       }
     `;
     document.head.appendChild(style);
@@ -2008,9 +2076,18 @@
   </div>
 </div>
 
-        <div id="nabad-input-wrap">
+        <div id="nabad-voice-status">
+  <div class="nabad-voice-wave">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <span>Recording...</span>
+  <span class="nabad-voice-timer" id="nabad-voice-timer">0:00</span>
+  <span style="margin-left:auto;font-size:11px;opacity:0.7">Release to send</span>
+</div>
+<div id="nabad-input-wrap">
           <div id="nabad-input-row">
             <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
+            <button id="nabad-mic" type="button" aria-label="Voice note">🎙️</button>
             <button id="nabad-send" type="button" aria-label="Send">➜</button>
           </div>
         </div>
@@ -2057,7 +2134,13 @@
     root.querySelector('#nabad-new-chat').addEventListener('click', showOptionsPopup);
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
-
+    const mic = root.querySelector('#nabad-mic');
+if (mic) {
+  mic.addEventListener('mousedown', startVoiceRecording);
+  mic.addEventListener('touchstart', e => { e.preventDefault(); startVoiceRecording(); });
+  mic.addEventListener('mouseup', stopVoiceRecording);
+  mic.addEventListener('touchend', e => { e.preventDefault(); stopVoiceRecording(); });
+}
     refs.input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     });
@@ -2726,6 +2809,8 @@ function showOptionsPopup() {
   const popup = document.createElement('div');
   popup.className = 'nabad-options-popup';
   popup.innerHTML = `
+  <button class="nabad-options-btn" id="nabad-opt-voice" type="button">${state.voiceMode ? '🔇 Voice reply OFF' : '🔊 Voice reply ON'}</button>
+<div class="nabad-options-divider"></div>
     <button class="nabad-options-btn" id="nabad-opt-memory" type="button">🧠 What Nabad knows</button>
 <div class="nabad-options-divider"></div>
 <button class="nabad-options-btn" id="nabad-opt-warroom" type="button">⚔️ War Room</button>
@@ -2740,7 +2825,10 @@ function showOptionsPopup() {
   const panel = document.getElementById('nabad-panel');
   panel.appendChild(popup);
   setTimeout(() => popup.classList.add('show'), 20);
-
+  popup.querySelector('#nabad-opt-voice').addEventListener('click', () => {
+  popup.remove();
+  state.voiceMode = !state.voiceMode;
+});
   popup.querySelector('#nabad-opt-memory').addEventListener('click', () => {
     popup.remove();
     renderMemoryScreen();
@@ -3038,6 +3126,102 @@ function showWarRoomSuggestion(triggerMessage = '') {
       setTimeout(() => pill.remove(), 2600);
     }
   }
+// ── VOICE NOTES ───────────────────────────────────────────────
+let mediaRecorder = null;
+let audioChunks   = [];
+let voiceTimer    = null;
+let voiceSeconds  = 0;
+
+function startVoiceRecording() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    alert('Voice notes are not supported on this browser.');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      await transcribeAndSend(blob);
+    };
+    mediaRecorder.start();
+    const mic = document.getElementById('nabad-mic');
+    const status = document.getElementById('nabad-voice-status');
+    const timerEl = document.getElementById('nabad-voice-timer');
+    if (mic) mic.classList.add('recording');
+    if (status) status.classList.add('show');
+    voiceSeconds = 0;
+    voiceTimer = setInterval(() => {
+      voiceSeconds++;
+      const m = Math.floor(voiceSeconds / 60);
+      const s = voiceSeconds % 60;
+      if (timerEl) timerEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+      if (voiceSeconds >= 60) stopVoiceRecording();
+    }, 1000);
+  }).catch(() => {
+    alert('Microphone access denied. Please allow microphone access and try again.');
+  });
+}
+
+function stopVoiceRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+  mediaRecorder.stop();
+  clearInterval(voiceTimer);
+  const mic = document.getElementById('nabad-mic');
+  const status = document.getElementById('nabad-voice-status');
+  if (mic) mic.classList.remove('recording');
+  if (status) status.classList.remove('show');
+}
+
+async function transcribeAndSend(blob) {
+  showTyping(true);
+  try {
+    const formData = new FormData();
+    formData.append('audio', blob, 'voice-note.webm');
+    const resp = await fetch('/api/transcribe', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await resp.json().catch(() => ({}));
+    const text = data?.text?.trim();
+    if (!text) {
+      showTyping(false);
+      renderMessage('assistant', '<p>I couldn\'t make out what you said — try again 🎙️</p>', false);
+      return;
+    }
+    refs.input.value = text;
+    showTyping(false);
+    sendMessage();
+  } catch {
+    showTyping(false);
+    renderMessage('assistant', '<p>Voice note failed — try again.</p>', false);
+  }
+}
+
+async function speakReply(text = '') {
+  try {
+    const clean = text.replace(/<[^>]+>/g, '').trim().slice(0, 1000);
+    if (!clean) return;
+    const resp = await fetch('/api/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean })
+    });
+    if (!resp.ok) return;
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.play();
+    audio.onended = () => URL.revokeObjectURL(url);
+  } catch {
+    // fail silently
+  }
+}
+// ──────────────────────────────────────────────────────────────
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
   async function sendMessage() {
@@ -3100,11 +3284,10 @@ if (data?.suggestWarRoom === true) {
   showWarRoomSuggestion(String(text) || '');
 }
 
-      renderMessage(
-        'assistant',
-        data?.reply || '<p>Sorry — I could not generate a response right now.</p>',
-        true
-      );
+const replyText = data?.reply || '<p>Sorry — I could not generate a response right now.</p>';
+renderMessage('assistant', replyText, true);
+if (state.voiceMode) speakReply(replyText);
+
     } catch (err) {
       renderMessage(
         'assistant',
