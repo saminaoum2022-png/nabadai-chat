@@ -3369,8 +3369,7 @@ async function requestPushPermission() {
     const reg = await navigator.serviceWorker.ready;
     const subscription = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: BGwNhFYLt-
-66J8IctOPqc9kah_8S2VhrRjY8Uo2JjPy9-Q6NZ7oRToAvHVdarcFhU0Lc7Y5qatP6je rVjt8DWsg
+      applicationServerKey: 'BGwNhFYLt-66J8IctOPqc9kah_8S2VhrRjY8Uo2JjPy9-Q6NZ7oRToAvHVdarcFhU0Lc7Y5qatP6jerVjt8DWsg'
     });
 
     state.pushSubscription = subscription;
