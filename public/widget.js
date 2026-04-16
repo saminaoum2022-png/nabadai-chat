@@ -2739,33 +2739,77 @@ function markdownToHtml(text) {
     if (!isUser) {
       processAssistantBubble(bubble);
 
-      // ── Speaker button ──
-      const speakerBtn = document.createElement('button');
-      speakerBtn.className = 'nabad-speaker-btn';
-      speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-      speakerBtn.title = 'Tap to hear this reply';
-      speakerBtn.addEventListener('click', () => {
-        if (currentAudio && !currentAudio.paused) {
-          currentAudio.pause();
-          currentAudio = null;
-          speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-          speakerBtn.classList.remove('playing');
-        } else {
-          speakReply(content, speakerBtn);
+             // ── Speaker button ──
+    const speakerBtn = document.createElement('button');
+    speakerBtn.className = 'nabad-speaker-btn';
+    speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+    speakerBtn.title = 'Tap to hear this reply';
+    speakerBtn.addEventListener('click', () => {
+      if (currentAudio && !currentAudio.paused) {
+        currentAudio.pause();
+        currentAudio = null;
+        speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+        speakerBtn.classList.remove('playing');
+      } else {
+        speakReply(content, speakerBtn);
+      }
+    });
+
+    // ── Save to memory button ──
+    const memoryBtn = document.createElement('button');
+    memoryBtn.className = 'nabad-memory-btn';
+    memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>`;
+    memoryBtn.title = 'Save this insight to memory';
+    memoryBtn.addEventListener('click', async () => {
+      if (memoryBtn.dataset.saved === 'true') return;
+      memoryBtn.innerHTML = `<span class="nabad-loading-dots"><span></span><span></span><span></span></span>`;
+
+      try {
+        const clean = content.replace(/<[^>]+>/g, '').trim().slice(0, 500);
+        const resp = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              { role: 'user', content: `Summarize this advice in maximum 8 words, no punctuation at the end:\n\n${clean}` }
+            ],
+            personality: 'auto'
+          })
+        });
+        const data = await resp.json();
+        const summary = (data.reply || '').replace(/<[^>]+>/g, '').trim().slice(0, 80);
+
+        if (summary) {
+          const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
+          insights.push({ text: summary, date: new Date().toLocaleDateString() });
+          localStorage.setItem('nabad_insights', JSON.stringify(insights.slice(-20)));
         }
-      });
-      bubble.appendChild(speakerBtn);
-    }
 
-    if (persist) {
-      state.messages.push({ role: isUser ? 'user' : 'assistant', content: String(content || '') });
-      state.messages = state.messages.slice(-20);
-      saveMessages();
-    }
+        memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        memoryBtn.dataset.saved = 'true';
+        memoryBtn.title = 'Saved to memory!';
 
-    scrollToBottom();
-    return bubble;
+      } catch {
+        memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>`;
+      }
+    });
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'nabad-btn-row';
+    btnRow.appendChild(speakerBtn);
+    btnRow.appendChild(memoryBtn);
+    bubble.appendChild(btnRow);
   }
+
+  if (persist) {
+    state.messages.push({ role: isUser ? 'user' : 'assistant', content: String(content || '') });
+    state.messages = state.messages.slice(-20);
+    saveMessages();
+  }
+
+  scrollToBottom();
+  return bubble;
+}
 
   // ── CARD ENHANCER ─────────────────────────────────────────────
   function enhanceCards(bubble) {
@@ -2999,43 +3043,89 @@ popup.querySelector('#nabad-opt-warroom').addEventListener('click', () => {
 // ── MEMORY SCREEN ─────────────────────────────────────────────
 function renderMemoryScreen() {
   const p = state.userProfile || {};
+  const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
+
+  const svgs = {
+    path:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    business: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><path d="M8 7V5a2 2 0 0 0-4 0v2"/></svg>`,
+    sell:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+    revenue:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+    challenge:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    idea:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`,
+    customer: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    progress: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
+    blocker:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`,
+    skills:   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+    problems: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    time:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    insight:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>`,
+  };
+
   const fields = [
-    { icon: '👤', label: 'Path',         value: p.path },
-    { icon: '🏢', label: 'Business',     value: p.businessName },
-    { icon: '📦', label: 'What you sell',value: p.whatYouSell },
-    { icon: '💰', label: 'Revenue',      value: p.revenue },
-    { icon: '🎯', label: 'Challenge',    value: p.biggestChallenge },
-    { icon: '💡', label: 'Idea',         value: p.ideaSummary },
-    { icon: '👥', label: 'Customer',     value: p.targetCustomer },
-    { icon: '📈', label: 'Progress',     value: p.currentProgress },
-    { icon: '🚧', label: 'Blocker',      value: p.biggestBlock },
-    { icon: '⚡', label: 'Skills',       value: p.skills },
-    { icon: '🔍', label: 'Problems',     value: p.problems },
-    { icon: '⏰', label: 'Time',         value: p.timeCommitment },
+    { svg: svgs.path,      label: 'Path',          value: p.path },
+    { svg: svgs.business,  label: 'Business',      value: p.businessName },
+    { svg: svgs.sell,      label: 'What you sell',  value: p.whatYouSell },
+    { svg: svgs.revenue,   label: 'Revenue',        value: p.revenue },
+    { svg: svgs.challenge, label: 'Challenge',      value: p.biggestChallenge },
+    { svg: svgs.idea,      label: 'Idea',           value: p.ideaSummary },
+    { svg: svgs.customer,  label: 'Customer',       value: p.targetCustomer },
+    { svg: svgs.progress,  label: 'Progress',       value: p.currentProgress },
+    { svg: svgs.blocker,   label: 'Blocker',        value: p.biggestBlock },
+    { svg: svgs.skills,    label: 'Skills',         value: p.skills },
+    { svg: svgs.problems,  label: 'Problems',       value: p.problems },
+    { svg: svgs.time,      label: 'Time',           value: p.timeCommitment },
   ].filter(f => f.value);
 
-  const isEmpty = fields.length === 0;
+  const isEmpty = fields.length === 0 && insights.length === 0;
+
+  const cardStyle = `display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.98);border:1px solid rgba(37,99,235,0.08);border-radius:14px;box-shadow:0 4px 12px rgba(15,23,42,0.04);margin-bottom:8px;`;
+  const insightCardStyle = `display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.98);border:1px solid rgba(34,197,94,0.15);border-radius:14px;box-shadow:0 4px 12px rgba(15,23,42,0.04);margin-bottom:8px;`;
+  const labelStyle = `font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#94a3b8;margin-bottom:3px;`;
+  const valueStyle = `font-size:14px;font-weight:600;color:#0f172a;line-height:1.4;`;
 
   refs.messages.innerHTML = `
     <div id="nabad-onboarding">
-      <h3>🧠 What Nabad knows</h3>
+      <h3 style="display:flex;align-items:center;gap:8px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg>
+        What Nabad knows
+      </h3>
       <p>${isEmpty
         ? "Nabad doesn't know anything about you yet. Start chatting to let Nabad learn!"
         : "Here's what Nabad has learned about you so far."
       }</p>
-      ${!isEmpty ? `
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;overflow-y:auto;max-height:60vh;padding-bottom:8px;">
+
+      ${fields.length > 0 ? `
+        <div style="display:flex;flex-direction:column;gap:0;margin-top:4px;overflow-y:auto;max-height:55vh;padding-bottom:8px;">
           ${fields.map(f => `
-            <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.98);border:1px solid rgba(37,99,235,0.08);border-radius:14px;box-shadow:0 4px 12px rgba(15,23,42,0.04);">
-              <span style="font-size:18px;flex-shrink:0">${f.icon}</span>
+            <div style="${cardStyle}">
+              <span style="flex-shrink:0;margin-top:2px;">${f.svg}</span>
               <div>
-                <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#94a3b8;margin-bottom:3px">${escapeHtml(f.label)}</div>
-                <div style="font-size:14px;font-weight:600;color:#0f172a;line-height:1.4">${escapeHtml(f.value)}</div>
+                <div style="${labelStyle}">${escapeHtml(f.label)}</div>
+                <div style="${valueStyle}">${escapeHtml(f.value)}</div>
               </div>
             </div>
           `).join('')}
         </div>
       ` : ''}
+
+      ${insights.length > 0 ? `
+        <div style="margin-top:12px;">
+          <div style="${labelStyle}padding-left:2px;margin-bottom:8px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;margin-right:4px;"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            Saved Insights
+          </div>
+          ${insights.map(i => `
+            <div style="${insightCardStyle}">
+              <span style="flex-shrink:0;margin-top:2px;">${svgs.insight}</span>
+              <div>
+                <div style="${labelStyle}">${escapeHtml(i.date)}</div>
+                <div style="${valueStyle}">${escapeHtml(i.text)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
       <button class="nabad-ob-back" id="nabad-memory-back" type="button" style="margin-top:16px">← Back to chat</button>
     </div>
   `;
