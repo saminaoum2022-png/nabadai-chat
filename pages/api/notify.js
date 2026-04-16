@@ -1,7 +1,7 @@
 import webpush from 'web-push';//FIX
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
+const supabase = createClient(//reconnected
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 ); 
