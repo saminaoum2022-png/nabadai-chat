@@ -2042,7 +2042,7 @@
         0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
         50%       { transform: scaleY(1.2); opacity: 1;   }
       }
-            /* ── Speaker Button ── */
+          /* ── Speaker Button ── */
       .nabad-speaker-btn {
         display: inline-flex;
         align-items: center;
@@ -2085,7 +2085,7 @@
       .nabad-wave-anim span:nth-child(3) { height: 14px; animation-delay: 0.2s; }
       .nabad-wave-anim span:nth-child(4) { height: 10px; animation-delay: 0.3s; }
       .nabad-wave-anim span:nth-child(5) { height: 4px;  animation-delay: 0.4s; }
-            @keyframes nabadSpeakerWave {
+      @keyframes nabadSpeakerWave {
         0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
         50%       { transform: scaleY(1.2); opacity: 1;   }
       }
@@ -2111,6 +2111,38 @@
       @keyframes nabadDotPulse {
         0%, 100% { transform: scale(0.6); opacity: 0.4; }
         50%       { transform: scale(1.4); opacity: 1; }
+      }
+
+      /* ── Button row ── */
+      .nabad-btn-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      /* ── Memory button ── */
+      .nabad-memory-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 8px;
+        padding: 4px 10px;
+        border: 1px solid rgba(37,99,235,0.15);
+        border-radius: 20px;
+        background: rgba(37,99,235,0.05);
+        color: #2563eb;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        gap: 5px;
+      }
+      .nabad-memory-btn:hover {
+        background: rgba(37,99,235,0.12);
+        border-color: rgba(37,99,235,0.3);
+      }
+      .nabad-memory-btn[data-saved="true"] {
+        border-color: rgba(34,197,94,0.3);
+        background: rgba(34,197,94,0.08);
       }
     `;
     document.head.appendChild(style);
