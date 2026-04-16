@@ -74,27 +74,26 @@
   { id: 'auto',          icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,          title: 'Let Nabad choose',    desc: 'Automatically adapt based on your goal' }
 ];
 
-  // ── [OB-1] ONBOARDING PATHS ──────────────────────────────────
   const ONBOARDING_PATHS = [
-    {
-      id: 'existing',
-      icon: '🚀',
-      title: 'I have a business',
-      desc: 'Help me grow, fix problems, and scale it'
-    },
-    {
-      id: 'idea',
-      icon: '💡',
-      title: 'I have an idea',
-      desc: 'Help me validate and build it from scratch'
-    },
-    {
-      id: 'figuring',
-      icon: '🔍',
-      title: "I'm still figuring it out",
-      desc: 'Help me find the right direction for me'
-    }
-  ];
+  {
+    id: 'existing',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
+    title: 'I have a business',
+    desc: 'Help me grow, fix problems, and scale it'
+  },
+  {
+    id: 'idea',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`,
+    title: 'I have an idea',
+    desc: 'Help me validate and build it from scratch'
+  },
+  {
+    id: 'figuring',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
+    title: "I'm still figuring it out",
+    desc: 'Help me find the right direction for me'
+  }
+];
 
   const ONBOARDING_QUESTIONS = {
     existing: [
@@ -2506,45 +2505,48 @@ Time: ${hour}:00`
   scrollToBottom();
 }
 
-  // ── [OB-1] ONBOARDING SCREEN 1 — Path selection ─────────────
   function renderOnboardingScreen1() {
-    refs.messages.innerHTML = `
-      <div id="nabad-onboarding">
-        <div class="nabad-ob-progress">
-          <div class="nabad-ob-dot active"></div>
-          <div class="nabad-ob-dot"></div>
-          <div class="nabad-ob-dot"></div>
-        </div>
-        <h3>Welcome to Nabad 👋</h3>
-        <p>Where are you at right now?</p>
-        <div class="nabad-path-grid">
-          ${ONBOARDING_PATHS.map(p => `
-            <button class="nabad-path-card" data-path="${p.id}" type="button">
-              <div class="nabad-path-icon">${p.icon}</div>
-              <div class="nabad-path-text">
-                <div class="nabad-path-title">${escapeHtml(p.title)}</div>
-                <div class="nabad-path-desc">${escapeHtml(p.desc)}</div>
-              </div>
-              <div class="nabad-path-arrow">›</div>
-            </button>
-          `).join('')}
-        </div>
+  // Hide input bar on onboarding
+  document.getElementById('nabad-input-wrap').style.display = 'none';
+
+  refs.messages.innerHTML = `
+    <div id="nabad-onboarding">
+      <div class="nabad-ob-progress">
+        <div class="nabad-ob-dot active"></div>
+        <div class="nabad-ob-dot"></div>
+        <div class="nabad-ob-dot"></div>
       </div>
-    `;
+      <h3>Welcome to Nabad 👋</h3>
+      <p>Where are you at right now?</p>
+      <div class="nabad-path-grid">
+        ${ONBOARDING_PATHS.map(p => `
+          <button class="nabad-path-card" data-path="${p.id}" type="button">
+            <div class="nabad-path-icon">${p.icon}</div>
+            <div class="nabad-path-text">
+              <div class="nabad-path-title">${escapeHtml(p.title)}</div>
+              <div class="nabad-path-desc">${escapeHtml(p.desc)}</div>
+            </div>
+            <div class="nabad-path-arrow">›</div>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
 
-    refs.messages.querySelectorAll('.nabad-path-card').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.onboardingPath = btn.getAttribute('data-path');
-        state.onboardingAnswers = { path: state.onboardingPath };
-        renderOnboardingScreen2();
-      });
+  refs.messages.querySelectorAll('.nabad-path-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.onboardingPath = btn.getAttribute('data-path');
+      state.onboardingAnswers = { path: state.onboardingPath };
+      renderOnboardingScreen2();
     });
+  });
 
-    scrollToBottom();
-  }
+  scrollToBottom();
+}
 
   // ── [OB-1] ONBOARDING SCREEN 2 — Profile questions ──────────
   function renderOnboardingScreen2() {
+    document.getElementById('nabad-input-wrap').style.display = 'none';
     const questions = ONBOARDING_QUESTIONS[state.onboardingPath] || ONBOARDING_QUESTIONS.existing;
     const pathMeta  = ONBOARDING_PATHS.find(p => p.id === state.onboardingPath);
 
@@ -2646,6 +2648,7 @@ renderOnboardingScreen3();
   }
 
   function renderOnboardingScreen3() {
+    document.getElementById('nabad-input-wrap').style.display = 'none';
     refs.messages.innerHTML = `
       <div id="nabad-onboarding">
         <div class="nabad-ob-progress">
@@ -2750,6 +2753,8 @@ function markdownToHtml(text) {
 }
   // ── RENDER MESSAGE ────────────────────────────────────────────
   function renderMessage(role, content, persist = true) {
+    // Show input bar when chat starts
+document.getElementById('nabad-input-wrap').style.display = 'flex';
     const isUser = role === 'user';
     const msg    = document.createElement('div');
     msg.className = `nabad-msg ${isUser ? 'user' : 'bot'}`;
