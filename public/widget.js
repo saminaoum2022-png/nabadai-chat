@@ -130,7 +130,8 @@
   onboardingPath: null,
   onboardingAnswers: {},
   briefShown: false,
-  voiceMode: false
+  voiceMode: false,
+  pushSubscription: null
 };
 
   const refs = {
@@ -3346,6 +3347,48 @@ async function speakReply(text = '', speakerBtn = null) {
 }
 // ──────────────────────────────────────────────────────────────
 
+// ── PUSH NOTIFICATIONS ────────────────────────────────────────
+async function initPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) {
+      state.pushSubscription = existing;
+      localStorage.setItem('nabad_push_sub', JSON.stringify(existing));
+    }
+  } catch { /* fail silently */ }
+}
+
+async function requestPushPermission() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: BGwNhFYLt-
+66J8IctOPqc9kah_8S2VhrRjY8Uo2JjPy9-Q6NZ7oRToAvHVdarcFhU0Lc7Y5qatP6je rVjt8DWsg
+    });
+
+    state.pushSubscription = subscription;
+    localStorage.setItem('nabad_push_sub', JSON.stringify(subscription));
+
+    // Send welcome notification
+    await fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscription,
+        title: '🔥 Nabad is ready',
+        body: 'Your AI co-founder is online. Talk to me anytime.'
+      })
+    });
+  } catch { /* fail silently */ }
+}
+
   // ── SEND MESSAGE ──────────────────────────────────────────────
   async function sendMessage() {
     if (state.sending) return;
@@ -3415,7 +3458,7 @@ if (state.voiceMode) {
   speakReply(replyText, speakerBtn);
 }
 
-    } catch (err) {
+        } catch (err) {
       renderMessage(
         'assistant',
         `<h3>Sorry — something went wrong</h3><p>Please try again in a moment.</p>`,
@@ -3423,6 +3466,10 @@ if (state.voiceMode) {
       );
       console.error('[NABAD WIDGET ERROR]', err);
     } finally {
+      // Ask for push permission after first message
+      if (!state.pushSubscription && state.messages.length === 1) {
+        setTimeout(() => requestPushPermission(), 2000);
+      }
       state.sending = false;
       showTyping(false);
       refs.input.focus();
@@ -3432,6 +3479,7 @@ if (state.voiceMode) {
   // ── INIT ──────────────────────────────────────────────────────
   function init() {
     injectStyles();
+    initPushNotifications();
     buildShell();
     window.__NABAD_OPEN_WIDGET__  = () => toggleWidget(true);
     window.__NABAD_CLOSE_WIDGET__ = () => toggleWidget(false);
