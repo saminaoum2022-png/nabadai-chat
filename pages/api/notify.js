@@ -5,7 +5,6 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 ); 
-
 webpush.setVapidDetails(
   'mailto:' + process.env.VAPID_EMAIL,
   process.env.VAPID_PUBLIC_KEY,
