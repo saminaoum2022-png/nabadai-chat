@@ -1302,6 +1302,7 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
     !detectedLocation &&
     !profileHasLocation &&
     !locationAlreadyAsked(messages) &&
+    !isEmotional &&
     !YES_PATTERN.test(lastUserMessage.trim()) &&
     !shouldGenerateImage(lastUserMessage, messages)
   ) {
