@@ -2135,8 +2135,20 @@
 <div id="nabad-input-wrap">
           <div id="nabad-input-row">
             <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
-            <button id="nabad-mic" type="button" aria-label="Voice note">🎙️</button>
-            <button id="nabad-send" type="button" aria-label="Send">➜</button>
+            <button id="nabad-mic" type="button" aria-label="Voice note">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="2" width="6" height="12" rx="3"/>
+    <path d="M5 10a7 7 0 0 0 14 0"/>
+    <line x1="12" y1="19" x2="12" y2="22"/>
+    <line x1="8" y1="22" x2="16" y2="22"/>
+  </svg>
+</button>
+            <button id="nabad-send" type="button" aria-label="Send">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+</button>
           </div>
         </div>
       </div>
@@ -2707,13 +2719,13 @@ function markdownToHtml(text) {
       // ── Speaker button ──
       const speakerBtn = document.createElement('button');
       speakerBtn.className = 'nabad-speaker-btn';
-      speakerBtn.innerHTML = '🔊';
+      speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
       speakerBtn.title = 'Tap to hear this reply';
       speakerBtn.addEventListener('click', () => {
         if (currentAudio && !currentAudio.paused) {
           currentAudio.pause();
           currentAudio = null;
-          speakerBtn.innerHTML = '🔊';
+          speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
           speakerBtn.classList.remove('playing');
         } else {
           speakReply(content, speakerBtn);
@@ -3318,7 +3330,8 @@ async function speakReply(text = '', speakerBtn = null) {
     });
 
     if (!resp.ok) {
-      if (speakerBtn) { speakerBtn.innerHTML = '🔊'; speakerBtn.classList.remove('playing'); }
+      if (speakerBtn) { speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+}
       return;
     }
 
@@ -3340,7 +3353,7 @@ async function speakReply(text = '', speakerBtn = null) {
       URL.revokeObjectURL(url);
       currentAudio = null;
       if (speakerBtn) {
-        speakerBtn.innerHTML = '🔊';
+        speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
         speakerBtn.classList.remove('playing');
       }
     };
@@ -3349,13 +3362,14 @@ async function speakReply(text = '', speakerBtn = null) {
       URL.revokeObjectURL(url);
       currentAudio = null;
       if (speakerBtn) {
-        speakerBtn.innerHTML = '🔊';
+        speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
         speakerBtn.classList.remove('playing');
       }
     };
 
   } catch {
-    if (speakerBtn) { speakerBtn.innerHTML = '🔊'; speakerBtn.classList.remove('playing'); }
+    if (speakerBtn) { speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+}
   }
 }
 // ──────────────────────────────────────────────────────────────
