@@ -2082,7 +2082,7 @@
   </div>
   <span>Recording...</span>
   <span class="nabad-voice-timer" id="nabad-voice-timer">0:00</span>
-  <span style="margin-left:auto;font-size:11px;opacity:0.7">Release to send</span>
+  <span style="margin-left:auto;font-size:11px;opacity:0.7">Tap again to send</span>
 </div>
 <div id="nabad-input-wrap">
           <div id="nabad-input-row">
@@ -2136,26 +2136,12 @@
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
     const mic = root.querySelector('#nabad-mic');
 if (mic) {
-  let isRecording = false;
-  mic.addEventListener('touchstart', e => {
-    e.preventDefault();
-    if (isRecording) return;
-    isRecording = true;
-    startVoiceRecording();
-  });
-  mic.addEventListener('touchend', e => {
-    e.preventDefault();
-    isRecording = false;
-    stopVoiceRecording();
-  });
-  mic.addEventListener('mousedown', () => {
-    if (isRecording) return;
-    isRecording = true;
-    startVoiceRecording();
-  });
-  mic.addEventListener('mouseup', () => {
-    isRecording = false;
-    stopVoiceRecording();
+  mic.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      stopVoiceRecording();
+    } else {
+      startVoiceRecording();
+    }
   });
 }
     refs.input.addEventListener('keydown', e => {
