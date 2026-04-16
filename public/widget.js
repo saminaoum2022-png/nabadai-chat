@@ -2085,9 +2085,32 @@
       .nabad-wave-anim span:nth-child(3) { height: 14px; animation-delay: 0.2s; }
       .nabad-wave-anim span:nth-child(4) { height: 10px; animation-delay: 0.3s; }
       .nabad-wave-anim span:nth-child(5) { height: 4px;  animation-delay: 0.4s; }
-      @keyframes nabadSpeakerWave {
+            @keyframes nabadSpeakerWave {
         0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
         50%       { transform: scaleY(1.2); opacity: 1;   }
+      }
+
+      /* ── Speaker loading dots ── */
+      .nabad-loading-dots {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        height: 14px;
+      }
+      .nabad-loading-dots span {
+        display: block;
+        width: 3px;
+        height: 3px;
+        border-radius: 50%;
+        background: #2563eb;
+        animation: nabadDotPulse 1s ease-in-out infinite;
+      }
+      .nabad-loading-dots span:nth-child(1) { animation-delay: 0.0s; }
+      .nabad-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+      .nabad-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes nabadDotPulse {
+        0%, 100% { transform: scale(0.6); opacity: 0.4; }
+        50%       { transform: scale(1.4); opacity: 1; }
       }
     `;
     document.head.appendChild(style);
@@ -3314,12 +3337,12 @@ async function speakReply(text = '', speakerBtn = null) {
 
     // Reset all speaker buttons to idle
     document.querySelectorAll('.nabad-speaker-btn').forEach(b => {
-      b.innerHTML = '🔊';
-      b.classList.remove('playing');
-    });
+  b.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+  b.classList.remove('playing');
+});
 
     if (speakerBtn) {
-      speakerBtn.innerHTML = '⏳';
+      speakerBtn.innerHTML = `<span class="nabad-loading-dots"><span></span><span></span><span></span></span>`;
       speakerBtn.classList.add('playing');
     }
 
