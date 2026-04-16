@@ -2879,6 +2879,8 @@ function showOptionsPopup() {
   const popup = document.createElement('div');
   popup.className = 'nabad-options-popup';
   popup.innerHTML = `
+  <button class="nabad-options-btn" id="nabad-opt-notify" type="button">🔔 Enable Notifications</button>
+<div class="nabad-options-divider"></div>
   <button class="nabad-options-btn" id="nabad-opt-voice" type="button">${state.voiceMode ? '🔇 Voice reply OFF' : '🔊 Voice reply ON'}</button>
 <div class="nabad-options-divider"></div>
     <button class="nabad-options-btn" id="nabad-opt-memory" type="button">🧠 What Nabad knows</button>
@@ -2895,6 +2897,10 @@ function showOptionsPopup() {
   const panel = document.getElementById('nabad-panel');
   panel.appendChild(popup);
   setTimeout(() => popup.classList.add('show'), 20);
+  popup.querySelector('#nabad-opt-notify').addEventListener('click', () => {
+  popup.remove();
+  requestPushPermission();
+});
   popup.querySelector('#nabad-opt-voice').addEventListener('click', () => {
   popup.remove();
   state.voiceMode = !state.voiceMode;
