@@ -2136,10 +2136,27 @@
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
     const mic = root.querySelector('#nabad-mic');
 if (mic) {
-  mic.addEventListener('mousedown', startVoiceRecording);
-  mic.addEventListener('touchstart', e => { e.preventDefault(); startVoiceRecording(); });
-  mic.addEventListener('mouseup', stopVoiceRecording);
-  mic.addEventListener('touchend', e => { e.preventDefault(); stopVoiceRecording(); });
+  let isRecording = false;
+  mic.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (isRecording) return;
+    isRecording = true;
+    startVoiceRecording();
+  });
+  mic.addEventListener('touchend', e => {
+    e.preventDefault();
+    isRecording = false;
+    stopVoiceRecording();
+  });
+  mic.addEventListener('mousedown', () => {
+    if (isRecording) return;
+    isRecording = true;
+    startVoiceRecording();
+  });
+  mic.addEventListener('mouseup', () => {
+    isRecording = false;
+    stopVoiceRecording();
+  });
 }
     refs.input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -3145,7 +3162,8 @@ function startVoiceRecording() {
     };
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const blob = new Blob(audioChunks, { type: mimeType });
       await transcribeAndSend(blob);
     };
     mediaRecorder.start();
@@ -3181,7 +3199,8 @@ async function transcribeAndSend(blob) {
   showTyping(true);
   try {
     const formData = new FormData();
-    formData.append('audio', blob, 'voice-note.webm');
+    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+formData.append('audio', blob, `voice-note.${ext}`);
     const resp = await fetch('/api/transcribe', {
       method: 'POST',
       body: formData
