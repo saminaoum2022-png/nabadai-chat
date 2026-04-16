@@ -3024,7 +3024,7 @@ function renderMemoryScreen() {
         : "Here's what Nabad has learned about you so far."
       }</p>
       ${!isEmpty ? `
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;overflow-y:auto;max-height:60vh;padding-bottom:8px;">
           ${fields.map(f => `
             <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.98);border:1px solid rgba(37,99,235,0.08);border-radius:14px;box-shadow:0 4px 12px rgba(15,23,42,0.04);">
               <span style="font-size:18px;flex-shrink:0">${f.icon}</span>
