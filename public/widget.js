@@ -2041,6 +2041,53 @@
         0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
         50%       { transform: scaleY(1.2); opacity: 1;   }
       }
+            /* ── Speaker Button ── */
+      .nabad-speaker-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 8px;
+        padding: 4px 10px;
+        border: 1px solid rgba(37,99,235,0.15);
+        border-radius: 20px;
+        background: rgba(37,99,235,0.05);
+        color: #2563eb;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        gap: 5px;
+      }
+      .nabad-speaker-btn:hover {
+        background: rgba(37,99,235,0.12);
+        border-color: rgba(37,99,235,0.3);
+      }
+      .nabad-speaker-btn.playing {
+        background: rgba(37,99,235,0.12);
+        border-color: rgba(37,99,235,0.3);
+        color: #1d4ed8;
+      }
+      .nabad-wave-anim {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        height: 14px;
+      }
+      .nabad-wave-anim span {
+        display: block;
+        width: 3px;
+        border-radius: 99px;
+        background: #2563eb;
+        animation: nabadSpeakerWave 0.8s ease-in-out infinite;
+      }
+      .nabad-wave-anim span:nth-child(1) { height: 4px;  animation-delay: 0.0s; }
+      .nabad-wave-anim span:nth-child(2) { height: 10px; animation-delay: 0.1s; }
+      .nabad-wave-anim span:nth-child(3) { height: 14px; animation-delay: 0.2s; }
+      .nabad-wave-anim span:nth-child(4) { height: 10px; animation-delay: 0.3s; }
+      .nabad-wave-anim span:nth-child(5) { height: 4px;  animation-delay: 0.4s; }
+      @keyframes nabadSpeakerWave {
+        0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
+        50%       { transform: scaleY(1.2); opacity: 1;   }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -2643,10 +2690,29 @@ renderOnboardingScreen3();
       );
     }
 
-    msg.appendChild(bubble);
+        msg.appendChild(bubble);
     refs.messages.appendChild(msg);
 
-    if (!isUser) processAssistantBubble(bubble);
+    if (!isUser) {
+      processAssistantBubble(bubble);
+
+      // ── Speaker button ──
+      const speakerBtn = document.createElement('button');
+      speakerBtn.className = 'nabad-speaker-btn';
+      speakerBtn.innerHTML = '🔊';
+      speakerBtn.title = 'Tap to hear this reply';
+      speakerBtn.addEventListener('click', () => {
+        if (currentAudio && !currentAudio.paused) {
+          currentAudio.pause();
+          currentAudio = null;
+          speakerBtn.innerHTML = '🔊';
+          speakerBtn.classList.remove('playing');
+        } else {
+          speakReply(content, speakerBtn);
+        }
+      });
+      bubble.appendChild(speakerBtn);
+    }
 
     if (persist) {
       state.messages.push({ role: isUser ? 'user' : 'assistant', content: String(content || '') });
@@ -3207,23 +3273,75 @@ formData.append('audio', blob, `voice-note.${ext}`);
   }
 }
 
-async function speakReply(text = '') {
+let currentAudio = null;
+
+async function speakReply(text = '', speakerBtn = null) {
   try {
     const clean = text.replace(/<[^>]+>/g, '').trim().slice(0, 1000);
     if (!clean) return;
+
+    // Stop any currently playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+
+    // Reset all speaker buttons to idle
+    document.querySelectorAll('.nabad-speaker-btn').forEach(b => {
+      b.innerHTML = '🔊';
+      b.classList.remove('playing');
+    });
+
+    if (speakerBtn) {
+      speakerBtn.innerHTML = '⏳';
+      speakerBtn.classList.add('playing');
+    }
+
     const resp = await fetch('/api/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: clean })
     });
-    if (!resp.ok) return;
+
+    if (!resp.ok) {
+      if (speakerBtn) { speakerBtn.innerHTML = '🔊'; speakerBtn.classList.remove('playing'); }
+      return;
+    }
+
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
+    currentAudio = audio;
+
+    if (speakerBtn) {
+      speakerBtn.innerHTML = `
+        <span class="nabad-wave-anim">
+          <span></span><span></span><span></span><span></span><span></span>
+        </span>`;
+    }
+
     audio.play();
-    audio.onended = () => URL.revokeObjectURL(url);
+
+    audio.onended = () => {
+      URL.revokeObjectURL(url);
+      currentAudio = null;
+      if (speakerBtn) {
+        speakerBtn.innerHTML = '🔊';
+        speakerBtn.classList.remove('playing');
+      }
+    };
+
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      currentAudio = null;
+      if (speakerBtn) {
+        speakerBtn.innerHTML = '🔊';
+        speakerBtn.classList.remove('playing');
+      }
+    };
+
   } catch {
-    // fail silently
+    if (speakerBtn) { speakerBtn.innerHTML = '🔊'; speakerBtn.classList.remove('playing'); }
   }
 }
 // ──────────────────────────────────────────────────────────────
@@ -3291,7 +3409,11 @@ if (data?.suggestWarRoom === true) {
 
 const replyText = data?.reply || '<p>Sorry — I could not generate a response right now.</p>';
 renderMessage('assistant', replyText, true);
-if (state.voiceMode) speakReply(replyText);
+if (state.voiceMode) {
+  const lastBubble = refs.messages.querySelector('.nabad-msg.bot:last-child .nabad-bubble');
+  const speakerBtn = lastBubble?.querySelector('.nabad-speaker-btn');
+  speakReply(replyText, speakerBtn);
+}
 
     } catch (err) {
       renderMessage(
