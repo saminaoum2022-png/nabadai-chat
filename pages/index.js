@@ -251,14 +251,15 @@ export default function Home() {
         a { color: inherit; }
 
         #nabad-page {
-          position: relative;
-          min-height: 100dvh;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at top left, rgba(125,211,252,0.18), transparent 26%),
-            radial-gradient(circle at top right, rgba(196,181,253,0.22), transparent 26%),
-            linear-gradient(180deg, #f8fbff 0%, #f7f8fc 100%);
-        }
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(99,102,241,0.25) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(6,182,212,0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 30%, rgba(37,99,235,0.15) 0%, transparent 40%),
+    linear-gradient(135deg, #dbeafe 0%, #ede9fe 50%, #cffafe 100%);
+}
 
         #nabad-page-bg {
           position: absolute;
