@@ -395,7 +395,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  background: #fafafa;
+  background: #f8f8f8;
   border-bottom: 1px solid rgba(15,23,42,0.06);
 }
 
