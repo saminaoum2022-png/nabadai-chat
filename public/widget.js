@@ -372,32 +372,31 @@
       }
 
       #nabad-panel {
-  position: absolute;
-  right: 0;
-  bottom: 80px;
-  width: min(420px, calc(100vw - 24px));
-  height: min(760px, calc(100vh - 110px));
-  background: #f2f2f7;
-  border: 1px solid rgba(255, 255, 255, 0.70);
-  border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(15,23,42,0.08), 0 2px 8px rgba(37,99,235,0.04);
-  overflow: hidden;
-  display: none;
-  flex-direction: column;
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-}
+        position: absolute;
+        right: 0;
+        bottom: 80px;
+        width: min(420px, calc(100vw - 24px));
+        height: min(760px, calc(100vh - 110px));
+        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+        border: 1px solid rgba(37,99,235,0.10);
+        border-radius: 24px;
+        box-shadow: 0 24px 80px rgba(15,23,42,0.18);
+        overflow: hidden;
+        display: none;
+        flex-direction: column;
+        backdrop-filter: blur(10px);
+      }
 
       #nabad-panel.open { display: flex; }
 
       #nabad-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: #f8f8f8;
-  border-bottom: 1px solid rgba(15,23,42,0.06);
-}
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+        background: linear-gradient(180deg, rgba(226,240,255,0.96) 0%, rgba(240,249,255,0.95) 100%);
+        border-bottom: 1px solid rgba(37,99,235,0.08);
+      }
 
       #nabad-header-left {
         display: flex;
@@ -501,13 +500,12 @@
       }
 
       #nabad-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 14px;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  background: #ffffff;
-}
+        flex: 1;
+        overflow-y: auto;
+        padding: 14px;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+      }
 
       .nabad-msg {
         display: flex;
@@ -543,14 +541,12 @@
       }
 
       .nabad-msg.bot .nabad-bubble {
-  background: #f8f8f8;
-  color: #0f172a;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-bottom-left-radius: 6px;
-  box-shadow: 0 4px 16px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.90);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
+        background: rgba(255,255,255,0.96);
+        color: #0f172a;
+        border: 1px solid rgba(15,23,42,0.06);
+        border-bottom-left-radius: 6px;
+        box-shadow: 0 10px 28px rgba(15,23,42,0.06);
+      }
 
       .nabad-bubble h3,
       .nabad-bubble h4 {
@@ -882,13 +878,13 @@
       }
 
       #nabad-input-wrap {
-  padding: 12px 14px 14px;
-  padding-bottom: max(14px, env(safe-area-inset-bottom));
-  border-top: 1px solid rgba(15,23,42,0.06);
-  background: #f2f2f7;
-  width: 100%;
-  overflow: visible;
-}
+        padding: 12px 14px 14px;
+        padding-bottom: max(14px, env(safe-area-inset-bottom));
+        border-top: 1px solid rgba(15,23,42,0.06);
+        background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
+        width: 100%;
+        overflow: visible;
+      }
 
       #nabad-input-row {
         display: flex;
@@ -1504,7 +1500,6 @@
 
       @media (max-width: 640px) {
         #nabad-widget-root {
-          background: #f2f2f7;
           position: fixed;
           inset: 0;
           width: 100vw;
