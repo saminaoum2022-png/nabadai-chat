@@ -503,12 +503,13 @@
       }
 
       #nabad-messages {
-        flex: 1;
-        overflow-y: auto;
-        padding: 14px;
-        scroll-behavior: smooth;
-        -webkit-overflow-scrolling: touch;
-      }
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  background: #ffffff;
+}
 
       .nabad-msg {
         display: flex;
@@ -885,10 +886,10 @@
       #nabad-input-wrap {
   padding: 12px 14px 14px;
   padding-bottom: max(14px, env(safe-area-inset-bottom));
-  border-top: 1px solid rgba(255,255,255,0.50);
-  background: rgba(255, 255, 255, 0.30);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(15,23,42,0.06);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   width: 100%;
   overflow: visible;
 }
@@ -1507,6 +1508,7 @@
 
       @media (max-width: 640px) {
         #nabad-widget-root {
+          background: #ffffff;
           position: fixed;
           inset: 0;
           width: 100vw;
