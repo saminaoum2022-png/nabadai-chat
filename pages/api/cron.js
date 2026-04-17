@@ -29,9 +29,9 @@ export default async function handler(req, res) {
     // Monday 8am UAE = Monday 4am UTC
     const isMonday = day === 1 && hour === 4;
 
-    if (!isMorning && !isMonday) {
-      return res.status(200).json({ message: 'Not a notification time' });
-    }
+   // if (!isMorning && !isMonday) {
+      // return res.status(200).json({ message: 'Not a notification time' });
+    //}
 
     // Get all subscriptions from Supabase
     const { data: subscriptions, error } = await supabase
