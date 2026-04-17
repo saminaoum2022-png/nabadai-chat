@@ -2557,7 +2557,7 @@ Time: ${hour}:00`
           <div class="nabad-ob-dot active"></div>
           <div class="nabad-ob-dot"></div>
         </div>
-        <h3>${escapeHtml(pathMeta?.icon || '')} Tell me about yourself</h3>
+        <h3>${pathMeta?.icon || ''} Tell me about yourself</h3>
         <p>Just a few quick questions so Nabad can give you advice that actually fits your situation.</p>
         <div class="nabad-questions-form">
           ${questions.map(q => `
