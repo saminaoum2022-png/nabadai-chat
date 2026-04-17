@@ -543,7 +543,7 @@
       }
 
       .nabad-msg.bot .nabad-bubble {
-  background: rgba(255, 255, 255, 0.60);
+  background: #f8f8f8;
   color: #0f172a;
   border: 1px solid rgba(255, 255, 255, 0.75);
   border-bottom-left-radius: 6px;
