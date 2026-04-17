@@ -377,7 +377,7 @@
   bottom: 80px;
   width: min(420px, calc(100vw - 24px));
   height: min(760px, calc(100vh - 110px));
-  background: rgba(255, 255, 255, 0.45);
+  background: #f2f2f7;
   border: 1px solid rgba(255, 255, 255, 0.70);
   border-radius: 24px;
   box-shadow: 0 8px 32px rgba(15,23,42,0.08), 0 2px 8px rgba(37,99,235,0.04);
@@ -1506,7 +1506,7 @@
 
       @media (max-width: 640px) {
         #nabad-widget-root {
-          background: #ffffff;
+          background: #f2f2f7;
           position: fixed;
           inset: 0;
           width: 100vw;
