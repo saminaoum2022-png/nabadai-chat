@@ -395,7 +395,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  background: #ffffff;
+  background: #f2f2f7;
   border-bottom: 1px solid rgba(15,23,42,0.06);
 }
 
@@ -885,9 +885,7 @@
   padding: 12px 14px 14px;
   padding-bottom: max(14px, env(safe-area-inset-bottom));
   border-top: 1px solid rgba(15,23,42,0.06);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: #f2f2f7;
   width: 100%;
   overflow: visible;
 }
