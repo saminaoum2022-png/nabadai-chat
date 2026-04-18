@@ -291,18 +291,26 @@
 
   // ── [PC-1] APPLY PERSONALITY COLOR ───────────────────────────
   function applyPersonalityColor(id, announce = false) {
-    const c = PERSONALITY_COLORS[id] || PERSONALITY_COLORS.auto;
+  const c = PERSONALITY_COLORS[id] || PERSONALITY_COLORS.auto;
 
-    // 1. Animate logo pulse color
-    const logo = document.getElementById('nabad-logo');
-    if (logo) {
-      logo.style.transition = 'box-shadow 0.6s ease, border-color 0.6s ease';
-      logo.style.boxShadow  = `0 0 0 4px ${c.pulse}40, 0 0 16px ${c.pulse}60`;
-      logo.style.borderColor = c.pulse;
-    }
+  // 1. Update logo pulse color via CSS variable (works WITH the animation)
+  const logo = document.getElementById('nabad-logo');
+  if (logo) {
+    // Convert hex to rgba for the two opacity levels the animation needs
+    const hex = c.pulse.replace('#', '');
+    const r = parseInt(hex.substring(0,2), 16);
+    const g = parseInt(hex.substring(2,4), 16);
+    const b = parseInt(hex.substring(4,6), 16);
+    document.documentElement.style.setProperty(
+      '--nabad-logo-pulse-color',
+      `rgba(${r},${g},${b},0.35)`
+    );
+    logo.style.transition = 'border-color 0.6s ease';
+    logo.style.borderColor = c.pulse;
+  }
 
-    // 2. Update bubble left border color via CSS variable
-    document.documentElement.style.setProperty('--nabad-personality-color', c.border);
+  // 2. Update bubble left border color via CSS variable
+  document.documentElement.style.setProperty('--nabad-personality-color', c.border);
 
     // 3. Mode pill — only show on actual personality switch
     if (announce) {
@@ -490,10 +498,10 @@
       }
 
       @keyframes nabadBreath {
-        0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.35); }
-        50%  { box-shadow: 0 0 0 7px rgba(37,99,235,0.10); }
-        100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.35); }
-      }
+  0%   { box-shadow: 0 0 0 0px var(--nabad-logo-pulse-color, rgba(37,99,235,0.35)); }
+  50%  { box-shadow: 0 0 0 7px var(--nabad-logo-pulse-color, rgba(37,99,235,0.10)); }
+  100% { box-shadow: 0 0 0 0px var(--nabad-logo-pulse-color, rgba(37,99,235,0.35)); }
+}
 
       #nabad-title-wrap { min-width: 0; }
 
