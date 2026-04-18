@@ -3100,7 +3100,7 @@ function renderOnboardingIntro() {
       state.userProfile = { ...state.onboardingAnswers };
       saveUserProfile(state.userProfile);
       triggerNabadDetected(null);
-      renderOnboardingScreen3();
+      finishOnboarding();
     });
 
     refs.messages.querySelector('#nabad-ob-back').addEventListener('click', () => {
@@ -3110,11 +3110,26 @@ function renderOnboardingIntro() {
     refs.messages.querySelector('#nabad-ob-skip').addEventListener('click', () => {
       state.userProfile = { path: state.onboardingPath };
       saveUserProfile(state.userProfile);
-      renderOnboardingScreen3();
+      finishOnboarding();
     });
 
     scrollToBottom();
   }
+
+function finishOnboarding() {
+  state.personality       = 'auto';
+  state.personalityChosen = true;
+  state.onboarded         = true;
+  savePersonality('auto');
+  saveOnboarded();
+  updatePersonalityBadge();
+  setInputPlaceholder();
+  applyPersonalityColor('auto', false);
+  document.getElementById('nabad-input-wrap').style.display = 'flex';
+  refs.messages.innerHTML = '';
+  renderMessage('assistant', getPersonalityGreeting('auto'), false);
+  setTimeout(() => { refs.input.focus(); scrollToBottom(); }, 50);
+}
 
   function renderPersonalityScreen() {
     refs.messages.innerHTML = `
@@ -3158,53 +3173,6 @@ function renderOnboardingIntro() {
     scrollToBottom();
   }
 
-  function renderOnboardingScreen3() {
-    document.getElementById('nabad-input-wrap').style.display = 'none';
-    refs.messages.innerHTML = `
-      <div id="nabad-onboarding">
-        <div class="nabad-ob-progress">
-          <div class="nabad-ob-dot"></div>
-          <div class="nabad-ob-dot"></div>
-          <div class="nabad-ob-dot active"></div>
-        </div>
-        <h3>How should Nabad advise you?</h3>
-        <p>Pick the style that fits you best. You can always change it later.</p>
-        <div class="nabad-personality-grid">
-          ${PERSONALITIES.map(p => `
-            <button
-              class="nabad-personality-card ${state.personality === p.id ? 'active' : ''}"
-              data-personality="${p.id}"
-              type="button"
-            >
-              <div class="nabad-personality-title">
-                <span class="icon">${p.icon}</span>
-                <span>${escapeHtml(p.title)}</span>
-              </div>
-              <div class="nabad-personality-desc">${escapeHtml(p.desc)}</div>
-            </button>
-          `).join('')}
-        </div>
-      </div>
-    `;
-
-    refs.messages.querySelectorAll('.nabad-personality-card').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.personality       = btn.getAttribute('data-personality') || 'auto';
-        state.personalityChosen = true;
-        state.onboarded         = true;
-        savePersonality(state.personality);
-        saveOnboarded();
-        updatePersonalityBadge();
-        setInputPlaceholder();
-        applyPersonalityColor(state.personality, false);
-        refs.messages.innerHTML = '';
-        renderMessage('assistant', getPersonalityGreeting(state.personality), false);
-        setTimeout(() => { refs.input.focus(); scrollToBottom(); }, 50);
-      });
-    });
-
-    scrollToBottom();
-  }
 
   // ── IMAGE LOADING PLACEHOLDER ─────────────────────────────────
   const IMAGE_LOADING_TEXTS = [
