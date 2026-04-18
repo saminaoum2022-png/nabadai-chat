@@ -9,31 +9,9 @@
 //  NEW: [PC-1] Personality color system with auto-detection
 // ─────────────────────────────────────────────────────────────
 
-(function () {
-  'use strict';
+(() => {
   if (window.__NABAD_WIDGET_LOADED__) return;
   window.__NABAD_WIDGET_LOADED__ = true;
-
-  // ── SUPABASE CLIENT ──────────────────────────────────────────
-  const SUPABASE_URL = 'https://lwjcxjcnlfethrbqzmbv.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3amN4amNubGZldGhyYnF6bWJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNDAxMDUsImV4cCI6MjA5MTkxNjEwNX0.RMWXQ6dy2hQ_QsdcY6EG32zfMt9hzyMa5Zhu7MC-_24';
-  let supabase = null;
-
-  function loadSupabase(cb) {
-    if (window.supabase) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      cb();
-      return;
-    }
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
-    s.onload = () => {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      cb();
-    };
-    s.onerror = () => { console.warn('[NABAD] Supabase failed to load'); cb(); };
-    document.head.appendChild(s);
-  }
 
   function loadDOMPurify(cb) {
     if (window.DOMPurify) { cb(); return; }
@@ -151,25 +129,22 @@
 
   // ── STATE ────────────────────────────────────────────────────
   const state = {
-  open: false,
-  sending: false,
-  warRoom: false,
-  messages: loadMessages(),
-  personality: loadPersonality() || 'auto',
-  personalityChosen: !!loadPersonality(),
-  onboarded: loadOnboarded(),
-  userProfile: loadUserProfile(),
-  onboardingPath: null,
-  onboardingAnswers: {},
-  briefShown: false,
-  voiceMode: false,
-  pushSubscription: null,
-  personalityBuffer: null,
-  personalityCount: 0,
-  // ── Auth state ──
-  authUser: null,
-  authLoading: false
-};
+    open: false,
+    sending: false,
+    warRoom: false,
+    messages: loadMessages(),
+    personality: loadPersonality() || 'auto',
+    personalityChosen: !!loadPersonality(),
+    onboarded: loadOnboarded(),
+    userProfile: loadUserProfile(),
+    onboardingPath: null,
+    onboardingAnswers: {},
+    briefShown: false,
+    voiceMode: false,
+    pushSubscription: null,
+    personalityBuffer: null,
+    personalityCount: 0
+  };
 
   const refs = {
     root: null, launcher: null, panel: null,
@@ -239,276 +214,6 @@
       localStorage.setItem(STORAGE_KEYS.userProfile, JSON.stringify(profile));
     } catch {}
   }
-
-// ── AUTH FUNCTIONS ────────────────────────────────────────────
-async function signUp(email, password) {
-  if (!supabase) return { error: 'Not connected' };
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) return { error: error.message };
-  state.authUser = data.user;
-  await syncProfileToSupabase();
-  await syncMessagesToSupabase();
-  return { success: true };
-}
-
-async function signIn(email, password) {
-  if (!supabase) return { error: 'Not connected' };
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: error.message };
-  state.authUser = data.user;
-  await loadProfileFromSupabase();
-  await loadMessagesFromSupabase();
-  return { success: true };
-}
-
-async function signOut() {
-  if (!supabase) return;
-  await supabase.auth.signOut();
-  state.authUser = null;
-}
-
-async function getCurrentUser() {
-  if (!supabase) return null;
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.user || null;
-}
-
-// ── SUPABASE PROFILE SYNC ─────────────────────────────────────
-async function syncProfileToSupabase() {
-  if (!supabase || !state.authUser) return;
-  const p = state.userProfile || {};
-  try {
-    await supabase.from('profiles').upsert({
-      id: state.authUser.id,
-      email: state.authUser.email,
-      business_name:     p.businessName     || '',
-      what_you_sell:     p.whatYouSell      || '',
-      revenue:           p.revenue          || '',
-      biggest_challenge: p.biggestChallenge || '',
-      target_customer:   p.targetCustomer   || '',
-      idea_summary:      p.ideaSummary      || '',
-      current_progress:  p.currentProgress  || '',
-      biggest_block:     p.biggestBlock     || '',
-      skills:            p.skills           || '',
-      problems:          p.problems         || '',
-      preference:        p.preference       || '',
-      time_commitment:   p.timeCommitment   || '',
-      industry:          p.industry         || '',
-      location:          p.location         || '',
-      path:              p.path             || '',
-      personality:       state.personality  || 'auto',
-      onboarded:         state.onboarded    || false
-    }, { onConflict: 'id' });
-  } catch (err) {
-    console.error('[NABAD] syncProfileToSupabase error:', err);
-  }
-}
-
-async function loadProfileFromSupabase() {
-  if (!supabase || !state.authUser) return;
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', state.authUser.id)
-      .single();
-
-    if (error || !data) return;
-
-    // Map database columns back to camelCase profile
-    state.userProfile = {
-      businessName:     data.business_name     || '',
-      whatYouSell:      data.what_you_sell      || '',
-      revenue:          data.revenue            || '',
-      biggestChallenge: data.biggest_challenge  || '',
-      targetCustomer:   data.target_customer    || '',
-      ideaSummary:      data.idea_summary       || '',
-      currentProgress:  data.current_progress   || '',
-      biggestBlock:     data.biggest_block      || '',
-      skills:           data.skills             || '',
-      problems:         data.problems           || '',
-      preference:       data.preference         || '',
-      timeCommitment:   data.time_commitment    || '',
-      industry:         data.industry           || '',
-      location:         data.location           || '',
-      path:             data.path               || ''
-    };
-
-    // Clean empty values
-    Object.keys(state.userProfile).forEach(k => {
-      if (!state.userProfile[k]) delete state.userProfile[k];
-    });
-
-    if (data.personality) {
-      state.personality       = data.personality;
-      state.personalityChosen = data.personality !== 'auto';
-      savePersonality(data.personality);
-    }
-
-    if (data.onboarded) {
-      state.onboarded = true;
-      saveOnboarded(true);
-    }
-
-    // Store memory summary separately
-    if (data.memory_summary) {
-      state.memorySummary = data.memory_summary;
-    }
-
-    saveUserProfile(state.userProfile);
-
-  } catch (err) {
-    console.error('[NABAD] loadProfileFromSupabase error:', err);
-  }
-}
-
-// ── SUPABASE MESSAGE SYNC ─────────────────────────────────────
-async function syncMessagesToSupabase() {
-  if (!supabase || !state.authUser) return;
-  try {
-    // Delete existing messages for clean sync
-    await supabase
-      .from('messages')
-      .delete()
-      .eq('user_id', state.authUser.id);
-
-    if (!state.messages.length) return;
-
-    const rows = state.messages.slice(-40).map(m => ({
-      user_id: state.authUser.id,
-      role:    m.role,
-      content: m.content
-    }));
-
-    await supabase.from('messages').insert(rows);
-  } catch (err) {
-    console.error('[NABAD] syncMessagesToSupabase error:', err);
-  }
-}
-
-async function loadMessagesFromSupabase() {
-  if (!supabase || !state.authUser) return;
-  try {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('role, content, created_at')
-      .eq('user_id', state.authUser.id)
-      .order('created_at', { ascending: true })
-      .limit(40);
-
-    if (error || !data || !data.length) return;
-
-    state.messages = data.map(m => ({ role: m.role, content: m.content }));
-    saveMessages();
-
-  } catch (err) {
-    console.error('[NABAD] loadMessagesFromSupabase error:', err);
-  }
-}
-
-async function saveMessageToSupabase(role, content) {
-  if (!supabase || !state.authUser) return;
-  try {
-    await supabase.from('messages').insert({
-      user_id: state.authUser.id,
-      role,
-      content
-    });
-    await checkAndCompressMemory();
-  } catch (err) {
-    console.error('[NABAD] saveMessageToSupabase error:', err);
-  }
-}
-
-// ── MEMORY COMPRESSION ────────────────────────────────────────
-async function checkAndCompressMemory() {
-  if (!supabase || !state.authUser) return;
-  try {
-    const { count } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', state.authUser.id);
-
-    if (count < 40) return;
-
-    // Get oldest 20 messages to compress
-    const { data: oldMessages } = await supabase
-      .from('messages')
-      .select('id, role, content, created_at')
-      .eq('user_id', state.authUser.id)
-      .order('created_at', { ascending: true })
-      .limit(20);
-
-    if (!oldMessages || oldMessages.length < 20) return;
-
-    // Get existing summary
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('memory_summary')
-      .eq('id', state.authUser.id)
-      .single();
-
-    const existingSummary = profile?.memory_summary || '';
-    const conversationText = oldMessages
-      .map(m => `${m.role}: ${m.content}`)
-      .join('\n');
-
-    // Compress via your API
-    const resp = await fetch(CONFIG.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{
-          role: 'user',
-          content: `You are a memory compression system. Read the conversation below and merge it with the existing memory summary into one updated summary.
-
-Rules:
-- Keep it under 300 words
-- Capture: business name, what they sell, revenue, goals, challenges, decisions made, key insights discussed
-- Write in third person: "The founder runs..."
-- Merge with existing summary — do not repeat, just enrich
-- Be specific — use actual numbers, names, and decisions mentioned
-
-Existing summary:
-${existingSummary || 'None yet.'}
-
-New conversation to compress:
-${conversationText}
-
-Return only the updated summary text, nothing else.`
-        }],
-        personality: 'auto',
-        compressMemory: true
-      })
-    });
-
-    const data = await resp.json();
-    const newSummary = (data.reply || '')
-      .replace(/<[^>]+>/g, '')
-      .trim()
-      .slice(0, 1500);
-
-    if (!newSummary) return;
-
-    // Save new summary
-    await supabase
-      .from('profiles')
-      .update({ memory_summary: newSummary })
-      .eq('id', state.authUser.id);
-
-    state.memorySummary = newSummary;
-
-    // Delete the compressed messages
-    const idsToDelete = oldMessages.map(m => m.id);
-    await supabase
-      .from('messages')
-      .delete()
-      .in('id', idsToDelete);
-
-  } catch (err) {
-    console.error('[NABAD] checkAndCompressMemory error:', err);
-  }
-}
 
   // ── UTILS ────────────────────────────────────────────────────
   function escapeHtml(text = '') {
@@ -2919,7 +2624,7 @@ function showPersonalityPill(id) {
     updatePersonalityBadge();
     setInputPlaceholder();
     applyPersonalityColor(state.personality, false);
-    //renderInitialState();
+    renderInitialState();
   }
 
   // ── EVENTS ───────────────────────────────────────────────────
@@ -3005,26 +2710,26 @@ function showPersonalityPill(id) {
     refs.panel.classList.toggle('open', state.open);
     refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
     refs.root.classList.toggle('nabad-open', state.open);
+
     if (state.open) {
-  applyScrollLock();
-  setTimeout(() => {
-    const isOnboarded = state.onboarded || state.onboardingComplete;
-    if (!isOnboarded && !state.messages.length) {
-      renderOnboardingIntro();
-      scrollToBottom();
-      return;
+      applyScrollLock();
+      setTimeout(() => {
+        if (!state.onboarded && !state.messages.length) {
+          renderOnboardingIntro();
+          scrollToBottom();
+          return;
+        }
+        if (shouldShowMorningBrief()) {
+          showMorningBrief();
+          return;
+        }
+        scrollToBottom();
+        if (refs.input) refs.input.focus();
+      }, 40);
+    } else {
+      releaseScrollLock();
     }
-    if (shouldShowMorningBrief()) {
-      showMorningBrief();
-      return;
-    }
-    scrollToBottom();
-    if (refs.input) refs.input.focus();
-  }, 40);
-} else {
-  releaseScrollLock();
- }
-}
+  }
 
   function updatePersonalityBadge() {
     if (!refs.badge) return;
@@ -3181,11 +2886,8 @@ if (!state.onboarded && !state.messages.length) {
   }
 
 function renderOnboardingIntro() {
-  const inputWrap = document.getElementById('nabad-input-wrap');
-  const header = document.getElementById('nabad-header');
-  if (inputWrap) inputWrap.style.display = 'none';
-  if (header) header.style.display = 'none';
-  if (!refs.messages) return;
+  document.getElementById('nabad-input-wrap').style.display = 'none';
+  document.getElementById('nabad-header').style.display = 'none';
   refs.messages.style.overflow = 'auto';
 
   const pulseColors = [
@@ -3258,10 +2960,7 @@ function renderOnboardingIntro() {
   let animFrame;
 
   function animatePulse() {
-    if (!document.getElementById('nabad-intro-logo-wrap')) {
-      cancelAnimationFrame(animFrame);
-      return;
-    }
+    if (!document.getElementById('nabad-intro-logo-wrap')) return;
     lerpProgress += 0.006;
     if (lerpProgress >= 1) {
       lerpProgress = 0;
@@ -3273,6 +2972,7 @@ function renderOnboardingIntro() {
       lerpProgress
     );
 
+    // Scale in/out synced with ring
     const logoImg = document.getElementById('nabad-intro-logo-img');
     if (logoImg) {
       const scale = 1 + 0.045 * Math.sin(lerpProgress * Math.PI);
@@ -3295,15 +2995,27 @@ function renderOnboardingIntro() {
   animatePulse();
   // ── END PULSE BLOCK ──
 
-  // ── START BUTTON BINDING ──
+  // ── Button interactions ──
   const startBtn = document.getElementById('nabad-intro-start');
   if (startBtn) {
+    startBtn.addEventListener('mouseenter', () => {
+      startBtn.style.transform = 'translateY(-2px)';
+      startBtn.style.boxShadow = '0 12px 32px rgba(37,99,235,0.35)';
+    });
+    startBtn.addEventListener('mouseleave', () => {
+      startBtn.style.transform = 'translateY(0)';
+      startBtn.style.boxShadow = '0 8px 28px rgba(37,99,235,0.25)';
+    });
     startBtn.addEventListener('click', () => {
       cancelAnimationFrame(animFrame);
-      pulseStyle.remove();
+      document.getElementById('nabad-intro-pulse-style')?.remove();
+      refs.messages.style.background = '';
+      document.getElementById('nabad-header').style.display = 'flex';
       renderOnboardingScreen1();
     });
   }
+
+  scrollToBottom();
 }
 
   function renderOnboardingScreen1() {
@@ -3639,13 +3351,9 @@ function renderOnboardingIntro() {
     }
 
     if (persist) {
-  state.messages.push({ role, content });
-  saveMessages();
-  // Save to Supabase in background if logged in
-  if (state.authUser) {
-    saveMessageToSupabase(role, content).catch(() => {});
-  }
-}
+      state.messages.push({ role, content });
+      saveMessages();
+    }
 
     scrollToBottom();
     return bubble;
@@ -3768,11 +3476,10 @@ function renderOnboardingIntro() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-  messages:    history,
-  personality: state.personality,
-  userProfile: profile,
-  memorySummary: state.memorySummary || ''
-})
+          messages:    history,
+          personality: state.personality,
+          userProfile: profile
+        })
       });
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -4122,55 +3829,6 @@ function openSettingsPage() {
         </div>
       </div>
 
-<!-- ACCOUNT SECTION -->
-<div>
-  <div class="nabad-settings-section-label">👤 Account</div>
-  <div class="nabad-settings-card" id="nabad-auth-section">
-    ${state.authUser ? `
-      <div class="nabad-settings-row">
-        <div class="nabad-settings-row-left">
-          <div class="nabad-settings-row-icon">✉️</div>
-          <div>
-            <div class="nabad-settings-row-label">${escapeHtml(state.authUser.email)}</div>
-            <div class="nabad-settings-row-desc">Signed in · Memory synced</div>
-          </div>
-        </div>
-        <span style="font-size:11px;color:#22c55e;font-weight:700">● Live</span>
-      </div>
-      <div class="nabad-settings-row" id="nabad-set-signout">
-        <div class="nabad-settings-row-left">
-          <div class="nabad-settings-row-icon red">🚪</div>
-          <div>
-            <div class="nabad-settings-row-label danger">Sign Out</div>
-            <div class="nabad-settings-row-desc">Your memory stays saved</div>
-          </div>
-        </div>
-        <span class="nabad-settings-row-arrow">›</span>
-      </div>
-    ` : `
-      <div style="padding:16px">
-        <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px">💾 Save your progress</div>
-        <div style="font-size:12px;color:#64748b;margin-bottom:14px;line-height:1.5">Create an account so Nabad remembers you across devices and sessions.</div>
-
-        <div id="nabad-auth-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 12px;font-size:12px;color:#ef4444;margin-bottom:10px;font-weight:600"></div>
-        <div id="nabad-auth-success" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:12px;color:#16a34a;margin-bottom:10px;font-weight:600"></div>
-
-        <input id="nabad-auth-email" type="email" placeholder="Your email" style="width:100%;border:1px solid rgba(37,99,235,0.16);border-radius:12px;padding:10px 12px;font-size:14px;color:#0f172a;background:#fff;outline:none;margin-bottom:8px;font-family:inherit;box-sizing:border-box;" />
-        <input id="nabad-auth-password" type="password" placeholder="Password (min 6 characters)" style="width:100%;border:1px solid rgba(37,99,235,0.16);border-radius:12px;padding:10px 12px;font-size:14px;color:#0f172a;background:#fff;outline:none;margin-bottom:12px;font-family:inherit;box-sizing:border-box;" />
-
-        <button id="nabad-auth-submit" style="width:100%;padding:12px;background:linear-gradient(135deg,#2563eb,#06b6d4);color:#fff;font-size:14px;font-weight:800;border:none;border-radius:12px;cursor:pointer;font-family:inherit;margin-bottom:8px;">
-          Create Account
-        </button>
-
-        <div style="text-align:center;font-size:12px;color:#64748b;">
-          Already have an account?
-          <button id="nabad-auth-toggle" style="background:none;border:none;color:#2563eb;font-weight:700;cursor:pointer;font-size:12px;font-family:inherit;padding:0 4px;">Sign in</button>
-        </div>
-      </div>
-    `}
-  </div>
-</div>
-
       <!-- CHAT SECTION -->
       <div>
         <div class="nabad-settings-section-label">💬 Chat</div>
@@ -4207,183 +3865,117 @@ function openSettingsPage() {
           </div>
         </div>
       </div>
-`;
 
-// ── Auth actions ──
-let authMode = 'signup'; // or 'signin'
+      <!-- DANGER SECTION -->
+      <div>
+        <div class="nabad-settings-section-label">⚠️ Danger Zone</div>
+        <div class="nabad-settings-card">
+          <div class="nabad-settings-row" id="nabad-set-reset">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon red">🗑️</div>
+              <div>
+                <div class="nabad-settings-row-label danger">Reset Everything</div>
+                <div class="nabad-settings-row-desc">Clear all messages, memory, and profile</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
+        </div>
+      </div>
 
-const authSubmit = page.querySelector('#nabad-auth-submit');
-const authToggle = page.querySelector('#nabad-auth-toggle');
-const authError  = page.querySelector('#nabad-auth-error');
-const authSuccess = page.querySelector('#nabad-auth-success');
+    </div>
+  `;
 
-if (authToggle) {
-  authToggle.addEventListener('click', () => {
-    authMode = authMode === 'signup' ? 'signin' : 'signup';
-    authSubmit.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
-    authToggle.textContent = authMode === 'signup' ? 'Sign in' : 'Create account';
-    authToggle.previousSibling.textContent = authMode === 'signup'
-      ? 'Already have an account?'
-      : "Don't have an account?";
-    if (authError) { authError.style.display = 'none'; }
-    if (authSuccess) { authSuccess.style.display = 'none'; }
+  refs.panel.appendChild(page);
+
+  // Slide in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { page.classList.add('open'); });
   });
-}
 
-if (authSubmit) {
-  authSubmit.addEventListener('click', async () => {
-    const email    = page.querySelector('#nabad-auth-email')?.value?.trim();
-    const password = page.querySelector('#nabad-auth-password')?.value?.trim();
-
-    if (!email || !password) {
-      authError.textContent = 'Please enter your email and password.';
-      authError.style.display = 'block';
-      return;
-    }
-
-    authSubmit.textContent = '...';
-    authSubmit.disabled = true;
-    authError.style.display = 'none';
-    authSuccess.style.display = 'none';
-
-    const result = authMode === 'signup'
-      ? await signUp(email, password)
-      : await signIn(email, password);
-
-    authSubmit.disabled = false;
-
-    if (result.error) {
-      authError.textContent = result.error;
-      authError.style.display = 'block';
-      authSubmit.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
-      return;
-    }
-
-    authSuccess.textContent = authMode === 'signup'
-      ? '✓ Account created! Your memory is now synced.'
-      : '✓ Welcome back! Memory restored.';
-    authSuccess.style.display = 'block';
-
-    // Refresh settings page after 1.5 seconds
-    setTimeout(() => {
-      closeSettings();
-      setTimeout(() => openSettingsPage(), 400);
-      if (authMode === 'signin') {
-        // Reload messages in chat
-        refs.messages.innerHTML = '';
-        if (state.messages.length) {
-          state.messages.forEach(m => renderMessage(m.role, m.content, false));
-        }
-        scrollToBottom();
-        updatePersonalityBadge();
-        setInputPlaceholder();
-        applyPersonalityColor(state.personality, false);
-      }
-        }, 1500);
-  });
-}
-
-// ── Close / back ──
-function closeSettings() {
-  page.classList.remove('open');
-  setTimeout(() => page.remove(), 350);
-}
-
-const signOutBtn = page.querySelector('#nabad-set-signout');
-if (signOutBtn) {
-  signOutBtn.addEventListener('click', () => {
-    confirmAction('Sign out? Your memory stays saved in the cloud.', async () => {
-      await signOut();
-      closeSettings();
-      setTimeout(() => openSettingsPage(), 400);
-    });
-  });
-}
-
-refs.panel.appendChild(page);
-
-requestAnimationFrame(() => {
-  requestAnimationFrame(() => { page.classList.add('open'); });
-});
-
-page.querySelector('#nabad-settings-back').addEventListener('click', closeSettings);
-
-// ── Auto-detect toggle ──
-const autoToggle = page.querySelector('#nabad-auto-toggle');
-const personalityGrid = page.querySelector('#nabad-settings-personality-grid');
-
-autoToggle.addEventListener('change', () => {
-  const isAuto = autoToggle.checked;
-  if (isAuto) {
-    personalityGrid.classList.remove('visible');
-    state.personality       = 'auto';
-    state.personalityBuffer = null;
-    state.personalityCount  = 0;
-    savePersonality('auto');
-    setInputPlaceholder();
-    applyPersonalityColor('auto', false);
-  } else {
-    personalityGrid.classList.add('visible');
+  // ── Close / back ──
+  function closeSettings() {
+    page.classList.remove('open');
+    setTimeout(() => page.remove(), 350);
   }
-});
 
-// ── Personality chip selection ──
-page.querySelectorAll('.nabad-settings-personality-chip').forEach(chip => {
-  chip.addEventListener('click', () => {
-    const newId = chip.getAttribute('data-personality');
-    page.querySelectorAll('.nabad-settings-personality-chip')
-      .forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
+  page.querySelector('#nabad-settings-back').addEventListener('click', closeSettings);
 
-    const prev = state.personality;
-    state.personality       = newId;
-    state.personalityChosen = true;
-    state.personalityBuffer = null;
-    state.personalityCount  = 0;
-    savePersonality(newId);
-    setInputPlaceholder();
-    updatePersonalityBadge();
-    applyPersonalityColor(newId, prev !== newId);
-  });
-});
+  // ── Auto-detect toggle ──
+  const autoToggle = page.querySelector('#nabad-auto-toggle');
+  const personalityGrid = page.querySelector('#nabad-settings-personality-grid');
 
-// ── Chat actions ──
-page.querySelector('#nabad-set-new-chat').addEventListener('click', () => {
-  closeSettings(); setTimeout(() => newChat(), 360);
-});
-page.querySelector('#nabad-set-memory').addEventListener('click', () => {
-  closeSettings(); setTimeout(() => showMemoryScreen(), 360);
-});
-page.querySelector('#nabad-set-warroom').addEventListener('click', () => {
-  closeSettings(); setTimeout(() => openWarRoom(''), 360);
-});
-
-// ── Reset ──
-page.querySelector('#nabad-set-reset').addEventListener('click', () => {
-  closeSettings();
-  setTimeout(() => {
-    confirmAction('Reset everything? This will clear all messages, memory, and your profile.', () => {
-      Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-      localStorage.removeItem('nabad_insights');
-      state.messages          = [];
+  autoToggle.addEventListener('change', () => {
+    const isAuto = autoToggle.checked;
+    if (isAuto) {
+      personalityGrid.classList.remove('visible');
       state.personality       = 'auto';
-      state.personalityChosen = false;
-      state.onboarded         = false;
-      state.userProfile       = {};
-      state.briefShown        = false;
       state.personalityBuffer = null;
       state.personalityCount  = 0;
-      refs.messages.innerHTML = '';
-      document.getElementById('nabad-input-wrap').style.display = 'flex';
-      updatePersonalityBadge();
-      applyPersonalityColor('auto', false);
+      savePersonality('auto');
       setInputPlaceholder();
-      renderOnboardingIntro();
-    });
-  }, 360);
-});
-}
+      applyPersonalityColor('auto', false);
+    } else {
+      personalityGrid.classList.add('visible');
+    }
+  });
 
+  // ── Personality chip selection ──
+  page.querySelectorAll('.nabad-settings-personality-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const newId = chip.getAttribute('data-personality');
+      page.querySelectorAll('.nabad-settings-personality-chip')
+        .forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      const prev = state.personality;
+      state.personality       = newId;
+      state.personalityChosen = true;
+      state.personalityBuffer = null;
+      state.personalityCount  = 0;
+      savePersonality(newId);
+      setInputPlaceholder();
+      updatePersonalityBadge();
+      applyPersonalityColor(newId, prev !== newId);
+    });
+  });
+
+  // ── Chat actions ──
+  page.querySelector('#nabad-set-new-chat').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => newChat(), 360);
+  });
+  page.querySelector('#nabad-set-memory').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => showMemoryScreen(), 360);
+  });
+  page.querySelector('#nabad-set-warroom').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => openWarRoom(''), 360);
+  });
+
+  // ── Reset ──
+  page.querySelector('#nabad-set-reset').addEventListener('click', () => {
+    closeSettings();
+    setTimeout(() => {
+      confirmAction('Reset everything? This will clear all messages, memory, and your profile.', () => {
+        Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
+        localStorage.removeItem('nabad_insights');
+        state.messages          = [];
+        state.personality       = 'auto';
+        state.personalityChosen = false;
+        state.onboarded         = false;
+        state.userProfile       = {};
+        state.briefShown        = false;
+        state.personalityBuffer = null;
+        state.personalityCount  = 0;
+        refs.messages.innerHTML = '';
+        document.getElementById('nabad-input-wrap').style.display = 'flex';
+        updatePersonalityBadge();
+        applyPersonalityColor('auto', false);
+        setInputPlaceholder();
+        renderOnboardingIntro();
+      });
+    }, 360);
+  });
+}
 
   // ── MEMORY SCREEN ─────────────────────────────────────────────
   function showMemoryScreen() {
@@ -4746,100 +4338,16 @@ function setSendState(stateLabel) {
 
   // ── LAUNCHER CLICK ────────────────────────────────────────────
   function bindLauncherClick() {
-  if (refs.launcher) {
-    refs.launcher.addEventListener('click', () => toggleWidget());
-  }
-}
-
- // ── INIT ────────────────────────────────────────────────────
-(function () {
-  'use strict';
-
-  // Expose the open API IMMEDIATELY — before any async work
-  window.__NABAD_OPEN_WIDGET__ = function () {
-    if (!refs.panel) {
-      console.warn('[NABAD] panel not ready yet');
-      return;
-    }
-    const header   = document.getElementById('nabad-header');
-    const inputWrap = document.getElementById('nabad-input-wrap');
-    if (header)    header.style.display    = 'flex';
-    if (inputWrap) inputWrap.style.display = 'flex';
-
-    state.open = true;
-    refs.panel.classList.add('open');
-    refs.panel.setAttribute('aria-hidden', 'false');
-    refs.root.classList.add('nabad-open');
-
-    if (typeof applyScrollLock === 'function') applyScrollLock();
-
-    if (!state.onboarded && !state.messages.length) {
-      renderOnboardingIntro();
-    } else {
-      if (typeof updatePersonalityBadge === 'function') updatePersonalityBadge();
-      if (!state.messages.length) {
-        renderMessage('assistant', getPersonalityGreeting(state.personality), false);
-      } else {
-        state.messages.forEach(function (m) { renderMessage(m.role, m.content, false); });
-      }
-      if (typeof scrollToBottom === 'function') scrollToBottom();
-      if (refs.input) refs.input.focus();
-    }
-  };
-
-  function initUI() {
-    try {
-      console.log('[NABAD] initUI started');
-
-      // 1. Inject styles
-      if (typeof injectStyles === 'function') injectStyles();
-
-      // 2. Build the DOM shell
-      if (typeof buildShell === 'function') buildShell();
-      else { console.error('[NABAD] buildShell missing'); return; }
-
-      // 3. Bind launcher (hidden on mobile but harmless)
-      if (typeof bindLauncherClick === 'function') bindLauncherClick();
-
-      // 4. Load DOMPurify in background — non-blocking
-      if (typeof loadDOMPurify === 'function') {
-        loadDOMPurify(function () { console.log('[NABAD] DOMPurify ready'); });
-      }
-
-      // 5. Load Supabase LATE — 5-second delay, fully non-blocking
-      setTimeout(function () {
-        if (typeof loadSupabase === 'function') {
-          loadSupabase(function () {
-            console.log('[NABAD] Supabase ready');
-            if (typeof getCurrentUser === 'function') {
-              getCurrentUser().then(function (user) {
-                if (user) {
-                  state.authUser = user;
-                  if (typeof loadProfileFromSupabase === 'function')
-                    loadProfileFromSupabase().catch(function () {});
-                  if (typeof loadMessagesFromSupabase === 'function')
-                    loadMessagesFromSupabase().catch(function () {});
-                }
-              }).catch(function () {});
-            }
-          });
-        }
-      }, 5000);
-
-      console.log('[NABAD] initUI complete — widget ready');
-
-    } catch (e) {
-      console.error('[NABAD] initUI error:', e);
+    if (refs.launcher) {
+      refs.launcher.addEventListener('click', () => toggleWidget(true));
     }
   }
 
-  // Run initUI as soon as the DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initUI);
-  } else {
-    initUI();
-  }
+  // ── INIT ─────────────────────────────────────────────────────
+  loadDOMPurify(() => {
+    injectStyles();
+    buildShell();
+    bindLauncherClick();
+  });
 
 })();
-
-
