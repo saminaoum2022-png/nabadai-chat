@@ -3023,6 +3023,7 @@ function showPersonalityPill(id) {
   }, 40);
 } else {
   releaseScrollLock();
+ }
 }
 
   function updatePersonalityBadge() {
@@ -4229,6 +4230,7 @@ function openSettingsPage() {
           </div>
         </div>
       </div>
+`;
 
 // ── Auth actions ──
 let authMode = 'signup'; // or 'signin'
@@ -4811,41 +4813,35 @@ function setSendState(stateLabel) {
     }
 
     getCurrentUser().then(user => {
-      if (user) {
-        state.authUser = user;
-        loadProfileFromSupabase(user.id).then(profile => {
-          if (profile) {
-            Object.assign(state.userProfile, profile);
-            state.personality = profile.personality || 'auto';
-            state.onboardingComplete = profile.onboarded ?? false;
-            applyPersonalityColor(state.personality);
-          }
-          loadMessagesFromSupabase(user.id).then(msgs => {
-            if (msgs && msgs.length > 0) {
-              state.messages = msgs;
-              renderAllMessages();
-            } else {
-              renderInitialState();
-            }
-          }).catch(() => renderInitialState());
-        }).catch(() => renderInitialState());
-      } else {
-        renderInitialState();
-      }
+  if (user) {
+    state.authUser = user;
+    loadProfileFromSupabase().then(() => {
+      loadMessagesFromSupabase().then(() => {
+        if (state.messages.length > 0) {
+          state.messages.forEach(m => renderMessage(m.role, m.content, false));
+          scrollToBottom();
+        } else {
+          renderInitialState();
+        }
+      }).catch(() => renderInitialState());
     }).catch(() => renderInitialState());
-  }
-
-  if (typeof loadSupabase === 'function') {
-    loadSupabase(() => {
-      if (typeof loadDOMPurify === 'function') {
-        loadDOMPurify(() => initUI());
-      } else {
-        initUI();
-      }
-    });
-  } else if (typeof loadDOMPurify === 'function') {
-    loadDOMPurify(() => initUI());
   } else {
-    initUI();
+    renderInitialState();
   }
+}).catch(() => renderInitialState());
+}
+
+if (typeof loadSupabase === 'function') {
+  loadSupabase(() => {
+    if (typeof loadDOMPurify === 'function') {
+      loadDOMPurify(() => initUI());
+    } else {
+      initUI();
+    }
+  });
+} else if (typeof loadDOMPurify === 'function') {
+  loadDOMPurify(() => initUI());
+} else {
+  initUI();
+}
 })();
