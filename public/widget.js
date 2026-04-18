@@ -2421,7 +2421,7 @@
       applyScrollLock();
       setTimeout(() => {
         if (!state.onboarded && !state.messages.length) {
-          renderOnboardingScreen1();
+          renderOnboardingIntro();
           scrollToBottom();
           return;
         }
@@ -2569,10 +2569,11 @@ Time: ${hour}:00`
 
   function renderInitialState() {
     refs.messages.innerHTML = '';
-    if (!state.onboarded && !state.messages.length) {
-      renderOnboardingScreen1();
-      return;
-    }
+    // NEW
+if (!state.onboarded && !state.messages.length) {
+  renderOnboardingIntro();
+  return;
+}
     if (!state.personalityChosen && !state.messages.length) {
       renderPersonalityScreen();
       return;
@@ -2589,6 +2590,87 @@ Time: ${hour}:00`
     state.messages.forEach(m => renderMessage(m.role, m.content, false));
     scrollToBottom();
   }
+
+function renderOnboardingIntro() {
+  document.getElementById('nabad-input-wrap').style.display = 'none';
+
+  refs.messages.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;min-height:100%;background:linear-gradient(160deg,#0a0f1e 0%,#0d1f3c 60%,#0a0f1e 100%);padding:32px 20px 24px;box-sizing:border-box;">
+
+      <!-- Pulsing Logo -->
+      <div style="width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#06b6d4);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(37,99,235,0.5);animation:nabadBreath 2.4s ease-in-out infinite;margin-bottom:24px;flex-shrink:0;">
+        <img src="/logo.png" alt="Nabad" style="width:58px;height:58px;border-radius:50%;object-fit:cover;" />
+      </div>
+
+      <!-- Headline -->
+      <div style="font-size:26px;font-weight:900;color:#fff;text-align:center;letter-spacing:-0.5px;margin-bottom:8px;line-height:1.2;">Your business,<br/>finally has a co-founder.</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.5);text-align:center;max-width:260px;line-height:1.6;margin-bottom:32px;">Nabad thinks, adapts, and learns — built for people who are serious about building something real.</div>
+
+      <!-- Feature rows -->
+      <div style="display:flex;flex-direction:column;gap:14px;width:100%;max-width:320px;margin-bottom:32px;">
+
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:rgba(37,99,235,0.15);border:1px solid rgba(37,99,235,0.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🧠</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;">Auto-detects your intent</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.5;">Switches between 7 advisor personalities based on what you need</div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:rgba(6,182,212,0.15);border:1px solid rgba(6,182,212,0.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">⚔️</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;">War Room</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.5;">3 expert advisors debate your toughest decisions simultaneously</div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">💾</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;">Remembers everything</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.5;">Your business, goals, and challenges — saved and used in every reply</div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🌅</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;">Morning Brief</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.5;">Start every day with a personalised AI briefing built around your context</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- CTA -->
+      <button id="nabad-intro-start" style="width:100%;max-width:300px;padding:16px;background:linear-gradient(135deg,#2563eb,#06b6d4);color:#fff;font-size:16px;font-weight:800;border:none;border-radius:16px;cursor:pointer;letter-spacing:0.2px;box-shadow:0 8px 28px rgba(37,99,235,0.35);transition:transform 0.15s ease,box-shadow 0.15s ease;">
+        Let's build something →
+      </button>
+
+      <div style="margin-top:14px;font-size:11px;color:rgba(255,255,255,0.25);text-align:center;">No credit card · No setup · Just start</div>
+
+    </div>
+  `;
+
+  // Button interaction
+  const startBtn = document.getElementById('nabad-intro-start');
+  if (startBtn) {
+    startBtn.addEventListener('mouseenter', () => {
+      startBtn.style.transform = 'translateY(-2px)';
+      startBtn.style.boxShadow = '0 12px 32px rgba(37,99,235,0.45)';
+    });
+    startBtn.addEventListener('mouseleave', () => {
+      startBtn.style.transform = 'translateY(0)';
+      startBtn.style.boxShadow = '0 8px 28px rgba(37,99,235,0.35)';
+    });
+    startBtn.addEventListener('click', () => {
+      renderOnboardingScreen1();
+    });
+  }
+
+  scrollToBottom();
+}
 
   function renderOnboardingScreen1() {
     document.getElementById('nabad-input-wrap').style.display = 'none';
