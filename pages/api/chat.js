@@ -1622,10 +1622,13 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
 
     // ── Run all three classifiers in parallel ──────────────────
     const [detectedInfo, suggestWarRoom, detectedPersonality] = await Promise.all([
-      detectMeaningfulInfo(lastUserMessage, openai).catch(() => false),
+      detectMeaningfulInfo(lastUserMessage, openai).catch(() => null),
       detectWarRoom(lastUserMessage, messages, userProfile || '', openai).catch(() => false),
       classifyPersonality(lastUserMessage, personalityResolution.personalityId, openai).catch(() => 'auto')
     ]);
+
+console.log('[NABAD DEBUG] detectedInfo:', JSON.stringify(detectedInfo));
+console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
 
     return res.status(200).json({
       reply: ensureHtmlReply(rawReply),
