@@ -2249,7 +2249,7 @@ function showPersonalityPill(id) {
 #nabad-settings-page {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+  background: #F7F9FC;
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -2268,7 +2268,7 @@ function showPersonalityPill(id) {
   align-items: center;
   gap: 12px;
   padding: 16px 16px 14px;
-  background: linear-gradient(180deg, rgba(226,240,255,0.96) 0%, rgba(240,249,255,0.95) 100%);
+  background: #F7F9FC;
   border-bottom: 1px solid rgba(37,99,235,0.08);
   flex-shrink: 0;
 }
