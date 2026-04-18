@@ -3121,11 +3121,18 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
       console.error('[NABAD] sendMessage error:', err);
       renderMessage('assistant', '<p>⚠️ Something went wrong. Please try again.</p>');
     } finally {
-      state.sending      = false;
-      refs.send.disabled = false;
-      refs.input.focus();
-    }
+  state.sending = false;
+  refs.send.disabled = false;
+  refs.send.style.opacity = '1';
+  refs.send.style.cursor = 'pointer';
+  const micBtn = document.getElementById('nabad-mic');
+  if (micBtn) {
+    micBtn.disabled = false;
+    micBtn.style.opacity = '1';
+    micBtn.style.cursor = 'pointer';
   }
+  refs.input.focus();
+}
 
   // ── WAR ROOM SUGGESTION BANNER ────────────────────────────────
   function showWarRoomSuggestion(situation) {
@@ -3569,10 +3576,15 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   }
 
   async function transcribeAudio(blob) {
-  // ── 1. Lock UI immediately ──────────────────────────────────
-  setSendState('transcribing');
+  // ── Lock mic only during transcription ──
+  const micBtn = document.getElementById('nabad-mic');
+  if (micBtn) {
+    micBtn.disabled = true;
+    micBtn.style.opacity = '0.4';
+    micBtn.style.cursor = 'not-allowed';
+  }
 
-  // ── 2. Show transcribing bubble in chat right away ──────────
+  // ── Show transcribing bubble immediately ──
   const tempMsg = document.createElement('div');
   tempMsg.className = 'nabad-msg user';
   tempMsg.innerHTML = `
@@ -3588,7 +3600,6 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   refs.messages.appendChild(tempMsg);
   scrollToBottom();
 
-  // ── 3. Send audio to Whisper ─────────────────────────────────
   try {
     const formData = new FormData();
     formData.append('audio', blob, 'voice.webm');
@@ -3597,28 +3608,33 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
     const data = await resp.json();
     const transcript = (data.text || '').trim();
 
-    // ── 4. Remove the transcribing bubble ─────────────────────
+    // ── Remove transcribing bubble ──
     tempMsg.remove();
 
     if (transcript && refs.input) {
-      // ── 5. Put transcript into input field ──────────────────
       refs.input.value = transcript;
       autoGrowTextarea();
       refs.input.focus();
-
-      // ── 6. Auto-send after short delay ──────────────────────
-      // (setSendState('idle') is NOT called here — sendMessage()
-      //  will immediately set it to 'thinking' and handle cleanup)
+      // sendMessage() will handle restoring send button in its finally block
       setTimeout(() => sendMessage(), 300);
     } else {
-      // No transcript returned — restore UI
-      setSendState('idle');
+      // No transcript — restore mic manually
+      if (micBtn) {
+        micBtn.disabled = false;
+        micBtn.style.opacity = '1';
+        micBtn.style.cursor = 'pointer';
+      }
     }
 
   } catch (err) {
     console.error('[NABAD] Transcription error:', err);
     tempMsg.remove();
-    setSendState('idle');
+    // Restore mic on error
+    if (micBtn) {
+      micBtn.disabled = false;
+      micBtn.style.opacity = '1';
+      micBtn.style.cursor = 'pointer';
+    }
   }
 }
 
