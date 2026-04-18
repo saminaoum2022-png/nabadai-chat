@@ -4794,52 +4794,89 @@ function setSendState(stateLabel) {
   }
 }
 
- // ── INIT ────────────────────────────────────────────────────
+ // ══════════════════════════════════════════════════════════════════
+// COPY THIS ENTIRE BLOCK TO REPLACE YOUR INIT SECTION
+// Find: // ── INIT ──── and replace everything after it with this
+// ══════════════════════════════════════════════════════════════════
+
+// ── INIT ────────────────────────────────────────────────────
 (function startWidget() {
   async function initUI() {
     try {
-      // 1️⃣ FIRST: Inject styles (no async needed)
+      console.log('[NABAD] Starting widget initialization...');
+
+      // 1️⃣ FIRST: Inject styles
       injectStyles();
+      console.log('[NABAD] Styles injected');
 
       // 2️⃣ SECOND: Build shell with refs
       buildShell();
+      console.log('[NABAD] Shell built, panel exists:', !!refs.panel, 'messages:', !!refs.messages, 'input:', !!refs.input);
 
       // 3️⃣ THIRD: Bind launcher
       if (typeof bindLauncherClick === 'function') {
         bindLauncherClick();
       }
 
-      // 4️⃣ FOURTH: Load dependencies in parallel
-      await Promise.all([
-        new Promise(resolve => {
-          if (typeof loadDOMPurify === 'function') {
-            loadDOMPurify(() => {
-              console.log('[NABAD] DOMPurify loaded');
-              resolve();
-            });
-          } else {
-            resolve();
-          }
-        })
-      ]);
+      // 4️⃣ FOURTH: Load DOMPurify in background (non-blocking)
+      if (typeof loadDOMPurify === 'function') {
+        loadDOMPurify(() => {
+          console.log('[NABAD] DOMPurify loaded');
+        });
+      }
 
-      // 5️⃣ FIFTH: Show initial UI immediately (THIS IS KEY!)
-      renderInitialState();
+      // 5️⃣ FIFTH: Open the panel and render initial state
+      setTimeout(() => {
+        console.log('[NABAD] Opening panel and rendering UI...');
+        
+        // Force panel to be visible
+        if (refs.panel) {
+          refs.panel.classList.add('open');
+          refs.panel.setAttribute('aria-hidden', 'false');
+          console.log('[NABAD] Panel opened');
+        }
+        
+        if (refs.root) {
+          refs.root.classList.add('nabad-open');
+        }
 
-      // 6️⃣ SIXTH: Try to load Supabase & auth in background (don't block)
+        // Show input wrap
+        const inputWrap = document.getElementById('nabad-input-wrap');
+        if (inputWrap) {
+          inputWrap.style.display = 'flex';
+          console.log('[NABAD] Input wrap shown');
+        }
+
+        // Render the actual content
+        renderInitialState();
+        console.log('[NABAD] Initial state rendered');
+        
+        // Scroll to bottom
+        scrollToBottom();
+        
+        // Focus input
+        if (refs.input) {
+          refs.input.focus();
+        }
+      }, 100);
+
+      // 6️⃣ SIXTH: Load Supabase in background (completely non-blocking)
       if (typeof loadSupabase === 'function') {
         loadSupabase(() => {
-          console.log('[NABAD] Supabase loaded');
+          console.log('[NABAD] Supabase client created');
+          
+          // Try to get current user
           if (typeof getCurrentUser === 'function') {
             getCurrentUser()
               .then(user => {
                 if (user) {
                   state.authUser = user;
-                  console.log('[NABAD] User found:', user.email);
-                  loadProfileFromSupabase().catch(e => console.warn('[NABAD] Profile load failed:', e));
-                  loadMessagesFromSupabase().catch(e => console.warn('[NABAD] Messages load failed:', e));
+                  console.log('[NABAD] User authenticated:', user.email);
+                  // Sync data in background
+                  loadProfileFromSupabase().catch(e => console.warn('[NABAD] Profile sync failed:', e));
+                  loadMessagesFromSupabase().catch(e => console.warn('[NABAD] Messages sync failed:', e));
                 } else {
-                  console.log('[NABAD] No authenticated user');
+                  console.log('[NABAD] No user logged in');
                 }
               })
               .catch(e => console.warn('[NABAD] Auth check failed:', e));
@@ -4848,14 +4885,22 @@ function setSendState(stateLabel) {
       }
 
     } catch (e) {
-      console.error('[NABAD] initUI failed:', e);
-      // Show error state but don't crash
+      console.error('[NABAD] Critical init error:', e);
+      // Emergency fallback
       if (refs.messages) {
-        refs.messages.innerHTML = '<p style="color:#ef4444;padding:20px;text-align:center;">⚠️ Widget failed to load. Please refresh the page.</p>';
+        refs.messages.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;font-family:system-ui;"><strong>⚠️ Widget Error</strong><br><small style="font-size:12px;">' + (e.message || 'Unknown error') + '</small></div>';
       }
     }
   }
 
-  // Start async init immediately
-  initUI().catch(e => console.error('[NABAD] Initialization error:', e));
+  // Start initialization
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('[NABAD] DOM ready, starting init');
+      initUI().catch(e => console.error('[NABAD] Init failed:', e));
+    });
+  } else {
+    console.log('[NABAD] DOM already loaded, starting init');
+    initUI().catch(e => console.error('[NABAD] Init failed:', e));
+  }
 })();
