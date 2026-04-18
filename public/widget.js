@@ -9,31 +9,31 @@
 //  NEW: [PC-1] Personality color system with auto-detection
 // ─────────────────────────────────────────────────────────────
 
-// ── SUPABASE CLIENT ────────────────────────────────────────────
-const SUPABASE_URL = 'https://lwjcxjcnlfethrbqzmbv.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3amN4amNubGZldGhyYnF6bWJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNDAxMDUsImV4cCI6MjA5MTkxNjEwNX0.RMWXQ6dy2hQ_QsdcY6EG32zfMt9hzyMa5Zhu7MC-_24';
-
-let supabase = null;
-
-function loadSupabase(cb) {
-  if (window.supabase) { 
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    cb(); 
-    return; 
-  }
-  const s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
-  s.onload = () => {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    cb();
-  };
-  s.onerror = () => { console.warn('[NABAD] Supabase failed to load'); cb(); };
-  document.head.appendChild(s);
-}
-
-(() => {
+(function () {
+  'use strict';
   if (window.__NABAD_WIDGET_LOADED__) return;
   window.__NABAD_WIDGET_LOADED__ = true;
+
+  // ── SUPABASE CLIENT ──────────────────────────────────────────
+  const SUPABASE_URL = 'https://lwjcxjcnlfethrbqzmbv.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3amN4amNubGZldGhyYnF6bWJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNDAxMDUsImV4cCI6MjA5MTkxNjEwNX0.RMWXQ6dy2hQ_QsdcY6EG32zfMt9hzyMa5Zhu7MC-_24';
+  let supabase = null;
+
+  function loadSupabase(cb) {
+    if (window.supabase) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      cb();
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+    s.onload = () => {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      cb();
+    };
+    s.onerror = () => { console.warn('[NABAD] Supabase failed to load'); cb(); };
+    document.head.appendChild(s);
+  }
 
   function loadDOMPurify(cb) {
     if (window.DOMPurify) { cb(); return; }
