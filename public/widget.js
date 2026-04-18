@@ -2162,6 +2162,11 @@
         background: #2563eb;
         animation: nabadSpeakerWave 0.8s ease-in-out infinite;
       }
+      
+      .nabad-msg.user .nabad-wave-anim span {
+  background: rgba(255, 255, 255, 0.85);
+}
+      
       .nabad-wave-anim span:nth-child(1) { height: 4px;  animation-delay: 0.0s; }
       .nabad-wave-anim span:nth-child(2) { height: 10px; animation-delay: 0.1s; }
       .nabad-wave-anim span:nth-child(3) { height: 14px; animation-delay: 0.2s; }
@@ -3564,24 +3569,56 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   }
 
   async function transcribeAudio(blob) {
-  const formData = new FormData();
-  formData.append('audio', blob, 'voice.webm'); // ← 'audio' not 'file'
+  // ── 1. Lock UI immediately ──────────────────────────────────
+  setSendState('transcribing');
 
+  // ── 2. Show transcribing bubble in chat right away ──────────
+  const tempMsg = document.createElement('div');
+  tempMsg.className = 'nabad-msg user';
+  tempMsg.innerHTML = `
+    <div class="nabad-bubble" id="nabad-transcribing-bubble">
+      <div style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.85);font-size:13px;font-weight:600;">
+        <div class="nabad-wave-anim">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <span>Transcribing...</span>
+      </div>
+    </div>
+  `;
+  refs.messages.appendChild(tempMsg);
+  scrollToBottom();
+
+  // ── 3. Send audio to Whisper ─────────────────────────────────
   try {
-    const resp = await fetch('/api/transcribe', {
-      method: 'POST',
-      body: formData
-    });
+    const formData = new FormData();
+    formData.append('audio', blob, 'voice.webm');
+
+    const resp = await fetch('/api/transcribe', { method: 'POST', body: formData });
     const data = await resp.json();
     const transcript = (data.text || '').trim();
+
+    // ── 4. Remove the transcribing bubble ─────────────────────
+    tempMsg.remove();
+
     if (transcript && refs.input) {
+      // ── 5. Put transcript into input field ──────────────────
       refs.input.value = transcript;
       autoGrowTextarea();
       refs.input.focus();
+
+      // ── 6. Auto-send after short delay ──────────────────────
+      // (setSendState('idle') is NOT called here — sendMessage()
+      //  will immediately set it to 'thinking' and handle cleanup)
       setTimeout(() => sendMessage(), 300);
+    } else {
+      // No transcript returned — restore UI
+      setSendState('idle');
     }
+
   } catch (err) {
     console.error('[NABAD] Transcription error:', err);
+    tempMsg.remove();
+    setSendState('idle');
   }
 }
 
