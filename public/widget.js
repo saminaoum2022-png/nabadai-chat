@@ -2595,7 +2595,7 @@ function renderOnboardingIntro() {
   document.getElementById('nabad-input-wrap').style.display = 'none';
 
   refs.messages.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;min-height:100%;background:linear-gradient(160deg,#0a0f1e 0%,#0d1f3c 60%,#0a0f1e 100%);padding:32px 20px 24px;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;align-items:center;min-height:100%;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);padding:32px 20px 24px;box-sizing:border-box;">
 
       <!-- Pulsing Logo -->
       <div style="width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#06b6d4);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(37,99,235,0.5);animation:nabadBreath 2.4s ease-in-out infinite;margin-bottom:24px;flex-shrink:0;">
@@ -2603,8 +2603,9 @@ function renderOnboardingIntro() {
       </div>
 
       <!-- Headline -->
-      <div style="font-size:26px;font-weight:900;color:#fff;text-align:center;letter-spacing:-0.5px;margin-bottom:8px;line-height:1.2;">Your business,<br/>finally has a co-founder.</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.5);text-align:center;max-width:260px;line-height:1.6;margin-bottom:32px;">Nabad thinks, adapts, and learns — built for people who are serious about building something real.</div>
+      <div style="font-size:26px;font-weight:900;color:#0f172a;text-align:center;letter-spacing:-0.5px;margin-bottom:8px;line-height:1.2;">Your business,<br/>finally has a co-founder.</div>
+<div style="font-size:13px;color:#64748b;text-align:center;max-width:260px;line-height:1.6;margin-bottom:32px;">Nabad thinks, adapts, and learns — built for people who are serious about building something real.</div>
+
 
       <!-- Feature rows -->
       <div style="display:flex;flex-direction:column;gap:14px;width:100%;max-width:320px;margin-bottom:32px;">
@@ -2648,7 +2649,7 @@ function renderOnboardingIntro() {
         Let's build something →
       </button>
 
-      <div style="margin-top:14px;font-size:11px;color:rgba(255,255,255,0.25);text-align:center;">No credit card · No setup · Just start</div>
+      <div style="margin-top:14px;font-size:11px;color:#94a3b8;text-align:center;">No credit card · No setup · Just start</div>
 
     </div>
   `;
