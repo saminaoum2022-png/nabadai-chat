@@ -1018,6 +1018,10 @@ const check = await openai.chat.completions.create({
 
     const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
     if (answer !== 'yes') return null;
+    
+    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
+console.log('[NABAD DEBUG] Step1 answer:', answer); // ← ADD THIS LINE
+if (answer !== 'yes') return null;
 
     // Step 2 — extract the actual info
     const extract = await openai.chat.completions.create({
