@@ -1065,12 +1065,14 @@ Return ONLY the JSON object, no explanation, no markdown.`
     const parsed = JSON.parse(match[0]);
 
     // Return null if empty object
+console.log('[NABAD DEBUG] Step2 parsed:', JSON.stringify(parsed));
     if (!parsed || Object.keys(parsed).length === 0) return null;
 
     return parsed;
 
   } catch (err) {
     console.error('[NABAD] detectMeaningfulInfo error:', err?.message);
+    console.error('[NABAD] detectMeaningfulInfo full error:', JSON.stringify(err));
     return null;
   }
 }
