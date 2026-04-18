@@ -3558,6 +3558,86 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
     }
   }
 
+// ── PROFILE UPDATE TOAST ──────────────────────────────────────
+function showProfileUpdateToast(info) {
+  const FIELD_LABELS = {
+    businessName:     'your business name',
+    location:         'your location',
+    whatYouSell:      'what you sell',
+    revenue:          'your revenue',
+    biggestChallenge: 'your challenge',
+    targetCustomer:   'your target customer',
+    ideaSummary:      'your idea',
+    currentProgress:  'your progress',
+    biggestBlock:     'your blocker',
+    skills:           'your skills',
+    problems:         'problems you notice',
+    preference:       'your preference',
+    timeCommitment:   'your availability',
+    industry:         'your industry'
+  };
+
+  const learned = Object.keys(info)
+    .filter(k => FIELD_LABELS[k] && info[k])
+    .map(k => FIELD_LABELS[k]);
+
+  if (!learned.length) return;
+
+  const label = learned.length === 1
+    ? `📌 Nabad noted ${learned[0]}`
+    : `📌 Nabad noted ${learned.slice(0, 2).join(' & ')}`;
+
+  // Remove existing toast if any
+  const existing = document.getElementById('nabad-profile-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'nabad-profile-toast';
+  toast.style.cssText = [
+    'position:absolute',
+    'bottom:80px',
+    'left:50%',
+    'transform:translateX(-50%) translateY(10px)',
+    'background:linear-gradient(135deg,#0f172a,#1e3a5f)',
+    'color:#fff',
+    'font-size:12px',
+    'font-weight:700',
+    'padding:8px 16px',
+    'border-radius:999px',
+    'box-shadow:0 4px 18px rgba(0,0,0,0.22)',
+    'opacity:0',
+    'transition:opacity 0.3s ease,transform 0.3s ease',
+    'pointer-events:none',
+    'z-index:9999',
+    'white-space:nowrap',
+    'display:flex',
+    'align-items:center',
+    'gap:6px'
+  ].join(';');
+
+  toast.innerHTML = `
+    <span>${label}</span>
+    <span style="opacity:0.6;font-size:11px;font-weight:500">→ Memory</span>
+  `;
+
+  refs.panel.appendChild(toast);
+
+  // Fade in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+    });
+  });
+
+  // Fade out after 4 seconds
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(10px)';
+    setTimeout(() => toast.remove(), 400);
+  }, 4000);
+}
+
   // ── LAUNCHER CLICK ────────────────────────────────────────────
   function bindLauncherClick() {
     if (refs.launcher) {
