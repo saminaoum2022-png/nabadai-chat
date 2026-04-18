@@ -462,7 +462,7 @@ function showPersonalityPill(id) {
         bottom: 80px;
         width: min(420px, calc(100vw - 24px));
         height: min(760px, calc(100vh - 110px));
-        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+        background: #F7F9FC;
         border: 1px solid rgba(37,99,235,0.10);
         border-radius: 24px;
         box-shadow: 0 24px 80px rgba(15,23,42,0.18);
