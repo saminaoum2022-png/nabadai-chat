@@ -4279,8 +4279,14 @@ if (authSubmit) {
         setInputPlaceholder();
         applyPersonalityColor(state.personality, false);
       }
-    }, 1500);
+        }, 1500);
   });
+}
+
+// ── Close / back ──
+function closeSettings() {
+  page.classList.remove('open');
+  setTimeout(() => page.remove(), 350);
 }
 
 const signOutBtn = page.querySelector('#nabad-set-signout');
@@ -4292,117 +4298,92 @@ if (signOutBtn) {
       setTimeout(() => openSettingsPage(), 400);
     });
   });
-
-     DANGER SECTION
-      <div>
-        <div class="nabad-settings-section-label">⚠️ Danger Zone</div>
-        <div class="nabad-settings-card">
-          <div class="nabad-settings-row" id="nabad-set-reset">
-            <div class="nabad-settings-row-left">
-              <div class="nabad-settings-row-icon red">🗑️</div>
-              <div>
-                <div class="nabad-settings-row-label danger">Reset Everything</div>
-                <div class="nabad-settings-row-desc">Clear all messages, memory, and profile</div>
-              </div>
-            </div>
-            <span class="nabad-settings-row-arrow">›</span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  `;
-
-  refs.panel.appendChild(page);
-
-  // Slide in
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => { page.classList.add('open'); });
-  });
-
-  // ── Close / back ──
-  function closeSettings() {
-    page.classList.remove('open');
-    setTimeout(() => page.remove(), 350);
-  }
-
-  page.querySelector('#nabad-settings-back').addEventListener('click', closeSettings);
-
-  // ── Auto-detect toggle ──
-  const autoToggle = page.querySelector('#nabad-auto-toggle');
-  const personalityGrid = page.querySelector('#nabad-settings-personality-grid');
-
-  autoToggle.addEventListener('change', () => {
-    const isAuto = autoToggle.checked;
-    if (isAuto) {
-      personalityGrid.classList.remove('visible');
-      state.personality       = 'auto';
-      state.personalityBuffer = null;
-      state.personalityCount  = 0;
-      savePersonality('auto');
-      setInputPlaceholder();
-      applyPersonalityColor('auto', false);
-    } else {
-      personalityGrid.classList.add('visible');
-    }
-  });
-
-  // ── Personality chip selection ──
-  page.querySelectorAll('.nabad-settings-personality-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const newId = chip.getAttribute('data-personality');
-      page.querySelectorAll('.nabad-settings-personality-chip')
-        .forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-
-      const prev = state.personality;
-      state.personality       = newId;
-      state.personalityChosen = true;
-      state.personalityBuffer = null;
-      state.personalityCount  = 0;
-      savePersonality(newId);
-      setInputPlaceholder();
-      updatePersonalityBadge();
-      applyPersonalityColor(newId, prev !== newId);
-    });
-  });
-
-  // ── Chat actions ──
-  page.querySelector('#nabad-set-new-chat').addEventListener('click', () => {
-    closeSettings(); setTimeout(() => newChat(), 360);
-  });
-  page.querySelector('#nabad-set-memory').addEventListener('click', () => {
-    closeSettings(); setTimeout(() => showMemoryScreen(), 360);
-  });
-  page.querySelector('#nabad-set-warroom').addEventListener('click', () => {
-    closeSettings(); setTimeout(() => openWarRoom(''), 360);
-  });
-
-  // ── Reset ──
-  page.querySelector('#nabad-set-reset').addEventListener('click', () => {
-    closeSettings();
-    setTimeout(() => {
-      confirmAction('Reset everything? This will clear all messages, memory, and your profile.', () => {
-        Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-        localStorage.removeItem('nabad_insights');
-        state.messages          = [];
-        state.personality       = 'auto';
-        state.personalityChosen = false;
-        state.onboarded         = false;
-        state.userProfile       = {};
-        state.briefShown        = false;
-        state.personalityBuffer = null;
-        state.personalityCount  = 0;
-        refs.messages.innerHTML = '';
-        document.getElementById('nabad-input-wrap').style.display = 'flex';
-        updatePersonalityBadge();
-        applyPersonalityColor('auto', false);
-        setInputPlaceholder();
-        renderOnboardingIntro();
-      });
-    }, 360);
-  });
 }
+
+refs.panel.appendChild(page);
+
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => { page.classList.add('open'); });
+});
+
+page.querySelector('#nabad-settings-back').addEventListener('click', closeSettings);
+
+// ── Auto-detect toggle ──
+const autoToggle = page.querySelector('#nabad-auto-toggle');
+const personalityGrid = page.querySelector('#nabad-settings-personality-grid');
+
+autoToggle.addEventListener('change', () => {
+  const isAuto = autoToggle.checked;
+  if (isAuto) {
+    personalityGrid.classList.remove('visible');
+    state.personality       = 'auto';
+    state.personalityBuffer = null;
+    state.personalityCount  = 0;
+    savePersonality('auto');
+    setInputPlaceholder();
+    applyPersonalityColor('auto', false);
+  } else {
+    personalityGrid.classList.add('visible');
+  }
+});
+
+// ── Personality chip selection ──
+page.querySelectorAll('.nabad-settings-personality-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const newId = chip.getAttribute('data-personality');
+    page.querySelectorAll('.nabad-settings-personality-chip')
+      .forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+
+    const prev = state.personality;
+    state.personality       = newId;
+    state.personalityChosen = true;
+    state.personalityBuffer = null;
+    state.personalityCount  = 0;
+    savePersonality(newId);
+    setInputPlaceholder();
+    updatePersonalityBadge();
+    applyPersonalityColor(newId, prev !== newId);
+  });
+});
+
+// ── Chat actions ──
+page.querySelector('#nabad-set-new-chat').addEventListener('click', () => {
+  closeSettings(); setTimeout(() => newChat(), 360);
+});
+page.querySelector('#nabad-set-memory').addEventListener('click', () => {
+  closeSettings(); setTimeout(() => showMemoryScreen(), 360);
+});
+page.querySelector('#nabad-set-warroom').addEventListener('click', () => {
+  closeSettings(); setTimeout(() => openWarRoom(''), 360);
+});
+
+// ── Reset ──
+page.querySelector('#nabad-set-reset').addEventListener('click', () => {
+  closeSettings();
+  setTimeout(() => {
+    confirmAction('Reset everything? This will clear all messages, memory, and your profile.', () => {
+      Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
+      localStorage.removeItem('nabad_insights');
+      state.messages          = [];
+      state.personality       = 'auto';
+      state.personalityChosen = false;
+      state.onboarded         = false;
+      state.userProfile       = {};
+      state.briefShown        = false;
+      state.personalityBuffer = null;
+      state.personalityCount  = 0;
+      refs.messages.innerHTML = '';
+      document.getElementById('nabad-input-wrap').style.display = 'flex';
+      updatePersonalityBadge();
+      applyPersonalityColor('auto', false);
+      setInputPlaceholder();
+      renderOnboardingIntro();
+    });
+  }, 360);
+});
+}
+
 
   // ── MEMORY SCREEN ─────────────────────────────────────────────
   function showMemoryScreen() {
