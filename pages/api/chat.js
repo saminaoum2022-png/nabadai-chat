@@ -1003,18 +1003,18 @@ function upgradeCardRecentlyShown(messages = [], lookback = 4) {
 
 async function detectMeaningfulInfo(userMessage, openai) {
   try {
-    // Step 1 — quick check first to save tokens
-    const check = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      temperature: 0,
-      max_tokens: 5,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a classifier. Reply only "yes" or "no". Does this message contain meaningful information about the user's business, idea, revenue, location, challenge, industry, team, product, or pricing? Message: "${userMessage}"`
-        }
-      ]
-    });
+    // Step 1 — quick yes/no check
+const check = await openai.chat.completions.create({
+  model: 'gpt-4o',
+  temperature: 0,
+  max_tokens: 5,
+  messages: [
+    {
+      role: 'system',
+      content: `You are a classifier. Reply only "yes" or "no". Does this message contain ANY of the following about the user: their name, business name, location, city, country, what they sell, revenue, income, challenge, problem, skill, idea, industry, team size, pricing, or anything personal about their work or life situation? Be generous — if in doubt say "yes". Message: "${userMessage}"`
+    }
+  ]
+});
 
     const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
     if (answer !== 'yes') return null;
