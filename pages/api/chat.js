@@ -1068,7 +1068,6 @@ Return ONLY a JSON object. If truly nothing found return {}.`
   }
 }
 
-
 async function detectWarRoom(userMessage, recentMessages, userProfile, openai) {
   try {
     const context = recentMessages.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n');
@@ -1080,23 +1079,25 @@ async function detectWarRoom(userMessage, recentMessages, userProfile, openai) {
         {
           role: 'system',
           content: `You are a classifier. Reply only "yes" or "no".
-Is the user facing a significant business decision, conflict, or crossroads that would benefit from multiple perspectives?
 
-Look for:
-- Two options being weighed
-- Conflict language (but, however, although, except, or)
-- Big decisions (investment, pricing, hiring, pivoting, launching, quitting)
-- Asking "should I", "is this a good idea", "what would you do"
-- Contradicting something they said before
-- Mentioning someone else's opinion
-- Asking about timing
-- Unusually long message showing overthinking
-- Early stage business making a big move
+Should this message trigger a War Room (multi-perspective debate)?
 
-User profile: ${userProfile}
-Recent conversation:
-${context}
-Current message: "${userMessage}"`
+ONLY say "yes" if the user is CLEARLY:
+- Weighing two specific options against each other ("should I do X or Y")
+- Facing a major irreversible decision (shutting down, big investment, co-founder conflict, firing someone)
+- Explicitly asking for multiple perspectives or opinions
+- Describing a serious dilemma with real stakes and consequences
+
+Say "no" for:
+- General business questions or advice requests
+- Marketing, growth, branding, or offer questions
+- Casual messages or greetings
+- Any message that is just asking for help or ideas
+- Personality trigger messages like "how do I get more clients"
+
+Be STRICT. Default to "no" unless it is unmistakably a high-stakes decision with two sides.
+
+User message: "${userMessage}"`
         }
       ]
     });
@@ -1619,7 +1620,7 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     const [detectedInfo, suggestWarRoom, detectedPersonality] = await Promise.all([
       detectMeaningfulInfo(lastUserMessage, openai).catch(() => null),
       detectWarRoom(lastUserMessage, messages, userProfile || '', openai).catch(() => false),
-      classifyPersonality(lastUserMessage, personalityResolution.personalityId, openai).catch(() => 'auto')
+      classifyPersonality(lastUserMessage, 'auto', openai).catch(() => 'auto')
     ]);
 
 console.log('[NABAD DEBUG] detectedInfo:', JSON.stringify(detectedInfo));
