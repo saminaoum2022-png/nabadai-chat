@@ -4813,35 +4813,35 @@ function setSendState(stateLabel) {
     }
 
     getCurrentUser().then(user => {
-  if (user) {
-    state.authUser = user;
-    loadProfileFromSupabase().then(() => {
-      loadMessagesFromSupabase().then(() => {
-        if (state.messages.length > 0) {
-          state.messages.forEach(m => renderMessage(m.role, m.content, false));
-          scrollToBottom();
-        } else {
-          renderInitialState();
-        }
-      }).catch(() => renderInitialState());
+      if (user) {
+        state.authUser = user;
+        loadProfileFromSupabase().then(() => {
+          loadMessagesFromSupabase().then(() => {
+            if (state.messages.length > 0) {
+              state.messages.forEach(m => renderMessage(m.role, m.content, false));
+              scrollToBottom();
+            } else {
+              renderInitialState();
+            }
+          }).catch(() => renderInitialState());
+        }).catch(() => renderInitialState());
+      } else {
+        renderInitialState();
+      }
     }).catch(() => renderInitialState());
-  } else {
-    renderInitialState();
   }
-}).catch(() => renderInitialState());
-}
 
-if (typeof loadSupabase === 'function') {
-  loadSupabase(() => {
-    if (typeof loadDOMPurify === 'function') {
-      loadDOMPurify(() => initUI());
-    } else {
-      initUI();
-    }
-  });
-} else if (typeof loadDOMPurify === 'function') {
-  loadDOMPurify(() => initUI());
-} else {
-  initUI();
-}
+  if (typeof loadSupabase === 'function') {
+    loadSupabase(() => {
+      if (typeof loadDOMPurify === 'function') {
+        loadDOMPurify(() => initUI());
+      } else {
+        initUI();
+      }
+    });
+  } else if (typeof loadDOMPurify === 'function') {
+    loadDOMPurify(() => initUI());
+  } else {
+    initUI();
+  }
 })();
