@@ -495,20 +495,52 @@ function buildProactiveIntelligence(messages = [], lastUserMessage = '') {
   return insights.length ? `\n\nProactive intelligence (weave into reply naturally, never list verbatim): ${insights.join(' | ')}` : '';
 }
 
-// ── Memory Context ────────────────────────────────────────────────────────────
-function buildMemoryContext(messages = []) {
-  const userMsgs = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content).toLowerCase());
-  const combined = userMsgs.join(' ');
+function buildMemoryContext(messages = [], userProfile = '') {
   const facts = [];
-  const industryMatch = combined.match(/\b(agency|restaurant|cafe|gym|clinic|salon|ecommerce|saas|consulting|coaching|retail)\b/);
-  if (industryMatch) facts.push(`Industry: ${industryMatch[1]}`);
-  const revenueMatch = combined.match(/\$[\d,]+\s*(\/month|per month|monthly|\/mo)?|\b[\d,]+\s*(aed|sar|egp|usd|gbp|eur)\b/i);
-  if (revenueMatch) facts.push(`Revenue mentioned: ${revenueMatch[0]}`);
+
+  // ── Pull from structured userProfile string first ──
+  if (userProfile) {
+    const profilePairs = userProfile.split('|').map(s => s.trim()).filter(Boolean);
+    profilePairs.forEach(pair => {
+      if (pair.length > 3) facts.push(pair);
+    });
+  }
+
+  // ── Also scan conversation for anything not already in profile ──
+  const userMsgs = messages.filter(m => m.role === 'user')
+    .map(m => getMessageText(m.content).toLowerCase());
+  const combined = userMsgs.join(' ');
+  const profileLower = userProfile.toLowerCase();
+
+  const industryMatch = combined.match(
+    /\b(agency|restaurant|cafe|gym|clinic|salon|ecommerce|saas|consulting|coaching|retail)\b/
+  );
+  if (industryMatch && !profileLower.includes(industryMatch[1])) {
+    facts.push(`Industry detected: ${industryMatch[1]}`);
+  }
+
+  const revenueMatch = combined.match(
+    /\$[\d,]+\s*(\/month|per month|monthly|\/mo)?|\b[\d,]+\s*(aed|sar|egp|usd|gbp|eur)\b/i
+  );
+  if (revenueMatch && !profileLower.includes(revenueMatch[0].toLowerCase())) {
+    facts.push(`Revenue mentioned: ${revenueMatch[0]}`);
+  }
+
   const clientMatch = combined.match(/(\d+)\s*(clients?|customers?|accounts?)/i);
-  if (clientMatch) facts.push(`Clients: ${clientMatch[0]}`);
-  const goalMatch = combined.match(/\b(scale|grow|reach|hit|achieve)\b.{0,40}\b(\$[\d,]+|[\d,]+k|10k|20k|50k|100k)\b/i);
-  if (goalMatch) facts.push(`Goal: ${goalMatch[0]}`);
-  return facts.length ? `\n\nConversation memory (reference naturally, never repeat verbatim): ${facts.join(' | ')}` : '';
+  if (clientMatch && !profileLower.includes(clientMatch[0].toLowerCase())) {
+    facts.push(`Clients: ${clientMatch[0]}`);
+  }
+
+  const goalMatch = combined.match(
+    /\b(scale|grow|reach|hit|achieve)\b.{0,40}\b(\$[\d,]+|[\d,]+k|10k|20k|50k|100k)\b/i
+  );
+  if (goalMatch && !profileLower.includes(goalMatch[0].toLowerCase())) {
+    facts.push(`Goal: ${goalMatch[0]}`);
+  }
+
+  if (!facts.length) return '';
+
+  return `\n\nWhat Nabad knows about this founder (use this naturally — reference it when relevant, never recite it as a list, never ask for info already here):\n${facts.join('\n')}`;
 }
 
 // ── Location Detection ────────────────────────────────────────────────────────
@@ -1416,7 +1448,7 @@ export default async function handler(req, res) {
   }
 
   const proactiveIntelligence = buildProactiveIntelligence(messages, lastUserMessage);
-  const memoryContext = buildMemoryContext(messages);
+  const memoryContext = buildMemoryContext(messages, userProfile);
   const locationContext = buildLocationContext(detectedLocation);
 
   const toneInstruction = `
@@ -1584,13 +1616,14 @@ You don't just answer questions — you see what's behind them. When someone ask
 
 You are direct, warm, and genuinely invested. You challenge assumptions not to be provocative but because you care enough to tell the truth. You bring unexpected connections — a lesson from a completely different industry, a pattern you've seen before, a question nobody else thought to ask. You make people feel both understood and slightly uncomfortable in the best possible way.
 
-You are NOT an assistant. You do NOT over-explain. You have energy, edge, and genuine opinions. If a user profile is provided below, use it naturally — reference their business name, revenue, idea, or challenge when relevant. Do NOT ask for information they already gave during onboarding. If they are at the idea stage, treat them as a co-founder validating a startup. If they are still figuring things out, act as a discovery partner helping them find their direction.`,
+You are NOT an assistant. You do NOT over-explain. You have energy, edge, and genuine opinions. If a user profile is provided below, use it naturally — reference their business name, revenue, idea, or challenge when relevant. Do NOT ask for information they already gave during onboarding. If they are at the idea stage, treat them as a co-founder validating a startup. If they are still figuring things out, act as a discovery partner helping them find their direction. When you know something about the founder — their business name, revenue, challenge, or idea — weave it into your replies naturally, the way a real co-founder would reference shared history. Say "your agency" not "your business". Say "the $3k revenue you mentioned" not "your current revenue". Make them feel remembered, not processed.`,
+
 
     `Variation directive for this response: ${todaySeed}`,
     timingIntelligence,
     (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
-    userProfile ? `User profile (from onboarding): ${userProfile}` : '',
+    userProfile ? `Founder profile (collected during onboarding — treat this as things you already know about them, reference naturally in conversation without repeating it back verbatim, and build on it rather than asking again):\n${userProfile}` : '',
     proactiveIntelligence,
     memoryContext,
     locationContext,
