@@ -3598,7 +3598,7 @@ function showProfileUpdateToast(info) {
     'bottom:80px',
     'left:50%',
     'transform:translateX(-50%) translateY(10px)',
-    'background:linear-gradient(135deg,#0f172a,#1e3a5f)',
+    `background:linear-gradient(135deg,${PERSONALITY_COLORS[state.personality]?.pulse || '#0f172a'},${PERSONALITY_COLORS[state.personality]?.border || '#1e3a5f'})`,
     'color:#fff',
     'font-size:12px',
     'font-weight:700',
