@@ -3132,8 +3132,8 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
     micBtn.style.cursor = 'pointer';
   }
   refs.input.focus();
+ }
 }
-
   // ── WAR ROOM SUGGESTION BANNER ────────────────────────────────
   function showWarRoomSuggestion(situation) {
     let banner = document.getElementById('nabad-warroom-suggestion');
