@@ -2919,7 +2919,7 @@ function showPersonalityPill(id) {
     updatePersonalityBadge();
     setInputPlaceholder();
     applyPersonalityColor(state.personality, false);
-    renderInitialState();
+    //renderInitialState();
   }
 
   // ── EVENTS ───────────────────────────────────────────────────
@@ -4777,24 +4777,34 @@ function setSendState(stateLabel) {
     }
   }
 
-  // ── INIT ─────────────────────────────────────────────────────
-  loadSupabase(() => {
+  // ── INIT ────────────────────────────────────────────────────
+loadSupabase(() => {
   loadDOMPurify(() => {
     injectStyles();
     buildShell();
     bindLauncherClick();
 
-    // Restore auth session on load
     getCurrentUser().then(user => {
       if (user) {
         state.authUser = user;
-        loadProfileFromSupabase().then(() => {
-          loadMessagesFromSupabase().then(() => {
-            updatePersonalityBadge();
-            setInputPlaceholder();
-            applyPersonalityColor(state.personality, false);
+        loadProfileFromSupabase(user.id).then(profile => {
+          if (profile) {
+            Object.assign(state.userProfile, profile);
+            state.personality = profile.personality || 'auto';
+            state.onboardingComplete = profile.onboarded ?? false;
+            applyPersonalityColor(state.personality);
+          }
+          loadMessagesFromSupabase(user.id).then(msgs => {
+            if (msgs && msgs.length > 0) {
+              state.messages = msgs;
+              renderAllMessages();
+            } else {
+              renderInitialState();
+            }
           });
         });
+      } else {
+        renderInitialState();  // guest user — no account
       }
     });
   });
