@@ -4796,52 +4796,66 @@ function setSendState(stateLabel) {
 
  // ── INIT ────────────────────────────────────────────────────
 (function startWidget() {
-  function initUI() {
+  async function initUI() {
     try {
+      // 1️⃣ FIRST: Inject styles (no async needed)
       injectStyles();
+
+      // 2️⃣ SECOND: Build shell with refs
       buildShell();
-      if (typeof bindLauncherClick === 'function') bindLauncherClick();
-    } catch (e) {
-      console.error('[NABAD] buildShell failed:', e);
-      return;
-    }
 
-    if (typeof getCurrentUser !== 'function') {
-      console.warn('[NABAD] No auth, loading as guest');
+      // 3️⃣ THIRD: Bind launcher
+      if (typeof bindLauncherClick === 'function') {
+        bindLauncherClick();
+      }
+
+      // 4️⃣ FOURTH: Load dependencies in parallel
+      await Promise.all([
+        new Promise(resolve => {
+          if (typeof loadDOMPurify === 'function') {
+            loadDOMPurify(() => {
+              console.log('[NABAD] DOMPurify loaded');
+              resolve();
+            });
+          } else {
+            resolve();
+          }
+        })
+      ]);
+
+      // 5️⃣ FIFTH: Show initial UI immediately (THIS IS KEY!)
       renderInitialState();
-      return;
+
+      // 6️⃣ SIXTH: Try to load Supabase & auth in background (don't block)
+      if (typeof loadSupabase === 'function') {
+        loadSupabase(() => {
+          console.log('[NABAD] Supabase loaded');
+          if (typeof getCurrentUser === 'function') {
+            getCurrentUser()
+              .then(user => {
+                if (user) {
+                  state.authUser = user;
+                  console.log('[NABAD] User found:', user.email);
+                  loadProfileFromSupabase().catch(e => console.warn('[NABAD] Profile load failed:', e));
+                  loadMessagesFromSupabase().catch(e => console.warn('[NABAD] Messages load failed:', e));
+                } else {
+                  console.log('[NABAD] No authenticated user');
+                }
+              })
+              .catch(e => console.warn('[NABAD] Auth check failed:', e));
+          }
+        });
+      }
+
+    } catch (e) {
+      console.error('[NABAD] initUI failed:', e);
+      // Show error state but don't crash
+      if (refs.messages) {
+        refs.messages.innerHTML = '<p style="color:#ef4444;padding:20px;text-align:center;">⚠️ Widget failed to load. Please refresh the page.</p>';
+      }
     }
-
-    getCurrentUser().then(user => {
-      if (user) {
-        state.authUser = user;
-        loadProfileFromSupabase().then(() => {
-          loadMessagesFromSupabase().then(() => {
-            if (state.messages.length > 0) {
-              state.messages.forEach(m => renderMessage(m.role, m.content, false));
-              scrollToBottom();
-            } else {
-              renderInitialState();
-            }
-          }).catch(() => renderInitialState());
-        }).catch(() => renderInitialState());
-      } else {
-        renderInitialState();
-      }
-    }).catch(() => renderInitialState());
   }
 
-  if (typeof loadSupabase === 'function') {
-    loadSupabase(() => {
-      if (typeof loadDOMPurify === 'function') {
-        loadDOMPurify(() => initUI());
-      } else {
-        initUI();
-      }
-    });
-  } else if (typeof loadDOMPurify === 'function') {
-    loadDOMPurify(() => initUI());
-  } else {
-    initUI();
-  }
+  // Start async init immediately
+  initUI().catch(e => console.error('[NABAD] Initialization error:', e));
 })();
