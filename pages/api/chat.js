@@ -1210,11 +1210,10 @@ export default async function handler(req, res) {
     ? body.personality : 'auto';
 
   const userProfile = cleanText(body?.userProfile || '', 500);
-const memorySummary = cleanText(body?.memorySummary || '', 1500);
-const detectedLocation = extractLocationFromMessages(messages);
-const profileHasLocation = userProfile
-  ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
-  : false;
+  const detectedLocation = extractLocationFromMessages(messages);
+  const profileHasLocation = userProfile
+    ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
+    : false;
 
   // ── Positioning question ──
   if (isPositioningQuestion(lastUserMessage)) {
@@ -1625,7 +1624,6 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
     userProfile ? `Founder profile (collected during onboarding — treat this as things you already know about them, reference naturally in conversation without repeating it back verbatim, and build on it rather than asking again):\n${userProfile}` : '',
-    memorySummary ? `Long-term memory — things Nabad has learned about this founder across previous sessions (reference naturally, never recite as a list):\n${memorySummary}` : '',
     proactiveIntelligence,
     memoryContext,
     locationContext,
