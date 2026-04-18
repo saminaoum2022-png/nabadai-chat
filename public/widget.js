@@ -2594,116 +2594,114 @@ if (!state.onboarded && !state.messages.length) {
 function renderOnboardingIntro() {
   document.getElementById('nabad-input-wrap').style.display = 'none';
   document.getElementById('nabad-header').style.display = 'none';
+  refs.messages.style.overflow = 'auto';
 
   const pulseColors = [
-    { r: 37,  g: 99,  b: 235 },  // blue - strategist
-    { r: 22,  g: 163, b: 74  },  // green - growth
-    { r: 147, g: 51,  b: 234 },  // purple - branding
-    { r: 234, g: 88,  b: 12  },  // orange - offer
-    { r: 219, g: 39,  b: 119 },  // pink - creative
-    { r: 220, g: 38,  b: 38  },  // red - straight talk
-    { r: 6,   g: 182, b: 212 },  // cyan - auto
+    { r: 37,  g: 99,  b: 235 },
+    { r: 22,  g: 163, b: 74  },
+    { r: 147, g: 51,  b: 234 },
+    { r: 234, g: 88,  b: 12  },
+    { r: 219, g: 39,  b: 119 },
+    { r: 220, g: 38,  b: 38  },
+    { r: 6,   g: 182, b: 212 }
   ];
+  let colorIndex = 0;
+
+  document.getElementById('nabad-intro-pulse-style')?.remove();
+  const pulseStyle = document.createElement('style');
+  pulseStyle.id = 'nabad-intro-pulse-style';
+  document.head.appendChild(pulseStyle);
 
   refs.messages.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;min-height:100%;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);padding:48px 20px 24px;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;align-items:center;min-height:100%;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);padding:40px 20px 28px;box-sizing:border-box;">
 
-      <!-- Logo -->
-      <div id="nabad-intro-logo-wrap" style="width:82px;height:82px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:24px;flex-shrink:0;">
-        <img src="/logo.png" alt="Nabad" style="width:82px;height:82px;border-radius:50%;object-fit:cover;" />
+      <div id="nabad-intro-logo-wrap" style="position:relative;width:82px;height:82px;margin-bottom:28px;display:flex;align-items:center;justify-content:center;">
+        <img id="nabad-intro-logo-img" src="/logo.png" alt="Nabad" style="width:82px;height:82px;border-radius:50%;object-fit:cover;position:relative;z-index:1;transition:transform 0.1s ease-out;"/>
       </div>
 
-      <!-- Headline -->
-      <div style="font-size:26px;font-weight:900;color:#0f172a;text-align:center;letter-spacing:-0.5px;margin-bottom:8px;line-height:1.2;">Your business,<br/>finally has a co-founder.</div>
-      <div style="font-size:13px;color:#64748b;text-align:center;max-width:260px;line-height:1.6;margin-bottom:36px;">Nabad thinks, adapts, and learns — built for people who are serious about building something real.</div>
+      <div style="font-size:26px;font-weight:900;color:#0f172a;text-align:center;letter-spacing:-0.5px;margin-bottom:8px;line-height:1.25;">Your business,<br/>finally has a co-founder.</div>
+      <div style="font-size:13px;color:#64748b;text-align:center;max-width:260px;line-height:1.6;margin-bottom:32px;">Nabad thinks, adapts, and learns — built for people serious about building something real.</div>
 
-      <!-- Features -->
-      <div style="display:flex;flex-direction:column;gap:18px;width:100%;max-width:300px;margin-bottom:36px;">
-
-        <div style="display:flex;align-items:center;gap:14px;">
-          <div style="width:40px;height:40px;border-radius:12px;background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.15);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🧠</div>
+      <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;margin-bottom:32px;">
+        <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+          <span style="font-size:20px;">🧠</span>
           <div>
-            <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:2px;">Auto-detects your intent</div>
-            <div style="font-size:12px;color:#64748b;line-height:1.5;">Switches between 7 advisor personalities based on what you need</div>
+            <div style="font-size:13px;font-weight:700;color:#0f172a;">Adapts to your business mode</div>
+            <div style="font-size:11px;color:#64748b;">Strategy, growth, branding & more</div>
           </div>
         </div>
-
-        <div style="display:flex;align-items:center;gap:14px;">
-          <div style="width:40px;height:40px;border-radius:12px;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.15);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">⚔️</div>
+        <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+          <span style="font-size:20px;">🎙️</span>
           <div>
-            <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:2px;">War Room</div>
-            <div style="font-size:12px;color:#64748b;line-height:1.5;">3 expert advisors debate your toughest decisions simultaneously</div>
+            <div style="font-size:13px;font-weight:700;color:#0f172a;">Talk, don't type</div>
+            <div style="font-size:11px;color:#64748b;">Voice-first, hands-free business thinking</div>
           </div>
         </div>
-
-        <div style="display:flex;align-items:center;gap:14px;">
-          <div style="width:40px;height:40px;border-radius:12px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.15);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">💾</div>
+        <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+          <span style="font-size:20px;">⚡</span>
           <div>
-            <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:2px;">Remembers everything</div>
-            <div style="font-size:12px;color:#64748b;line-height:1.5;">Your business, goals, and challenges — saved and used in every reply</div>
+            <div style="font-size:13px;font-weight:700;color:#0f172a;">Instant answers, real actions</div>
+            <div style="font-size:11px;color:#64748b;">Not just chat — a thinking partner</div>
           </div>
         </div>
-
-        <div style="display:flex;align-items:center;gap:14px;">
-          <div style="width:40px;height:40px;border-radius:12px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.15);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🌅</div>
-          <div>
-            <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:2px;">Morning Brief</div>
-            <div style="font-size:12px;color:#64748b;line-height:1.5;">Start every day with a personalised AI briefing built around your context</div>
-          </div>
-        </div>
-
       </div>
 
-      <!-- CTA -->
-      <button id="nabad-intro-start" style="width:100%;max-width:300px;padding:16px;background:linear-gradient(135deg,#2563eb,#06b6d4);color:#fff;font-size:16px;font-weight:800;border:none;border-radius:16px;cursor:pointer;box-shadow:0 8px 28px rgba(37,99,235,0.25);transition:transform 0.15s ease,box-shadow 0.15s ease;">
+      <button id="nabad-intro-start" style="width:100%;max-width:320px;padding:16px;background:linear-gradient(135deg,#2563eb,#06b6d4);color:#fff;font-size:16px;font-weight:800;border:none;border-radius:16px;cursor:pointer;box-shadow:0 8px 28px rgba(37,99,235,0.25);transition:transform 0.15s,box-shadow 0.15s;">
         Let's build something →
       </button>
-
       <div style="margin-top:14px;font-size:11px;color:#94a3b8;text-align:center;">No credit card · No setup · Just start</div>
-
     </div>
   `;
 
-  // ── Smooth color breathing glow ──
-  let colorIndex = 0;
-  let progress = 0;
-  const speed = 0.004;
-  let animFrame;
-
+  // ── PULSE BLOCK ──
   function lerpColor(a, b, t) {
     return {
       r: Math.round(a.r + (b.r - a.r) * t),
       g: Math.round(a.g + (b.g - a.g) * t),
-      b: Math.round(a.b + (b.b - a.b) * t),
+      b: Math.round(a.b + (b.b - a.b) * t)
     };
   }
 
-  function animatePulse() {
-    const logoWrap = document.getElementById('nabad-intro-logo-wrap');
-    if (!logoWrap) return;
+  let lerpProgress = 0;
+  let animFrame;
 
-    progress += speed;
-    if (progress >= 1) {
-      progress = 0;
+  function animatePulse() {
+    if (!document.getElementById('nabad-intro-logo-wrap')) return;
+    lerpProgress += 0.006;
+    if (lerpProgress >= 1) {
+      lerpProgress = 0;
       colorIndex = (colorIndex + 1) % pulseColors.length;
     }
+    const c = lerpColor(
+      pulseColors[colorIndex],
+      pulseColors[(colorIndex + 1) % pulseColors.length],
+      lerpProgress
+    );
 
-    const current = pulseColors[colorIndex];
-    const next = pulseColors[(colorIndex + 1) % pulseColors.length];
-    const c = lerpColor(current, next, progress);
+    // Scale in/out synced with ring
+    const logoImg = document.getElementById('nabad-intro-logo-img');
+    if (logoImg) {
+      const scale = 1 + 0.045 * Math.sin(lerpProgress * Math.PI);
+      logoImg.style.transform = `scale(${scale})`;
+    }
 
-    logoWrap.style.boxShadow = `
-      0 0 0 4px rgba(${c.r},${c.g},${c.b},0.15),
-      0 0 18px 6px rgba(${c.r},${c.g},${c.b},0.20),
-      0 0 36px 12px rgba(${c.r},${c.g},${c.b},0.10)
+    pulseStyle.textContent = `
+      @keyframes nabadIntroPulse {
+        0%   { box-shadow: 0 0 0 0px  rgba(${c.r},${c.g},${c.b},0.55); }
+        60%  { box-shadow: 0 0 0 18px rgba(${c.r},${c.g},${c.b},0.0);  }
+        100% { box-shadow: 0 0 0 0px  rgba(${c.r},${c.g},${c.b},0.0);  }
+      }
+      #nabad-intro-logo-wrap {
+        animation: nabadIntroPulse 1.4s ease-out infinite;
+        border-radius: 50%;
+      }
     `;
-
     animFrame = requestAnimationFrame(animatePulse);
   }
-
   animatePulse();
+  // ── END PULSE BLOCK ──
 
-  // CTA
+  // ── Button interactions ──
   const startBtn = document.getElementById('nabad-intro-start');
   if (startBtn) {
     startBtn.addEventListener('mouseenter', () => {
@@ -2716,6 +2714,8 @@ function renderOnboardingIntro() {
     });
     startBtn.addEventListener('click', () => {
       cancelAnimationFrame(animFrame);
+      document.getElementById('nabad-intro-pulse-style')?.remove();
+      refs.messages.style.background = '';
       document.getElementById('nabad-header').style.display = 'flex';
       renderOnboardingScreen1();
     });
