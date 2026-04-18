@@ -4794,117 +4794,79 @@ function setSendState(stateLabel) {
   }
 }
 
- // ══════════════════════════════════════════════════════════════════
-// COPY THIS ENTIRE BLOCK TO REPLACE YOUR INIT SECTION
-// Find: // ── INIT ──── and replace everything after it with this
-// ══════════════════════════════════════════════════════════════════
-
-// ── INIT ────────────────────────────────────────────────────
+ // ── INIT ────────────────────────────────────────────────────
 (function startWidget() {
-  async function initUI() {
+
+  function initUI() {
     try {
-      console.log('[NABAD] Starting widget initialization...');
+      console.log('[NABAD] init started');
 
-      // 1️⃣ FIRST: Inject styles
+      // 1. Inject styles
       injectStyles();
-      console.log('[NABAD] Styles injected');
 
-      // 2️⃣ SECOND: Build shell with refs
+      // 2. Build DOM shell
       buildShell();
-      console.log('[NABAD] Shell built, panel exists:', !!refs.panel, 'messages:', !!refs.messages, 'input:', !!refs.input);
 
-      // 3️⃣ THIRD: Bind launcher
-      if (typeof bindLauncherClick === 'function') {
-        bindLauncherClick();
-      }
+      // 3. Bind launcher click (desktop)
+      bindLauncherClick();
 
-// Expose public open API for index.js auto-open
-window.__NABAD_OPEN_WIDGET__ = () => toggleWidget(true);
-
-
-      // 4️⃣ FOURTH: Load DOMPurify in background (non-blocking)
-      if (typeof loadDOMPurify === 'function') {
-        loadDOMPurify(() => {
-          console.log('[NABAD] DOMPurify loaded');
-        });
-      }
-
-      // 5️⃣ FIFTH: Open the panel and render initial state
-      setTimeout(() => {
-        console.log('[NABAD] Opening panel and rendering UI...');
-        
-        // Force panel to be visible
-        if (refs.panel) {
-          refs.panel.classList.add('open');
-          refs.panel.setAttribute('aria-hidden', 'false');
-          console.log('[NABAD] Panel opened');
-        }
-        
-        if (refs.root) {
-          refs.root.classList.add('nabad-open');
-        }
-
-        // Show input wrap
+      // 4. Expose public API — index.js calls this to open the widget
+      window.__NABAD_OPEN_WIDGET__ = function () {
+        // Always restore header + input before opening
+        const header    = document.getElementById('nabad-header');
         const inputWrap = document.getElementById('nabad-input-wrap');
-        if (inputWrap) {
-          inputWrap.style.display = 'flex';
-          console.log('[NABAD] Input wrap shown');
-        }
+        if (header)    header.style.display    = 'flex';
+        if (inputWrap) inputWrap.style.display = 'flex';
 
-        // Render the actual content
-        renderInitialState();
-        console.log('[NABAD] Initial state rendered');
-        
-        // Scroll to bottom
-        scrollToBottom();
-        
-        // Focus input
-        if (refs.input) {
-          refs.input.focus();
-        }
-      }, 100);
+        state.open = true;
+        refs.panel.classList.add('open');
+        refs.panel.setAttribute('aria-hidden', 'false');
+        refs.root.classList.add('nabad-open');
+        applyScrollLock();
 
-      // 6️⃣ SIXTH: Load Supabase in background (completely non-blocking)
-      if (typeof loadSupabase === 'function') {
-        loadSupabase(() => {
-          console.log('[NABAD] Supabase client created');
-          
-          // Try to get current user
-          if (typeof getCurrentUser === 'function') {
-            getCurrentUser()
-              .then(user => {
-                if (user) {
-                  state.authUser = user;
-                  console.log('[NABAD] User authenticated:', user.email);
-                  // Sync data in background
-                  loadProfileFromSupabase().catch(e => console.warn('[NABAD] Profile sync failed:', e));
-                  loadMessagesFromSupabase().catch(e => console.warn('[NABAD] Messages sync failed:', e));
-                } else {
-                  console.log('[NABAD] No user logged in');
-                }
-              })
-              .catch(e => console.warn('[NABAD] Auth check failed:', e));
+        // Decide what to render
+        if (!state.onboarded && !state.messages.length) {
+          renderOnboardingIntro();
+        } else if (shouldShowMorningBrief()) {
+          showMorningBrief();
+        } else {
+          updatePersonalityBadge();
+          if (!state.messages.length) {
+            renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+          } else {
+            state.messages.forEach(m => renderMessage(m.role, m.content, false));
           }
-        });
-      }
+          scrollToBottom();
+          if (refs.input) refs.input.focus();
+        }
+      };
+
+      // 5. Load DOMPurify in background
+      loadDOMPurify(() => console.log('[NABAD] DOMPurify ready'));
+
+      // 6. Load Supabase in background
+      loadSupabase(() => {
+        console.log('[NABAD] Supabase ready');
+        getCurrentUser()
+          .then(user => {
+            if (user) {
+              state.authUser = user;
+              loadProfileFromSupabase().catch(() => {});
+              loadMessagesFromSupabase().catch(() => {});
+            }
+          })
+          .catch(() => {});
+      });
 
     } catch (e) {
-      console.error('[NABAD] Critical init error:', e);
-      // Emergency fallback
-      if (refs.messages) {
-        refs.messages.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;font-family:system-ui;"><strong>⚠️ Widget Error</strong><br><small style="font-size:12px;">' + (e.message || 'Unknown error') + '</small></div>';
-      }
+      console.error('[NABAD] init error:', e);
     }
   }
 
-  // Start initialization
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log('[NABAD] DOM ready, starting init');
-      initUI().catch(e => console.error('[NABAD] Init failed:', e));
-    });
+    document.addEventListener('DOMContentLoaded', initUI);
   } else {
-    console.log('[NABAD] DOM already loaded, starting init');
-    initUI().catch(e => console.error('[NABAD] Init failed:', e));
+    initUI();
   }
+
 })();
