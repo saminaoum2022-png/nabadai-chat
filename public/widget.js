@@ -2907,7 +2907,7 @@ function renderOnboardingIntro() {
   document.head.appendChild(pulseStyle);
 
   refs.messages.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;min-height:100%;background:#F7F9FC;padding:40px 20px 28px;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;align-items:center;min-height:100%;background:#F7F9FC;">
 
       <div id="nabad-intro-logo-wrap" style="position:relative;width:82px;height:82px;margin-bottom:28px;display:flex;align-items:center;justify-content:center;">
         <img id="nabad-intro-logo-img" src="/logo.png" alt="Nabad" style="width:82px;height:82px;border-radius:50%;object-fit:cover;position:relative;z-index:1;transition:transform 0.1s ease-out;"/>
