@@ -1003,6 +1003,7 @@ function upgradeCardRecentlyShown(messages = [], lookback = 4) {
 
 async function detectMeaningfulInfo(userMessage, openai) {
   try {
+    // Step 1 — quick check first to save tokens
     const check = await openai.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0,
@@ -1014,10 +1015,62 @@ async function detectMeaningfulInfo(userMessage, openai) {
         }
       ]
     });
+
     const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
-    return answer === 'yes';
-  } catch {
-    return false;
+    if (answer !== 'yes') return null;
+
+    // Step 2 — extract the actual info
+    const extract = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0,
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a data extractor. Extract business information from the user message and return ONLY a valid JSON object. Only include fields that are clearly mentioned. Never guess or invent data.
+
+Available fields:
+- businessName: string
+- location: string  
+- whatYouSell: string
+- revenue: string
+- biggestChallenge: string
+- targetCustomer: string
+- ideaSummary: string
+- currentProgress: string
+- biggestBlock: string
+- skills: string
+- industry: string
+- preference: string
+- timeCommitment: string
+
+If nothing meaningful is found, return: {}
+
+Return ONLY the JSON object, no explanation, no markdown.`
+        },
+        {
+          role: 'user',
+          content: userMessage
+        }
+      ]
+    });
+
+    const raw = extract.choices?.[0]?.message?.content?.trim() || '{}';
+
+    // Clean and parse
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+
+    const parsed = JSON.parse(match[0]);
+
+    // Return null if empty object
+    if (!parsed || Object.keys(parsed).length === 0) return null;
+
+    return parsed;
+
+  } catch (err) {
+    console.error('[NABAD] detectMeaningfulInfo error:', err?.message);
+    return null;
   }
 }
 
