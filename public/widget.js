@@ -3306,29 +3306,6 @@ function renderOnboardingIntro() {
   }
 }
 
-  // ── Button interactions ──
-  const startBtn = document.getElementById('nabad-intro-start');
-  if (startBtn) {
-    startBtn.addEventListener('mouseenter', () => {
-      startBtn.style.transform = 'translateY(-2px)';
-      startBtn.style.boxShadow = '0 12px 32px rgba(37,99,235,0.35)';
-    });
-    startBtn.addEventListener('mouseleave', () => {
-      startBtn.style.transform = 'translateY(0)';
-      startBtn.style.boxShadow = '0 8px 28px rgba(37,99,235,0.25)';
-    });
-    startBtn.addEventListener('click', () => {
-      cancelAnimationFrame(animFrame);
-      document.getElementById('nabad-intro-pulse-style')?.remove();
-      refs.messages.style.background = '';
-      document.getElementById('nabad-header').style.display = 'flex';
-      renderOnboardingScreen1();
-    });
-  }
-
-  scrollToBottom();
-}
-
   function renderOnboardingScreen1() {
     document.getElementById('nabad-input-wrap').style.display = 'none';
 
@@ -4315,9 +4292,8 @@ if (signOutBtn) {
       setTimeout(() => openSettingsPage(), 400);
     });
   });
-}
 
-      <!-- DANGER SECTION -->
+     DANGER SECTION
       <div>
         <div class="nabad-settings-section-label">⚠️ Danger Zone</div>
         <div class="nabad-settings-card">
