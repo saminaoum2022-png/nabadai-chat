@@ -1,4 +1,3 @@
-
 // ─────────────────────────────────────────────────────────────
 //  NabadAI Widget  —  Full Updated Version
 //  Previous fixes: [FIX-1] through [FIX-12]
@@ -7,6 +6,7 @@
 //  Tier 3: [T3-6] Pricing Table  [T3-6b] Offer Card
 //          [T3-6c] Positioning Matrix  [T3-6d] 30-Day Action Plan
 //  NEW: [OB-1] 3-screen onboarding flow
+//  NEW: [PC-1] Personality color system with auto-detection
 // ─────────────────────────────────────────────────────────────
 
 (() => {
@@ -46,7 +46,7 @@
     }
     return `<p>${escapeHtml(String(html))}</p>`;
   }
-  
+
   const CONFIG = {
     apiUrl: '/api/chat',
     title: 'NabadAi',
@@ -65,35 +65,46 @@
   };
 
   const PERSONALITIES = [
-  { id: 'strategist',    icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg></div>`,    title: 'Strategist',         desc: 'Clear direction, positioning, and smart business decisions' },
-  { id: 'growth',        icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>`,        title: 'Growth Expert',       desc: 'Customer acquisition, conversion, and growth ideas' },
-  { id: 'branding',      icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg></div>`,      title: 'Brand Builder',       desc: 'Branding, naming, identity, and premium positioning' },
-  { id: 'offer',         icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></div>`,         title: 'Offer Architect',     desc: 'Offers, pricing, packages, and monetization' },
-  { id: 'creative',      icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>`,      title: 'Creative Challenger', desc: 'Bold, original, out-of-the-box business thinking' },
-  { id: 'straight_talk', icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>`, title: 'Straight Talk',       desc: 'Honest, direct, no-fluff business advice' },
-  { id: 'auto',          icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>`,          title: 'Let Nabad choose',    desc: 'Automatically adapt based on your goal' }
-];
+    { id: 'strategist',    icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg></div>`,    title: 'Strategist',         desc: 'Clear direction, positioning, and smart business decisions' },
+    { id: 'growth',        icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>`,        title: 'Growth Expert',       desc: 'Customer acquisition, conversion, and growth ideas' },
+    { id: 'branding',      icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg></div>`,      title: 'Brand Builder',       desc: 'Branding, naming, identity, and premium positioning' },
+    { id: 'offer',         icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></div>`,         title: 'Offer Architect',     desc: 'Offers, pricing, packages, and monetization' },
+    { id: 'creative',      icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>`,      title: 'Creative Challenger', desc: 'Bold, original, out-of-the-box business thinking' },
+    { id: 'straight_talk', icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>`, title: 'Straight Talk',       desc: 'Honest, direct, no-fluff business advice' },
+    { id: 'auto',          icon: `<div class="nabad-path-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>`,          title: 'Let Nabad choose',    desc: 'Automatically adapt based on your goal' }
+  ];
+
+  // ── [PC-1] PERSONALITY COLOR MAP ─────────────────────────────
+  const PERSONALITY_COLORS = {
+    strategist:    { pulse: '#2563eb', border: '#2563eb', label: '🧠 Strategist'    },
+    growth:        { pulse: '#16a34a', border: '#16a34a', label: '📈 Growth'        },
+    branding:      { pulse: '#9333ea', border: '#9333ea', label: '🎨 Branding'      },
+    offer:         { pulse: '#ea580c', border: '#ea580c', label: '💰 Offer'         },
+    creative:      { pulse: '#db2777', border: '#db2777', label: '✨ Creative'      },
+    straight_talk: { pulse: '#dc2626', border: '#dc2626', label: '⚡ Straight Talk' },
+    auto:          { pulse: '#06b6d4', border: '#06b6d4', label: '🌀 Auto'          }
+  };
 
   const ONBOARDING_PATHS = [
-  {
-    id: 'existing',
-    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
-    title: 'I have a business',
-    desc: 'Help me grow, fix problems, and scale it'
-  },
-  {
-    id: 'idea',
-    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`,
-    title: 'I have an idea',
-    desc: 'Help me validate and build it from scratch'
-  },
-  {
-    id: 'figuring',
-    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
-    title: "I'm still figuring it out",
-    desc: 'Help me find the right direction for me'
-  }
-];
+    {
+      id: 'existing',
+      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
+      title: 'I have a business',
+      desc: 'Help me grow, fix problems, and scale it'
+    },
+    {
+      id: 'idea',
+      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`,
+      title: 'I have an idea',
+      desc: 'Help me validate and build it from scratch'
+    },
+    {
+      id: 'figuring',
+      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
+      title: "I'm still figuring it out",
+      desc: 'Help me find the right direction for me'
+    }
+  ];
 
   const ONBOARDING_QUESTIONS = {
     existing: [
@@ -106,7 +117,7 @@
       { key: 'ideaSummary',     label: 'Describe your idea in one sentence',         placeholder: 'e.g. A subscription box for specialty coffee' },
       { key: 'targetCustomer',  label: 'Who would pay for this?',                    placeholder: 'e.g. Coffee lovers aged 25-40 in the UAE' },
       { key: 'currentProgress', label: 'Have you made any money from it yet?',       placeholder: 'e.g. No, just started / Made $500 testing it' },
-      { key: 'biggestBlock',    label: "What's stopping you from launching?",        placeholder: 'e.g. Not sure if there\'s demand, need funding...' }
+      { key: 'biggestBlock',    label: "What's stopping you from launching?",        placeholder: "e.g. Not sure if there's demand, need funding..." }
     ],
     figuring: [
       { key: 'skills',          label: "What are you good at?",                      placeholder: 'e.g. Design, sales, cooking, coding...' },
@@ -118,20 +129,22 @@
 
   // ── STATE ────────────────────────────────────────────────────
   const state = {
-  open: false,
-  sending: false,
-  warRoom: false,
-  messages: loadMessages(),
-  personality: loadPersonality() || 'auto',
-  personalityChosen: !!loadPersonality(),
-  onboarded: loadOnboarded(),
-  userProfile: loadUserProfile(),
-  onboardingPath: null,
-  onboardingAnswers: {},
-  briefShown: false,
-  voiceMode: false,
-  pushSubscription: null
-};
+    open: false,
+    sending: false,
+    warRoom: false,
+    messages: loadMessages(),
+    personality: loadPersonality() || 'auto',
+    personalityChosen: !!loadPersonality(),
+    onboarded: loadOnboarded(),
+    userProfile: loadUserProfile(),
+    onboardingPath: null,
+    onboardingAnswers: {},
+    briefShown: false,
+    voiceMode: false,
+    pushSubscription: null,
+    personalityBuffer: null,
+    personalityCount: 0
+  };
 
   const refs = {
     root: null, launcher: null, panel: null,
@@ -162,7 +175,7 @@
     try {
       localStorage.setItem(
         STORAGE_KEYS.messages,
-        JSON.stringify(state.messages.slice(-20))
+        JSON.stringify(state.messages.slice(-50))
       );
     } catch {}
   }
@@ -274,6 +287,57 @@
       auto:          'Ask Nabad anything...'
     };
     refs.input.placeholder = map[state.personality] || 'Ask Nabad anything...';
+  }
+
+  // ── [PC-1] APPLY PERSONALITY COLOR ───────────────────────────
+  function applyPersonalityColor(id, announce = false) {
+    const c = PERSONALITY_COLORS[id] || PERSONALITY_COLORS.auto;
+
+    // 1. Animate logo pulse color
+    const logo = document.getElementById('nabad-logo');
+    if (logo) {
+      logo.style.transition = 'box-shadow 0.6s ease, border-color 0.6s ease';
+      logo.style.boxShadow  = `0 0 0 4px ${c.pulse}40, 0 0 16px ${c.pulse}60`;
+      logo.style.borderColor = c.pulse;
+    }
+
+    // 2. Update bubble left border color via CSS variable
+    document.documentElement.style.setProperty('--nabad-personality-color', c.border);
+
+    // 3. Mode pill — only show on actual personality switch
+    if (announce) {
+      let pill = document.getElementById('nabad-mode-pill');
+      if (!pill) {
+        pill = document.createElement('div');
+        pill.id = 'nabad-mode-pill';
+        pill.style.cssText = [
+          'font-size:11px',
+          'font-weight:600',
+          'margin-top:2px',
+          'opacity:0',
+          'transition:opacity 0.3s ease',
+          'letter-spacing:0.2px'
+        ].join(';');
+        const titleWrap = document.getElementById('nabad-title-wrap');
+        if (titleWrap && titleWrap.parentNode) {
+          titleWrap.parentNode.insertBefore(pill, titleWrap.nextSibling);
+        }
+      }
+      pill.style.color = c.pulse;
+      pill.textContent = c.label;
+      pill.style.opacity = '0';
+
+      // Fade in
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { pill.style.opacity = '1'; });
+      });
+
+      // Stay visible 3 seconds then fade out
+      clearTimeout(pill._hideTimer);
+      pill._hideTimer = setTimeout(() => {
+        pill.style.opacity = '0';
+      }, 3300);
+    }
   }
 
   function confirmAction(message, onConfirm) {
@@ -406,29 +470,30 @@
       }
 
       #nabad-logo {
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 0 0 rgba(37,99,235,0.4);
-  animation: nabadBreath 2.5s ease-in-out infinite;
-  overflow: hidden;
-}
+        width: 42px;
+        height: 42px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 0 0 rgba(37,99,235,0.4);
+        animation: nabadBreath 2.5s ease-in-out infinite;
+        overflow: hidden;
+        transition: box-shadow 0.6s ease, border-color 0.6s ease;
+      }
 
-#nabad-logo img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 999px;
-}
+      #nabad-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border-radius: 999px;
+      }
 
-@keyframes nabadBreath {
-  0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.35); }
-  50%  { box-shadow: 0 0 0 7px rgba(37,99,235,0.10); }
-  100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.35); }
-}
+      @keyframes nabadBreath {
+        0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.35); }
+        50%  { box-shadow: 0 0 0 7px rgba(37,99,235,0.10); }
+        100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.35); }
+      }
 
       #nabad-title-wrap { min-width: 0; }
 
@@ -443,6 +508,15 @@
         color: #475569;
         font-size: 12px;
         margin-top: 2px;
+      }
+
+      #nabad-mode-pill {
+        font-size: 11px;
+        font-weight: 600;
+        margin-top: 2px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        letter-spacing: 0.2px;
       }
 
       #nabad-header-actions {
@@ -514,14 +588,14 @@
 
       .nabad-msg.user  { justify-content: flex-end; }
       .nabad-msg.bot {
-  justify-content: flex-start;
-  animation: nabadBotAppear 0.35s ease-out both;
-}
+        justify-content: flex-start;
+        animation: nabadBotAppear 0.35s ease-out both;
+      }
 
-@keyframes nabadBotAppear {
-  0%   { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
+      @keyframes nabadBotAppear {
+        0%   { opacity: 0; transform: translateY(10px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
 
       .nabad-bubble {
         max-width: 88%;
@@ -544,8 +618,11 @@
         background: rgba(255,255,255,0.96);
         color: #0f172a;
         border: 1px solid rgba(15,23,42,0.06);
+        border-left: 3px solid var(--nabad-personality-color, #06b6d4);
+        border-top-left-radius: 6px;
         border-bottom-left-radius: 6px;
         box-shadow: 0 10px 28px rgba(15,23,42,0.06);
+        transition: border-color 0.6s ease;
       }
 
       .nabad-bubble h3,
@@ -617,7 +694,6 @@
         line-height: 1.45;
       }
 
-      /* Path cards — Screen 1 */
       .nabad-path-grid {
         display: grid;
         grid-template-columns: 1fr;
@@ -679,7 +755,6 @@
         flex-shrink: 0;
       }
 
-      /* Questions — Screen 2 */
       .nabad-questions-form {
         display: flex;
         flex-direction: column;
@@ -768,7 +843,6 @@
 
       .nabad-ob-skip:hover { color: #64748b; }
 
-      /* Progress dots */
       .nabad-ob-progress {
         display: flex;
         justify-content: center;
@@ -789,7 +863,6 @@
         width: 20px;
       }
 
-      /* Personality grid — Screen 3 (same as before) */
       .nabad-personality-grid {
         display: grid;
         grid-template-columns: 1fr;
@@ -894,32 +967,32 @@
         overflow: visible;
       }
 
- #nabad-input {
-  flex: 1;
-  resize: none;
-  border: 1px solid rgba(37,99,235,0.14);
-  border-radius: 16px;
-  padding: 10px 14px;
-  min-height: 44px;
-  max-height: 150px;
-  font-size: 16px;
-  color: #0f172a;
-  outline: none;
-  background: rgba(255,255,255,0.98);
-  box-shadow:
-    inset 0 1px 2px rgba(15,23,42,0.03),
-    0 0 8px rgba(37,99,235,0.12),
-    0 0 16px rgba(6,182,212,0.08);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
+      #nabad-input {
+        flex: 1;
+        resize: none;
+        border: 1px solid rgba(37,99,235,0.14);
+        border-radius: 16px;
+        padding: 10px 14px;
+        min-height: 44px;
+        max-height: 150px;
+        font-size: 16px;
+        color: #0f172a;
+        outline: none;
+        background: rgba(255,255,255,0.98);
+        box-shadow:
+          inset 0 1px 2px rgba(15,23,42,0.03),
+          0 0 8px rgba(37,99,235,0.12),
+          0 0 16px rgba(6,182,212,0.08);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
 
-#nabad-input:focus {
-  border-color: rgba(37,99,235,0.30);
-  box-shadow:
-    inset 0 1px 2px rgba(15,23,42,0.03),
-    0 0 10px rgba(37,99,235,0.22),
-    0 0 22px rgba(6,182,212,0.14);
-}
+      #nabad-input:focus {
+        border-color: rgba(37,99,235,0.30);
+        box-shadow:
+          inset 0 1px 2px rgba(15,23,42,0.03),
+          0 0 10px rgba(37,99,235,0.22),
+          0 0 22px rgba(6,182,212,0.14);
+      }
 
       #nabad-send {
         width: 44px;
@@ -1606,26 +1679,27 @@
         }
         .nabad-score-bar-fill { width: var(--nabad-score-target, 0%) !important; }
       }
+
       /* ── Nabad Detected Effect ── */
-.nabad-detected-flash {
-  animation: nabadFlash 0.6s ease-in-out 2;
-}
+      .nabad-detected-flash {
+        animation: nabadFlash 0.6s ease-in-out 2;
+      }
 
-@keyframes nabadFlash {
-  0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.0); }
-  50%  { box-shadow: 0 0 0 6px rgba(37,99,235,0.35); }
-  100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.0); }
-}
+      @keyframes nabadFlash {
+        0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.0); }
+        50%  { box-shadow: 0 0 0 6px rgba(37,99,235,0.35); }
+        100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.0); }
+      }
 
-#nabad-logo.nabad-logo-pulse {
-  animation: nabadStrongPulse 0.5s ease-in-out 2;
-}
+      #nabad-logo.nabad-logo-pulse {
+        animation: nabadStrongPulse 0.5s ease-in-out 2;
+      }
 
-@keyframes nabadStrongPulse {
-  0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
-  50%  { box-shadow: 0 0 0 12px rgba(37,99,235,0.15); }
-  100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
-}
+      @keyframes nabadStrongPulse {
+        0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
+        50%  { box-shadow: 0 0 0 12px rgba(37,99,235,0.15); }
+        100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
+      }
 
       .nabad-detected-pill {
         display: flex;
@@ -1645,7 +1719,7 @@
         pointer-events: none;
       }
 
-            .nabad-detected-pill.show {
+      .nabad-detected-pill.show {
         opacity: 1;
         transform: translateY(0);
       }
@@ -1654,7 +1728,7 @@
         animation: nabadThinking 0.8s ease-in-out infinite;
       }
 
-            @keyframes nabadThinking {
+      @keyframes nabadThinking {
         0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
         50%  { box-shadow: 0 0 0 14px rgba(37,99,235,0.15); }
         100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
@@ -1715,174 +1789,174 @@
         margin: 0;
       }
 
-/* ── War Room Suggestion Banner ── */
-#nabad-warroom-suggestion {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: linear-gradient(135deg, #1e3a8a, #0e7490);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  border-top: 1px solid rgba(255,255,255,0.10);
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  pointer-events: none;
-  flex-wrap: nowrap;
-  min-height: 42px;
-  box-sizing: border-box;
-}
-#nabad-warroom-suggestion.show {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-#nabad-warroom-suggestion span {
-  flex: 1;
-  line-height: 1.3;
-  font-size: 11px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-#nabad-warroom-suggestion button {
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.25);
-  color: #fff;
-  border-radius: 8px;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 0.15s ease;
-}
-#nabad-warroom-suggestion button:hover {
-  background: rgba(255,255,255,0.28);
-}
-#nabad-warroom-suggestion #nabad-warroom-dismiss {
-  padding: 4px 6px;
-  background: transparent;
-  border-color: transparent;
-  font-size: 13px;
-  flex-shrink: 0;
-}
+      /* ── War Room Suggestion Banner ── */
+      #nabad-warroom-suggestion {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: linear-gradient(135deg, #1e3a8a, #0e7490);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        border-top: 1px solid rgba(255,255,255,0.10);
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        pointer-events: none;
+        flex-wrap: nowrap;
+        min-height: 42px;
+        box-sizing: border-box;
+      }
+      #nabad-warroom-suggestion.show {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+      #nabad-warroom-suggestion span {
+        flex: 1;
+        line-height: 1.3;
+        font-size: 11px;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #nabad-warroom-suggestion button {
+        background: rgba(255,255,255,0.18);
+        border: 1px solid rgba(255,255,255,0.25);
+        color: #fff;
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: inherit;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: background 0.15s ease;
+      }
+      #nabad-warroom-suggestion button:hover {
+        background: rgba(255,255,255,0.28);
+      }
+      #nabad-warroom-suggestion #nabad-warroom-dismiss {
+        padding: 4px 6px;
+        background: transparent;
+        border-color: transparent;
+        font-size: 13px;
+        flex-shrink: 0;
+      }
 
-/* ── War Room Screen ── */
-#nabad-warroom-screen {
-  padding: 8px 4px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.nabad-wr-header {
-  text-align: center;
-  padding: 12px 0 4px;
-}
-.nabad-wr-icon {
-  font-size: 32px;
-  margin-bottom: 6px;
-}
-.nabad-wr-header h3 {
-  font-size: 20px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0 0 6px;
-}
-.nabad-wr-header p {
-  font-size: 13px;
-  color: #64748b;
-  margin: 0;
-  line-height: 1.5;
-}
-.nabad-wr-situation {
-  font-size: 13px !important;
-  font-style: italic;
-  color: #2563eb !important;
-  background: rgba(37,99,235,0.06);
-  border-radius: 10px;
-  padding: 8px 12px;
-  margin-top: 6px !important;
-}
-.nabad-wr-input-block {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.nabad-wr-input-block textarea {
-  width: 100%;
-  border: 1px solid rgba(37,99,235,0.18);
-  border-radius: 14px;
-  padding: 12px 14px;
-  font-size: 14px;
-  font-family: inherit;
-  color: #0f172a;
-  resize: none;
-  outline: none;
-  background: rgba(255,255,255,0.98);
-  box-shadow: 0 0 8px rgba(37,99,235,0.08);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  box-sizing: border-box;
-}
-.nabad-wr-input-block textarea:focus {
-  border-color: rgba(37,99,235,0.35);
-  box-shadow: 0 0 12px rgba(37,99,235,0.16);
-}
-#nabad-wr-advisors {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.nabad-wr-card {
-  background: rgba(255,255,255,0.98);
-  border: 1px solid rgba(37,99,235,0.10);
-  border-radius: 18px;
-  padding: 16px;
-  box-shadow: 0 4px 18px rgba(15,23,42,0.07);
-  animation: nabadBotAppear 0.35s ease-out both;
-}
-.nabad-wr-card-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.nabad-wr-card-icon {
-  font-size: 24px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.nabad-wr-card-name {
-  font-size: 14px;
-  font-weight: 800;
-  color: #0f172a;
-  margin-bottom: 2px;
-}
-.nabad-wr-card-desc {
-  font-size: 12px;
-  color: #94a3b8;
-  font-weight: 500;
-}
-.nabad-wr-card-reply {
-  font-size: 14px;
-  color: #334155;
-  line-height: 1.6;
-  padding-top: 4px;
-  border-top: 1px solid rgba(15,23,42,0.06);
-}
-.nabad-wr-card-reply p {
-  margin: 0 0 8px;
-}
-.nabad-wr-card-reply p:last-child {
-  margin-bottom: 0;
-}
+      /* ── War Room Screen ── */
+      #nabad-warroom-screen {
+        padding: 8px 4px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .nabad-wr-header {
+        text-align: center;
+        padding: 12px 0 4px;
+      }
+      .nabad-wr-icon {
+        font-size: 32px;
+        margin-bottom: 6px;
+      }
+      .nabad-wr-header h3 {
+        font-size: 20px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 6px;
+      }
+      .nabad-wr-header p {
+        font-size: 13px;
+        color: #64748b;
+        margin: 0;
+        line-height: 1.5;
+      }
+      .nabad-wr-situation {
+        font-size: 13px !important;
+        font-style: italic;
+        color: #2563eb !important;
+        background: rgba(37,99,235,0.06);
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin-top: 6px !important;
+      }
+      .nabad-wr-input-block {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .nabad-wr-input-block textarea {
+        width: 100%;
+        border: 1px solid rgba(37,99,235,0.18);
+        border-radius: 14px;
+        padding: 12px 14px;
+        font-size: 14px;
+        font-family: inherit;
+        color: #0f172a;
+        resize: none;
+        outline: none;
+        background: rgba(255,255,255,0.98);
+        box-shadow: 0 0 8px rgba(37,99,235,0.08);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        box-sizing: border-box;
+      }
+      .nabad-wr-input-block textarea:focus {
+        border-color: rgba(37,99,235,0.35);
+        box-shadow: 0 0 12px rgba(37,99,235,0.16);
+      }
+      #nabad-wr-advisors {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .nabad-wr-card {
+        background: rgba(255,255,255,0.98);
+        border: 1px solid rgba(37,99,235,0.10);
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 0 4px 18px rgba(15,23,42,0.07);
+        animation: nabadBotAppear 0.35s ease-out both;
+      }
+      .nabad-wr-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .nabad-wr-card-icon {
+        font-size: 24px;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+      .nabad-wr-card-name {
+        font-size: 14px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 2px;
+      }
+      .nabad-wr-card-desc {
+        font-size: 12px;
+        color: #94a3b8;
+        font-weight: 500;
+      }
+      .nabad-wr-card-reply {
+        font-size: 14px;
+        color: #334155;
+        line-height: 1.6;
+        padding-top: 4px;
+        border-top: 1px solid rgba(15,23,42,0.06);
+      }
+      .nabad-wr-card-reply p {
+        margin: 0 0 8px;
+      }
+      .nabad-wr-card-reply p:last-child {
+        margin-bottom: 0;
+      }
 
-          /* ── Morning Brief ── */
+      /* ── Morning Brief ── */
       #nabad-morning-brief {
         padding: 0 0 24px;
         display: flex;
@@ -1967,7 +2041,7 @@
         font-weight: 700;
         color: #0f172a;
       }
-            .nabad-brief-actions {
+      .nabad-brief-actions {
         display: flex;
         flex-direction: column;
         gap: 10px;
@@ -2041,7 +2115,8 @@
         0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
         50%       { transform: scaleY(1.2); opacity: 1;   }
       }
-          /* ── Speaker Button ── */
+
+      /* ── Speaker Button ── */
       .nabad-speaker-btn {
         display: inline-flex;
         align-items: center;
@@ -2173,36 +2248,37 @@
         <div id="nabad-messages" aria-live="polite" aria-label="Chat messages"></div>
 
         <div id="nabad-typing">
-  <div class="inner">
-    <span class="nabad-dots"><span></span><span></span><span></span></span>
-  </div>
-</div>
+          <div class="inner">
+            <span class="nabad-dots"><span></span><span></span><span></span></span>
+          </div>
+        </div>
 
         <div id="nabad-voice-status">
-  <div class="nabad-voice-wave">
-    <span></span><span></span><span></span><span></span><span></span>
-  </div>
-  <span>Recording...</span>
-  <span class="nabad-voice-timer" id="nabad-voice-timer">0:00</span>
-  <span style="margin-left:auto;font-size:11px;opacity:0.7">Tap again to send</span>
-</div>
-<div id="nabad-input-wrap">
+          <div class="nabad-voice-wave">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <span>Recording...</span>
+          <span class="nabad-voice-timer" id="nabad-voice-timer">0:00</span>
+          <span style="margin-left:auto;font-size:11px;opacity:0.7">Tap again to send</span>
+        </div>
+
+        <div id="nabad-input-wrap">
           <div id="nabad-input-row">
             <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
             <button id="nabad-mic" type="button" aria-label="Voice note">
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="9" y="2" width="6" height="12" rx="3"/>
-    <path d="M5 10a7 7 0 0 0 14 0"/>
-    <line x1="12" y1="19" x2="12" y2="22"/>
-    <line x1="8" y1="22" x2="16" y2="22"/>
-  </svg>
-</button>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                <path d="M5 10a7 7 0 0 0 14 0"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+                <line x1="8" y1="22" x2="16" y2="22"/>
+              </svg>
+            </button>
             <button id="nabad-send" type="button" aria-label="Send">
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <line x1="22" y1="2" x2="11" y2="13"/>
-    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-  </svg>
-</button>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -2240,24 +2316,27 @@
     bindEvents(root);
     updatePersonalityBadge();
     setInputPlaceholder();
+    applyPersonalityColor(state.personality, false);
     renderInitialState();
   }
 
-    // ── EVENTS ───────────────────────────────────────────────────
+  // ── EVENTS ───────────────────────────────────────────────────
   function bindEvents(root) {
     root.querySelector('#nabad-new-chat').addEventListener('click', showOptionsPopup);
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
+
     const mic = root.querySelector('#nabad-mic');
-if (mic) {
-  mic.addEventListener('click', () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      stopVoiceRecording();
-    } else {
-      startVoiceRecording();
+    if (mic) {
+      mic.addEventListener('click', () => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          stopVoiceRecording();
+        } else {
+          startVoiceRecording();
+        }
+      });
     }
-  });
-}
+
     refs.input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     });
@@ -2320,31 +2399,30 @@ if (mic) {
   }
 
   function toggleWidget(force) {
-  state.open = typeof force === 'boolean' ? force : !state.open;
-  refs.panel.classList.toggle('open', state.open);
-  refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
-  refs.root.classList.toggle('nabad-open', state.open);
+    state.open = typeof force === 'boolean' ? force : !state.open;
+    refs.panel.classList.toggle('open', state.open);
+    refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
+    refs.root.classList.toggle('nabad-open', state.open);
 
-  if (state.open) {
-    applyScrollLock();
-    setTimeout(() => {
-      if (!state.onboarded && !state.messages.length) {
-        renderOnboardingScreen1();
+    if (state.open) {
+      applyScrollLock();
+      setTimeout(() => {
+        if (!state.onboarded && !state.messages.length) {
+          renderOnboardingScreen1();
+          scrollToBottom();
+          return;
+        }
+        if (shouldShowMorningBrief()) {
+          showMorningBrief();
+          return;
+        }
         scrollToBottom();
-        return;
-      }
-      // ── Morning Brief check ──
-      if (shouldShowMorningBrief()) {
-        showMorningBrief();
-        return;
-      }
-      scrollToBottom();
-      if (refs.input) refs.input.focus();
-    }, 40);
-  } else {
-    releaseScrollLock();
+        if (refs.input) refs.input.focus();
+      }, 40);
+    } else {
+      releaseScrollLock();
+    }
   }
-}
 
   function updatePersonalityBadge() {
     if (!refs.badge) return;
@@ -2355,51 +2433,50 @@ if (mic) {
     refs.badge.classList.add('show');
   }
 
-function shouldShowMorningBrief() {
-  return !state.briefShown;
-}
+  function shouldShowMorningBrief() {
+    return !state.briefShown;
+  }
 
-async function showMorningBrief() {
-  state.briefShown = true;
+  async function showMorningBrief() {
+    state.briefShown = true;
 
-  // Show loading card first
-  refs.messages.innerHTML = `
-    <div id="nabad-morning-brief">
-      <div class="nabad-brief-hero">
-        <div class="nabad-brief-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-        <div class="nabad-brief-title">☀️ Good morning</div>
-        <div class="nabad-brief-subtitle">Getting your brief ready...</div>
+    refs.messages.innerHTML = `
+      <div id="nabad-morning-brief">
+        <div class="nabad-brief-hero">
+          <div class="nabad-brief-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+          <div class="nabad-brief-title">☀️ Good morning</div>
+          <div class="nabad-brief-subtitle">Getting your brief ready...</div>
+        </div>
+        <div class="nabad-brief-loading">
+          <span class="nabad-dots"><span></span><span></span><span></span></span>
+        </div>
       </div>
-      <div class="nabad-brief-loading">
-        <span class="nabad-dots"><span></span><span></span><span></span></span>
-      </div>
-    </div>
-  `;
-  scrollToBottom();
+    `;
+    scrollToBottom();
 
-  try {
-    const profile = buildProfileSummary();
-    const lastMessages = state.messages.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
-    const hour = new Date().getHours();
-    const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    const month = new Date().getMonth() + 1;
-    const quarter = Math.ceil(month / 3);
+    try {
+      const profile = buildProfileSummary();
+      const lastMessages = state.messages.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
+      const hour = new Date().getHours();
+      const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      const month = new Date().getMonth() + 1;
+      const quarter = Math.ceil(month / 3);
 
-    const seasonHint =
-      month === 3 || month === 4 ? 'Q2 UAE — slower season, good for building systems' :
-      month >= 6 && month <= 8   ? 'UAE summer — decision makers travelling, internal work season' :
-      month === 9 || month === 10 ? 'September–October UAE — strongest sales window of the year' :
-      month === 11 || month === 12 ? 'Q4 — year end push, budgets being spent or frozen' :
-      'New year energy — high momentum window';
+      const seasonHint =
+        month === 3 || month === 4 ? 'Q2 UAE — slower season, good for building systems' :
+        month >= 6 && month <= 8   ? 'UAE summer — decision makers travelling, internal work season' :
+        month === 9 || month === 10 ? 'September–October UAE — strongest sales window of the year' :
+        month === 11 || month === 12 ? 'Q4 — year end push, budgets being spent or frozen' :
+        'New year energy — high momentum window';
 
-    const resp = await fetch(CONFIG.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: 'user',
-            content: `Generate a morning brief for this founder. Return ONLY valid JSON, no markdown, no explanation:
+      const resp = await fetch(CONFIG.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'user',
+              content: `Generate a morning brief for this founder. Return ONLY valid JSON, no markdown, no explanation:
 {
   "greeting": "personal one-line greeting using their name or business if known",
   "focus": "their single most important focus for today based on their profile and last conversation — 2 sentences max",
@@ -2412,139 +2489,132 @@ Last conversation: ${lastMessages}
 Today: ${day}, Q${quarter}
 Season context: ${seasonHint}
 Time: ${hour}:00`
-          }
-        ],
-        personality: 'auto',
-        userProfile: profile,
-        morningBrief: true
-      })
-    });
+            }
+          ],
+          personality: 'auto',
+          userProfile: profile,
+          morningBrief: true
+        })
+      });
 
-    const data = await resp.json().catch(() => ({}));
-    let brief = null;
+      const data = await resp.json().catch(() => ({}));
+      let brief = null;
 
-    // Try to parse JSON from reply
-    try {
-      const raw = data?.reply || '';
-      const stripped = raw.replace(/<[^>]+>/g, '').trim();
-      const match = stripped.match(/\{[\s\S]*\}/);
-      if (match) brief = JSON.parse(match[0]);
-    } catch { brief = null; }
+      try {
+        const raw = data?.reply || '';
+        const stripped = raw.replace(/<[^>]+>/g, '').trim();
+        const match = stripped.match(/\{[\s\S]*\}/);
+        if (match) brief = JSON.parse(match[0]);
+      } catch { brief = null; }
 
-    // Render the brief card
+      refs.messages.innerHTML = `
+        <div id="nabad-morning-brief">
+          <div class="nabad-brief-hero">
+            <div class="nabad-brief-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+            <div class="nabad-brief-title">☀️ Morning Brief</div>
+            <div class="nabad-brief-greeting">${escapeHtml(brief?.greeting || "Good morning — here's your focus for today.")}</div>
+          </div>
+
+          <div class="nabad-brief-card nabad-brief-focus">
+            <div class="nabad-brief-card-label">📍 Your Focus Today</div>
+            <div class="nabad-brief-card-text">${escapeHtml(brief?.focus || 'Start with the one thing that moves the needle most.')}</div>
+          </div>
+
+          <div class="nabad-brief-card nabad-brief-pulse">
+            <div class="nabad-brief-card-label">⚡ Market Pulse</div>
+            <div class="nabad-brief-card-text">${escapeHtml(brief?.pulse || 'Q2 is a window — use it to build, not just chase.')}</div>
+          </div>
+
+          <div class="nabad-brief-card nabad-brief-question">
+            <div class="nabad-brief-card-label">🎯 One Question</div>
+            <div class="nabad-brief-card-text nabad-brief-q-text">"${escapeHtml(brief?.question || 'What is the one thing that makes this week a win?')}"</div>
+          </div>
+
+          <div class="nabad-brief-actions">
+            <button class="nabad-ob-btn" id="nabad-brief-chat" type="button">💬 Let's talk about it</button>
+            <button class="nabad-ob-back" id="nabad-brief-skip" type="button">Go to chat →</button>
+          </div>
+        </div>
+      `;
+
+      refs.messages.querySelector('#nabad-brief-chat').addEventListener('click', () => {
+        const q = brief?.question || '';
+        backToChat();
+        if (q) {
+          refs.input.value = q;
+          refs.input.focus();
+        }
+      });
+
+      refs.messages.querySelector('#nabad-brief-skip').addEventListener('click', backToChat);
+      scrollToBottom();
+
+    } catch {
+      backToChat();
+    }
+  }
+
+  function renderInitialState() {
+    refs.messages.innerHTML = '';
+    if (!state.onboarded && !state.messages.length) {
+      renderOnboardingScreen1();
+      return;
+    }
+    if (!state.personalityChosen && !state.messages.length) {
+      renderPersonalityScreen();
+      return;
+    }
+    if (shouldShowMorningBrief()) {
+      showMorningBrief();
+      return;
+    }
+    updatePersonalityBadge();
+    if (!state.messages.length) {
+      renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+      return;
+    }
+    state.messages.forEach(m => renderMessage(m.role, m.content, false));
+    scrollToBottom();
+  }
+
+  function renderOnboardingScreen1() {
+    document.getElementById('nabad-input-wrap').style.display = 'none';
+
     refs.messages.innerHTML = `
-      <div id="nabad-morning-brief">
-        <div class="nabad-brief-hero">
-          <div class="nabad-brief-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-          <div class="nabad-brief-title">☀️ Morning Brief</div>
-          <div class="nabad-brief-greeting">${escapeHtml(brief?.greeting || 'Good morning — here\'s your focus for today.')}</div>
+      <div id="nabad-onboarding">
+        <div class="nabad-ob-progress">
+          <div class="nabad-ob-dot active"></div>
+          <div class="nabad-ob-dot"></div>
+          <div class="nabad-ob-dot"></div>
         </div>
-
-        <div class="nabad-brief-card nabad-brief-focus">
-          <div class="nabad-brief-card-label">📍 Your Focus Today</div>
-          <div class="nabad-brief-card-text">${escapeHtml(brief?.focus || 'Start with the one thing that moves the needle most.')}</div>
-        </div>
-
-        <div class="nabad-brief-card nabad-brief-pulse">
-          <div class="nabad-brief-card-label">⚡ Market Pulse</div>
-          <div class="nabad-brief-card-text">${escapeHtml(brief?.pulse || 'Q2 is a window — use it to build, not just chase.')}</div>
-        </div>
-
-        <div class="nabad-brief-card nabad-brief-question">
-          <div class="nabad-brief-card-label">🎯 One Question</div>
-          <div class="nabad-brief-card-text nabad-brief-q-text">"${escapeHtml(brief?.question || 'What is the one thing that makes this week a win?')}"</div>
-        </div>
-
-        <div class="nabad-brief-actions">
-          <button class="nabad-ob-btn" id="nabad-brief-chat" type="button">💬 Let's talk about it</button>
-          <button class="nabad-ob-back" id="nabad-brief-skip" type="button">Go to chat →</button>
+        <h3>Welcome to Nabad 👋</h3>
+        <p>Where are you at right now?</p>
+        <div class="nabad-path-grid">
+          ${ONBOARDING_PATHS.map(p => `
+            <button class="nabad-path-card" data-path="${p.id}" type="button">
+              <div class="nabad-path-icon">${p.icon}</div>
+              <div class="nabad-path-text">
+                <div class="nabad-path-title">${escapeHtml(p.title)}</div>
+                <div class="nabad-path-desc">${escapeHtml(p.desc)}</div>
+              </div>
+              <div class="nabad-path-arrow">›</div>
+            </button>
+          `).join('')}
         </div>
       </div>
     `;
 
-    refs.messages.querySelector('#nabad-brief-chat').addEventListener('click', () => {
-      const q = brief?.question || '';
-      backToChat();
-      if (q) {
-        refs.input.value = q;
-        refs.input.focus();
-      }
+    refs.messages.querySelectorAll('.nabad-path-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.onboardingPath = btn.getAttribute('data-path');
+        state.onboardingAnswers = { path: state.onboardingPath };
+        renderOnboardingScreen2();
+      });
     });
 
-    refs.messages.querySelector('#nabad-brief-skip').addEventListener('click', backToChat);
     scrollToBottom();
-
-  } catch {
-    // If anything fails, just go to normal chat
-    backToChat();
   }
-}
-// ──────────────────────────────────────────────────────────────
 
-  function renderInitialState() {
-  refs.messages.innerHTML = '';
-  if (!state.onboarded && !state.messages.length) {
-    renderOnboardingScreen1();
-    return;
-  }
-  if (!state.personalityChosen && !state.messages.length) {
-    renderPersonalityScreen();
-    return;
-  }
-  // ── Morning Brief check ──
-  if (shouldShowMorningBrief()) {
-    showMorningBrief();
-    return;
-  }
-  updatePersonalityBadge();
-  if (!state.messages.length) {
-    renderMessage('assistant', getPersonalityGreeting(state.personality), false);
-    return;
-  }
-  state.messages.forEach(m => renderMessage(m.role, m.content, false));
-  scrollToBottom();
-}
-
-  function renderOnboardingScreen1() {
-  // Hide input bar on onboarding
-  document.getElementById('nabad-input-wrap').style.display = 'none';
-
-  refs.messages.innerHTML = `
-    <div id="nabad-onboarding">
-      <div class="nabad-ob-progress">
-        <div class="nabad-ob-dot active"></div>
-        <div class="nabad-ob-dot"></div>
-        <div class="nabad-ob-dot"></div>
-      </div>
-      <h3>Welcome to Nabad 👋</h3>
-      <p>Where are you at right now?</p>
-      <div class="nabad-path-grid">
-        ${ONBOARDING_PATHS.map(p => `
-          <button class="nabad-path-card" data-path="${p.id}" type="button">
-            <div class="nabad-path-icon">${p.icon}</div>
-            <div class="nabad-path-text">
-              <div class="nabad-path-title">${escapeHtml(p.title)}</div>
-              <div class="nabad-path-desc">${escapeHtml(p.desc)}</div>
-            </div>
-            <div class="nabad-path-arrow">›</div>
-          </button>
-        `).join('')}
-      </div>
-    </div>
-  `;
-
-  refs.messages.querySelectorAll('.nabad-path-card').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.onboardingPath = btn.getAttribute('data-path');
-      state.onboardingAnswers = { path: state.onboardingPath };
-      renderOnboardingScreen2();
-    });
-  });
-
-  scrollToBottom();
-}
-
-  // ── [OB-1] ONBOARDING SCREEN 2 — Profile questions ──────────
   function renderOnboardingScreen2() {
     document.getElementById('nabad-input-wrap').style.display = 'none';
     const questions = ONBOARDING_QUESTIONS[state.onboardingPath] || ONBOARDING_QUESTIONS.existing;
@@ -2587,9 +2657,9 @@ Time: ${hour}:00`
         if (key && val) state.onboardingAnswers[key] = val;
       });
       state.userProfile = { ...state.onboardingAnswers };
-saveUserProfile(state.userProfile);
-triggerNabadDetected(null);
-renderOnboardingScreen3();
+      saveUserProfile(state.userProfile);
+      triggerNabadDetected(null);
+      renderOnboardingScreen3();
     });
 
     refs.messages.querySelector('#nabad-ob-back').addEventListener('click', () => {
@@ -2605,7 +2675,6 @@ renderOnboardingScreen3();
     scrollToBottom();
   }
 
-  // ── [OB-1] ONBOARDING SCREEN 3 — Personality selection ──────
   function renderPersonalityScreen() {
     refs.messages.innerHTML = `
       <div id="nabad-onboarding">
@@ -2638,6 +2707,7 @@ renderOnboardingScreen3();
         saveOnboarded();
         updatePersonalityBadge();
         setInputPlaceholder();
+        applyPersonalityColor(state.personality, false);
         refs.messages.innerHTML = '';
         renderMessage('assistant', getPersonalityGreeting(state.personality), false);
         setTimeout(() => { refs.input.focus(); scrollToBottom(); }, 50);
@@ -2685,6 +2755,7 @@ renderOnboardingScreen3();
         saveOnboarded();
         updatePersonalityBadge();
         setInputPlaceholder();
+        applyPersonalityColor(state.personality, false);
         refs.messages.innerHTML = '';
         renderMessage('assistant', getPersonalityGreeting(state.personality), false);
         setTimeout(() => { refs.input.focus(); scrollToBottom(); }, 50);
@@ -2743,18 +2814,18 @@ renderOnboardingScreen3();
     if (id) clearInterval(Number(id));
     placeholder.remove();
   }
-  
-function markdownToHtml(text) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br>');
-}
+
+  function markdownToHtml(text) {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+  }
+
   // ── RENDER MESSAGE ────────────────────────────────────────────
   function renderMessage(role, content, persist = true) {
-    // Show input bar when chat starts
-document.getElementById('nabad-input-wrap').style.display = 'flex';
+    document.getElementById('nabad-input-wrap').style.display = 'flex';
     const isUser = role === 'user';
     const msg    = document.createElement('div');
     msg.className = `nabad-msg ${isUser ? 'user' : 'bot'}`;
@@ -2764,908 +2835,721 @@ document.getElementById('nabad-input-wrap').style.display = 'flex';
 
     if (isUser) {
       bubble.innerHTML = `<p>${escapeHtml(String(content || '')).replace(/\n/g, '<br>')}</p>`;
-        } else {
+    } else {
       bubble.innerHTML = sanitizeHtml(
         markdownToHtml(String(content || '<p>Sorry — I could not generate a response.</p>'))
       );
     }
 
-        msg.appendChild(bubble);
+    msg.appendChild(bubble);
     refs.messages.appendChild(msg);
 
     if (!isUser) {
       processAssistantBubble(bubble);
 
-             // ── Speaker button ──
-    const speakerBtn = document.createElement('button');
-    speakerBtn.className = 'nabad-speaker-btn';
-    speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-    speakerBtn.title = 'Tap to hear this reply';
-    speakerBtn.addEventListener('click', () => {
-      if (currentAudio && !currentAudio.paused) {
-        currentAudio.pause();
-        currentAudio = null;
-        speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-        speakerBtn.classList.remove('playing');
-      } else {
-        speakReply(content, speakerBtn);
-      }
-    });
-
-    // ── Save to memory button ──
-    const memoryBtn = document.createElement('button');
-    memoryBtn.className = 'nabad-memory-btn';
-    memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>`;
-    memoryBtn.title = 'Save this insight to memory';
-    memoryBtn.addEventListener('click', async () => {
-      if (memoryBtn.dataset.saved === 'true') return;
-      memoryBtn.innerHTML = `<span class="nabad-loading-dots"><span></span><span></span><span></span></span>`;
-
-      try {
-        const clean = content.replace(/<[^>]+>/g, '').trim().slice(0, 500);
-        const resp = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [
-              { role: 'user', content: `Summarize this advice in maximum 8 words, no punctuation at the end:\n\n${clean}` }
-            ],
-            personality: 'auto'
-          })
-        });
-        const data = await resp.json();
-        const summary = (data.reply || '').replace(/<[^>]+>/g, '').trim().slice(0, 80);
-
-        if (summary) {
-          const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
-          insights.push({ text: summary, date: new Date().toLocaleDateString() });
-          localStorage.setItem('nabad_insights', JSON.stringify(insights.slice(-20)));
+      // ── Speaker button ──
+      const speakerBtn = document.createElement('button');
+      speakerBtn.className = 'nabad-speaker-btn';
+      speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+      speakerBtn.title = 'Tap to hear this reply';
+      speakerBtn.addEventListener('click', () => {
+        if (currentAudio && !currentAudio.paused) {
+          currentAudio.pause();
+          currentAudio = null;
+          speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+          speakerBtn.classList.remove('playing');
+        } else {
+          speakReply(content, speakerBtn);
         }
+      });
 
-        memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-        memoryBtn.dataset.saved = 'true';
-        memoryBtn.title = 'Saved to memory!';
+      // ── Save to memory button ──
+      const memoryBtn = document.createElement('button');
+      memoryBtn.className = 'nabad-memory-btn';
+      memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>`;
+      memoryBtn.title = 'Save this insight to memory';
+      memoryBtn.addEventListener('click', async () => {
+        if (memoryBtn.dataset.saved === 'true') return;
+        memoryBtn.innerHTML = `<span class="nabad-loading-dots"><span></span><span></span><span></span></span>`;
 
-      } catch {
-        memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>`;
-      }
-    });
+        try {
+          const clean = content.replace(/<[^>]+>/g, '').trim().slice(0, 500);
+          const resp = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [
+                { role: 'user', content: `Summarize this advice in maximum 8 words, no punctuation at the end:\n\n${clean}` }
+              ],
+              personality: 'auto'
+            })
+          });
+          const data = await resp.json();
+          const summary = (data.reply || '').replace(/<[^>]+>/g, '').trim().slice(0, 80);
 
-    const btnRow = document.createElement('div');
-    btnRow.className = 'nabad-btn-row';
-    btnRow.appendChild(speakerBtn);
-    btnRow.appendChild(memoryBtn);
-    bubble.appendChild(btnRow);
-  }
+          if (summary) {
+            const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
+            insights.push({ text: summary, date: new Date().toLocaleDateString() });
+            localStorage.setItem('nabad_insights', JSON.stringify(insights.slice(-20)));
+          }
 
-  if (persist) {
-    state.messages.push({ role: isUser ? 'user' : 'assistant', content: String(content || '') });
-    state.messages = state.messages.slice(-20);
-    saveMessages();
-  }
+          memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+          memoryBtn.dataset.saved = 'true';
+          memoryBtn.title = 'Saved to memory!';
 
-  scrollToBottom();
-  return bubble;
+        } catch {
+  memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>`;
 }
+      });
 
-  // ── CARD ENHANCER ─────────────────────────────────────────────
-  function enhanceCards(bubble) {
-    bubble.querySelectorAll('.nabad-score-bar-fill[data-score]').forEach(fill => {
-      const raw   = parseInt(fill.getAttribute('data-score') || '0', 10);
-      const pct   = Math.min(100, Math.max(0, raw));
-      fill.style.setProperty('--nabad-score-target', `${pct}%`);
+      const btnRow = document.createElement('div');
+      btnRow.className = 'nabad-btn-row';
+      btnRow.appendChild(speakerBtn);
+      btnRow.appendChild(memoryBtn);
+      bubble.appendChild(btnRow);
+    }
+
+    if (persist) {
+      state.messages.push({ role, content });
+      saveMessages();
+    }
+
+    scrollToBottom();
+    return bubble;
+  }
+
+  // ── PROCESS ASSISTANT BUBBLE (cards, images, score bars) ─────
+  function processAssistantBubble(bubble) {
+    // Score bars
+    bubble.querySelectorAll('.nabad-score-bar-fill').forEach(bar => {
+      const target = parseFloat(bar.dataset.score || '0');
+      bar.style.setProperty('--nabad-score-target', `${target}%`);
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => { fill.style.width = `${pct}%`; });
+        requestAnimationFrame(() => { bar.style.width = `${target}%`; });
       });
     });
 
-    bubble.querySelectorAll('.nabad-pricing-badge').forEach(badge => {
-      const row = badge.closest('tr');
-      if (row) row.style.background = 'rgba(37,99,235,0.05)';
-    });
-  }
-
-  // ── PROCESS ASSISTANT BUBBLE ──────────────────────────────────
-  function processAssistantBubble(bubble) {
-    bubble.querySelectorAll('a').forEach(a => {
-      a.setAttribute('target', '_blank');
-      a.setAttribute('rel', 'noopener noreferrer');
-    });
-
-    bubble.querySelectorAll('img').forEach((img, i) => {
-      const MIN_GLOW_MS = 900;
-      const start       = Date.now();
-      const originalSrc = img.getAttribute('src') || '';
-
-      if (/image\.pollinations\.ai/i.test(originalSrc)) {
-        const sep      = originalSrc.includes('?') ? '&' : '?';
-        const freshSrc = `${originalSrc}${sep}cb=${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
-        img.setAttribute('src', freshSrc);
-      }
+    // Image placeholders
+    bubble.querySelectorAll('img[data-nabad-source]').forEach(img => {
+      const src    = img.getAttribute('data-nabad-source') || img.src;
+      const model  = img.getAttribute('data-nabad-model')  || 'pollinations';
+      const prompt = img.getAttribute('data-nabad-prompt') || '';
 
       const placeholder = createImagePlaceholder();
-      img.style.opacity = '0';
-      img.style.transition = 'opacity 0.5s ease';
-      if (img.parentNode) img.parentNode.insertBefore(placeholder, img);
+      img.replaceWith(placeholder);
 
-      img.addEventListener('load', () => {
-        const elapsed = Date.now() - start;
-        setTimeout(() => {
-          removePlaceholder(placeholder);
-          img.classList.remove('loading');
-          img.style.opacity = '1';
-        }, Math.max(0, MIN_GLOW_MS - elapsed));
-      }, { once: true });
-
-      img.addEventListener('error', () => {
+      const realImg = new Image();
+      realImg.onload = () => {
+        realImg.className = 'nabad-bubble-img';
+        realImg.style.cssText = 'display:block;width:100%;max-width:100%;border-radius:16px;margin-top:6px;cursor:zoom-in;';
+        realImg.alt   = prompt || 'Generated image';
+        realImg.title = 'Click to enlarge';
+        realImg.addEventListener('click', () => openImageLightbox(src));
         removePlaceholder(placeholder);
-        img.classList.remove('loading');
-        img.style.opacity = '1';
-        img.style.display = 'none';
-      }, { once: true });
-
-      if (img.complete) {
-        img.naturalWidth > 0
-          ? img.dispatchEvent(new Event('load'))
-          : img.dispatchEvent(new Event('error'));
-      }
-
-      img.addEventListener('click', () => {
-        const src = img.currentSrc || img.src || img.getAttribute('src');
-        if (src) openImageLightbox(src, img.alt || 'Generated image');
-      });
+        placeholder.replaceWith(realImg);
+        scrollToBottom();
+      };
+      realImg.onerror = () => {
+        const errMsg = document.createElement('p');
+        errMsg.style.cssText = 'color:#ef4444;font-size:13px;margin:6px 0;';
+        errMsg.textContent = '⚠️ Image could not be loaded.';
+        removePlaceholder(placeholder);
+        placeholder.replaceWith(errMsg);
+      };
+      realImg.src = src;
     });
 
-    enhanceCards(bubble);
+    // Regular images — add lightbox click
+    bubble.querySelectorAll('img:not([data-nabad-source])').forEach(img => {
+      img.style.cursor = 'zoom-in';
+      img.addEventListener('click', () => openImageLightbox(img.src));
+    });
+
+    // Open links in new tab
+    bubble.querySelectorAll('a[href]').forEach(a => {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    });
   }
 
-  // ── LIGHTBOX ──────────────────────────────────────────────────
-  function openImageLightbox(src, alt = 'Generated image') {
-    currentLightboxSrc   = src;
+  // ── IMAGE LIGHTBOX ────────────────────────────────────────────
+  function openImageLightbox(src) {
+    if (!src) return;
+    currentLightboxSrc = src;
     refs.lightboxImg.src = src;
-    refs.lightboxImg.alt = alt;
     refs.lightbox.classList.add('open');
-    document.body.style.overflow = 'hidden';
+    applyScrollLock();
   }
 
   function closeImageLightbox() {
     refs.lightbox.classList.remove('open');
     refs.lightboxImg.src = '';
-    currentLightboxSrc   = '';
-    if (!state.open) releaseScrollLock();
+    currentLightboxSrc = '';
+    if (state.open) applyScrollLock();
+    else releaseScrollLock();
   }
 
-  function showTyping(show) {
-  refs.typing.style.display = show ? 'flex' : 'none';
-  refs.send.disabled = show;
-  const logo = document.getElementById('nabad-logo');
-  if (logo) logo.classList.toggle('thinking', show);
-}
-
+  // ── SCROLL ───────────────────────────────────────────────────
   function scrollToBottom() {
+    if (!refs.messages) return;
     requestAnimationFrame(() => {
-      if (!refs.messages || !state.open) return;
       refs.messages.scrollTop = refs.messages.scrollHeight;
     });
   }
 
-  function startNewChat() {
-    if (state.messages.length) {
-      confirmAction(
-        'Start a new chat? Your current conversation will be cleared.',
-        _doStartNewChat
-      );
-    } else {
-      _doStartNewChat();
-    }
+  // ── SHOW TYPING ───────────────────────────────────────────────
+  function showTyping(on) {
+    refs.typing.classList.toggle('show', on);
+    if (on) scrollToBottom();
   }
-
-  function _doStartNewChat() {
-    state.messages = [];
-    saveMessages();
-    refs.messages.innerHTML = '';
-    if (!state.personalityChosen) {
-      renderOnboardingScreen1();
-    } else {
-      renderMessage('assistant', getPersonalityGreeting(state.personality), false);
-    }
-  }
-
-  function changePersonalityFlow() {
-    if (state.messages.length) {
-      confirmAction(
-        'Change personality and start a fresh chat? This will clear the current conversation.',
-        _doChangePersonality
-      );
-    } else {
-      _doChangePersonality();
-    }
-  }
-
-  function _doChangePersonality() {
-    state.messages          = [];
-    saveMessages();
-    state.personality       = 'auto';
-    state.personalityChosen = false;
-    savePersonality('');
-    updatePersonalityBadge();
-    setInputPlaceholder();
-    refs.messages.innerHTML = '';
-    renderOnboardingScreen3();
-  }
-
-// ── OPTIONS POPUP ─────────────────────────────────────────────
-function showOptionsPopup() {
-  const existing = document.querySelector('.nabad-options-popup');
-  if (existing) { existing.remove(); return; }
-
-  const popup = document.createElement('div');
-  popup.className = 'nabad-options-popup';
-  popup.innerHTML = `
-  <button class="nabad-options-btn" id="nabad-opt-notify" type="button">🔔 Enable Notifications</button>
-<div class="nabad-options-divider"></div>
-  <button class="nabad-options-btn" id="nabad-opt-voice" type="button">${state.voiceMode ? '🔇 Voice reply OFF' : '🔊 Voice reply ON'}</button>
-<div class="nabad-options-divider"></div>
-    <button class="nabad-options-btn" id="nabad-opt-memory" type="button">🧠 What Nabad knows</button>
-<div class="nabad-options-divider"></div>
-<button class="nabad-options-btn" id="nabad-opt-warroom" type="button">⚔️ War Room</button>
-<div class="nabad-options-divider"></div>
-<button class="nabad-options-btn" id="nabad-opt-newchat" type="button">⟳ New Chat</button>
-    <div class="nabad-options-divider"></div>
-    <button class="nabad-options-btn" id="nabad-opt-personality" type="button">🎭 Change Advisor</button>
-    <div class="nabad-options-divider"></div>
-    <button class="nabad-options-btn danger" id="nabad-opt-clear" type="button">🗑️ Clear Memory</button>
-  `;
-
-  const panel = document.getElementById('nabad-panel');
-  panel.appendChild(popup);
-  setTimeout(() => popup.classList.add('show'), 20);
-  popup.querySelector('#nabad-opt-notify').addEventListener('click', () => {
-  popup.remove();
-  requestPushPermission();
-});
-  popup.querySelector('#nabad-opt-voice').addEventListener('click', () => {
-  popup.remove();
-  state.voiceMode = !state.voiceMode;
-});
-  popup.querySelector('#nabad-opt-memory').addEventListener('click', () => {
-    popup.remove();
-    renderMemoryScreen();
-  });
-
-popup.querySelector('#nabad-opt-warroom').addEventListener('click', () => {
-  popup.remove();
-  startWarRoom();
-});
-
-  popup.querySelector('#nabad-opt-newchat').addEventListener('click', () => {
-    popup.remove();
-    startNewChat();
-  });
-
-  popup.querySelector('#nabad-opt-personality').addEventListener('click', () => {
-    popup.remove();
-    changePersonalityFlow();
-  });
-
-  popup.querySelector('#nabad-opt-clear').addEventListener('click', () => {
-    popup.remove();
-    confirmAction('Clear everything Nabad knows about you?', () => {
-      state.userProfile = {};
-      state.messages = [];
-      state.personalityChosen = false;
-      state.onboarded = false;
-      state.onboardingPath = null;
-      state.onboardingAnswers = {};
-      saveUserProfile({});
-      saveMessages([]);
-      savePersonality(null);
-      saveOnboarded(false);
-      refs.messages.innerHTML = '';
-      renderOnboardingScreen1();
-    });
-  });
-
-  // close when clicking outside
-  setTimeout(() => {
-    document.addEventListener('click', function handler(e) {
-      if (!popup.contains(e.target)) {
-        popup.remove();
-        document.removeEventListener('click', handler);
-      }
-    });
-  }, 100);
-}
-
-// ── MEMORY SCREEN ─────────────────────────────────────────────
-function renderMemoryScreen() {
-  const p = state.userProfile || {};
-  const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
-
-  const svgs = {
-    path:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-    business: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><path d="M8 7V5a2 2 0 0 0-4 0v2"/></svg>`,
-    sell:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
-    revenue:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
-    challenge:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
-    idea:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`,
-    customer: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
-    progress: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
-    blocker:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`,
-    skills:   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
-    problems: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-    time:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-    insight:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>`,
-  };
-
-  const fields = [
-    { svg: svgs.path,      label: 'Path',          value: p.path },
-    { svg: svgs.business,  label: 'Business',      value: p.businessName },
-    { svg: svgs.sell,      label: 'What you sell',  value: p.whatYouSell },
-    { svg: svgs.revenue,   label: 'Revenue',        value: p.revenue },
-    { svg: svgs.challenge, label: 'Challenge',      value: p.biggestChallenge },
-    { svg: svgs.idea,      label: 'Idea',           value: p.ideaSummary },
-    { svg: svgs.customer,  label: 'Customer',       value: p.targetCustomer },
-    { svg: svgs.progress,  label: 'Progress',       value: p.currentProgress },
-    { svg: svgs.blocker,   label: 'Blocker',        value: p.biggestBlock },
-    { svg: svgs.skills,    label: 'Skills',         value: p.skills },
-    { svg: svgs.problems,  label: 'Problems',       value: p.problems },
-    { svg: svgs.time,      label: 'Time',           value: p.timeCommitment },
-  ].filter(f => f.value);
-
-  const isEmpty = fields.length === 0 && insights.length === 0;
-
-  const cardStyle = `display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.98);border:1px solid rgba(37,99,235,0.08);border-radius:14px;box-shadow:0 4px 12px rgba(15,23,42,0.04);margin-bottom:8px;`;
-  const insightCardStyle = `display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.98);border:1px solid rgba(34,197,94,0.15);border-radius:14px;box-shadow:0 4px 12px rgba(15,23,42,0.04);margin-bottom:8px;`;
-  const labelStyle = `font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:#94a3b8;margin-bottom:3px;`;
-  const valueStyle = `font-size:14px;font-weight:600;color:#0f172a;line-height:1.4;`;
-
-  refs.messages.innerHTML = `
-    <div id="nabad-onboarding">
-      <h3 style="display:flex;align-items:center;gap:8px;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="10"/></svg>
-        What Nabad knows
-      </h3>
-      <p>${isEmpty
-        ? "Nabad doesn't know anything about you yet. Start chatting to let Nabad learn!"
-        : "Here's what Nabad has learned about you so far."
-      }</p>
-
-      ${fields.length > 0 ? `
-        <div style="display:flex;flex-direction:column;gap:0;margin-top:4px;overflow-y:auto;max-height:55vh;padding-bottom:8px;">
-          ${fields.map(f => `
-            <div style="${cardStyle}">
-              <span style="flex-shrink:0;margin-top:2px;">${f.svg}</span>
-              <div>
-                <div style="${labelStyle}">${escapeHtml(f.label)}</div>
-                <div style="${valueStyle}">${escapeHtml(f.value)}</div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
-
-      ${insights.length > 0 ? `
-        <div style="margin-top:12px;">
-          <div style="${labelStyle}padding-left:2px;margin-bottom:8px;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;margin-right:4px;"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-            Saved Insights
-          </div>
-          ${insights.map(i => `
-            <div style="${insightCardStyle}">
-              <span style="flex-shrink:0;margin-top:2px;">${svgs.insight}</span>
-              <div>
-                <div style="${labelStyle}">${escapeHtml(i.date)}</div>
-                <div style="${valueStyle}">${escapeHtml(i.text)}</div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
-
-      <button class="nabad-ob-back" id="nabad-memory-back" type="button" style="margin-top:16px">← Back to chat</button>
-    </div>
-  `;
-
-  refs.messages.querySelector('#nabad-memory-back').addEventListener('click', () => {
-    refs.messages.innerHTML = '';
-    state.messages.forEach(m => renderMessage(m.role, m.content, false));
-    scrollToBottom();
-  });
-
-  scrollToBottom();
-}
-
-// ── WAR ROOM ──────────────────────────────────────────────────
-function startWarRoom(prefill = '') {
-  state.warRoom = true;
-  refs.input.disabled = true;
-  refs.send.disabled = true;
-  refs.input.placeholder = 'War Room active — use the form above';
-
-  refs.messages.innerHTML = `
-    <div id="nabad-warroom-screen">
-      <div class="nabad-wr-header">
-        <div class="nabad-wr-icon">⚔️</div>
-        <h3>War Room</h3>
-        <p>Describe your situation or decision. Three advisors will each give you their honest take.</p>
-      </div>
-      <div class="nabad-wr-input-block">
-        <textarea
-          id="nabad-warroom-input"
-          placeholder="e.g. Should I raise my prices 30% or focus on volume first? We have 200 clients and margins are tight."
-          rows="4"
-        ></textarea>
-        <button class="nabad-ob-btn" id="nabad-warroom-submit" type="button">⚔️ Run War Room</button>
-        <button class="nabad-ob-back" id="nabad-warroom-cancel" type="button">← Back to chat</button>
-      </div>
-    </div>
-  `;
-
-  refs.messages.querySelector('#nabad-warroom-submit').addEventListener('click', () => {
-    const textarea = document.getElementById('nabad-warroom-input');
-    const text = textarea ? textarea.value.trim() : '';
-    if (!text) return;
-    runWarRoomSession(text);
-  });
-
-  refs.messages.querySelector('#nabad-warroom-cancel').addEventListener('click', backToChat);
-  if (prefill) {
-    const textarea = document.getElementById('nabad-warroom-input');
-    if (textarea) textarea.value = prefill;
-  }
-  scrollToBottom();
-}
-
-async function runWarRoomSession(situation) {
-  const advisors = [
-    { id: 'strategist', icon: '🧠', name: 'The Strategist', desc: 'Thinks long-term. Challenges your assumptions.' },
-    { id: 'operator',   icon: '⚙️', name: 'The Operator',   desc: 'Focused on execution. What can be done now.' },
-    { id: 'devil',      icon: '😈', name: "Devil's Advocate", desc: "Finds what everyone else is ignoring." }
-  ];
-
-  refs.messages.innerHTML = `
-    <div id="nabad-warroom-screen">
-      <div class="nabad-wr-header">
-        <div class="nabad-wr-icon">⚔️</div>
-        <h3>War Room</h3>
-        <p class="nabad-wr-situation">"${escapeHtml(situation)}"</p>
-      </div>
-      <div id="nabad-wr-advisors">
-        ${advisors.map(a => `
-          <div class="nabad-wr-card" id="nabad-wr-${a.id}">
-            <div class="nabad-wr-card-header">
-              <span class="nabad-wr-card-icon">${a.icon}</span>
-              <div>
-                <div class="nabad-wr-card-name">${a.name}</div>
-                <div class="nabad-wr-card-desc">${a.desc}</div>
-              </div>
-            </div>
-            <div class="nabad-wr-card-reply" id="nabad-wr-reply-${a.id}">
-              <span class="nabad-dots"><span></span><span></span><span></span></span>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-      <button class="nabad-ob-back" id="nabad-warroom-back" type="button" style="margin:20px auto 8px;display:block">← Back to chat</button>
-    </div>
-  `;
-
-  refs.messages.querySelector('#nabad-warroom-back').addEventListener('click', backToChat);
-  scrollToBottom();
-
-  await Promise.all(advisors.map(a => fetchAdvisorReply(situation, a)));
-  scrollToBottom();
-}
-
-async function fetchAdvisorReply(situation, advisor) {
-  const replyEl = document.getElementById(`nabad-wr-reply-${advisor.id}`);
-  if (!replyEl) return;
-
-  const advisorInstructions = {
-    strategist: `You are The Strategist — a sharp, long-term thinker. You challenge assumptions and think about positioning, leverage, and second-order effects. Be direct, specific, and challenge the user's thinking. 3-5 sentences max. No fluff.`,
-    operator:   `You are The Operator — execution-focused and practical. You cut through theory and focus on what can actually be done in the next 30 days. Give a concrete action plan. 3-5 sentences max. No fluff.`,
-    devil:      `You are the Devil's Advocate — you find the uncomfortable truth everyone else avoids. What's the risk, the blind spot, or the thing the user is not saying? Be honest and a little provocative. 3-5 sentences max. No fluff.`
-  };
-
-  try {
-    const profileSummary = buildProfileSummary();
-    const response = await fetch(CONFIG.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: `War Room situation: ${situation}` }],
-        personality: 'auto',
-        userProfile: profileSummary,
-        warRoom: true,
-        warRoomAdvisor: advisorInstructions[advisor.id]
-      })
-    });
-
-    const data = await response.json().catch(() => ({}));
-    replyEl.innerHTML = data?.reply || '<p>Could not load this response.</p>';
-  } catch {
-    replyEl.innerHTML = '<p style="color:#ef4444">Failed to load — try again.</p>';
-  }
-}
-
-function backToChat() {
-  state.warRoom = false;
-  refs.input.disabled = false;
-  refs.send.disabled = false;
-  refs.input.placeholder = 'Ask Nabad anything...';
-  refs.messages.innerHTML = '';
-  state.messages.forEach(m => renderMessage(m.role, m.content, false));
-  scrollToBottom();
-}
-
-function showWarRoomSuggestion(triggerMessage = '') {
-  if (state.warRoom) return;
-  const existing = document.getElementById('nabad-warroom-suggestion');
-  if (existing) return;
-
-  const panel = document.getElementById('nabad-panel');
-  if (!panel) return;
-
-  const suggestion = document.createElement('div');
-  suggestion.id = 'nabad-warroom-suggestion';
-  suggestion.innerHTML = `
-    <span>⚔️ Sounds like a big decision — run a War Room?</span>
-    <button id="nabad-warroom-yes" type="button">Let's go</button>
-    <button id="nabad-warroom-dismiss" type="button">✕</button>
-  `;
-
-  const inputWrap = document.getElementById('nabad-input-wrap');
-  panel.insertBefore(suggestion, inputWrap);
-
-  setTimeout(() => suggestion.classList.add('show'), 50);
-
-  suggestion.querySelector('#nabad-warroom-yes').addEventListener('click', () => {
-    suggestion.remove();
-    startWarRoom(triggerMessage);
-  });
-
-  suggestion.querySelector('#nabad-warroom-dismiss').addEventListener('click', () => {
-    suggestion.classList.remove('show');
-    setTimeout(() => suggestion.remove(), 300);
-  });
-
-  setTimeout(() => {
-    suggestion.classList.remove('show');
-    setTimeout(() => suggestion.remove(), 300);
-  }, 8000);
-}
-
-  // ── NABAD DETECTED EFFECT ─────────────────────────────────────
-  function triggerNabadDetected(bubbleEl) {
-  navigator.vibrate && navigator.vibrate(40);
-    // 1. Input pulse
-    const input = document.getElementById('nabad-input');
-    if (input) {
-      input.classList.add('nabad-detected-flash');
-      setTimeout(() => input.classList.remove('nabad-detected-flash'), 1200);
-    }
-
-    // 2. Logo strong pulse
-    const logo = document.getElementById('nabad-logo');
-    if (logo) {
-      logo.classList.add('nabad-logo-pulse');
-      setTimeout(() => logo.classList.remove('nabad-logo-pulse'), 1000);
-    }
-
-    // 3. Pill above input
-    const panel = document.getElementById('nabad-panel');
-    if (panel) {
-      const existing = panel.querySelector('.nabad-detected-pill');
-      if (existing) existing.remove();
-
-      const pill = document.createElement('div');
-      pill.className = 'nabad-detected-pill';
-      pill.textContent = '⚡ Nabad got that';
-
-      const inputWrap = document.getElementById('nabad-input-wrap');
-      panel.insertBefore(pill, inputWrap);
-
-      setTimeout(() => pill.classList.add('show'), 50);
-      setTimeout(() => pill.classList.remove('show'), 2200);
-      setTimeout(() => pill.remove(), 2600);
-    }
-  }
-// ── VOICE NOTES ───────────────────────────────────────────────
-let mediaRecorder = null;
-let audioChunks   = [];
-let voiceTimer    = null;
-let voiceSeconds  = 0;
-
-function startVoiceRecording() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    alert('Voice notes are not supported on this browser.');
-    return;
-  }
-  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) audioChunks.push(e.data);
-    };
-    mediaRecorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-      const blob = new Blob(audioChunks, { type: mimeType });
-      await transcribeAndSend(blob);
-    };
-    mediaRecorder.start();
-    const mic = document.getElementById('nabad-mic');
-    const status = document.getElementById('nabad-voice-status');
-    const timerEl = document.getElementById('nabad-voice-timer');
-    if (mic) mic.classList.add('recording');
-    if (status) status.classList.add('show');
-    voiceSeconds = 0;
-    voiceTimer = setInterval(() => {
-      voiceSeconds++;
-      const m = Math.floor(voiceSeconds / 60);
-      const s = voiceSeconds % 60;
-      if (timerEl) timerEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-      if (voiceSeconds >= 60) stopVoiceRecording();
-    }, 1000);
-  }).catch(() => {
-    alert('Microphone access denied. Please allow microphone access and try again.');
-  });
-}
-
-function stopVoiceRecording() {
-  if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-  mediaRecorder.stop();
-  clearInterval(voiceTimer);
-  const mic = document.getElementById('nabad-mic');
-  const status = document.getElementById('nabad-voice-status');
-  if (mic) mic.classList.remove('recording');
-  if (status) status.classList.remove('show');
-}
-
-async function transcribeAndSend(blob) {
-  showTyping(true);
-  try {
-    const formData = new FormData();
-    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
-formData.append('audio', blob, `voice-note.${ext}`);
-    const resp = await fetch('/api/transcribe', {
-      method: 'POST',
-      body: formData
-    });
-    const data = await resp.json().catch(() => ({}));
-    const text = data?.text?.trim();
-    if (!text) {
-      showTyping(false);
-      renderMessage('assistant', '<p>I couldn\'t make out what you said — try again 🎙️</p>', false);
-      return;
-    }
-    refs.input.value = text;
-    showTyping(false);
-    sendMessage();
-  } catch {
-    showTyping(false);
-    renderMessage('assistant', '<p>Voice note failed — try again.</p>', false);
-  }
-}
-
-let currentAudio = null;
-
-async function speakReply(text = '', speakerBtn = null) {
-  try {
-    const clean = text.replace(/<[^>]+>/g, '').trim().slice(0, 1000);
-    if (!clean) return;
-
-    // Stop any currently playing audio
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio = null;
-    }
-
-    // Reset all speaker buttons to idle
-    document.querySelectorAll('.nabad-speaker-btn').forEach(b => {
-  b.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-  b.classList.remove('playing');
-});
-
-    if (speakerBtn) {
-      speakerBtn.innerHTML = `<span class="nabad-loading-dots"><span></span><span></span><span></span></span>`;
-      speakerBtn.classList.add('playing');
-    }
-
-    const resp = await fetch('/api/speak', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean })
-    });
-
-    if (!resp.ok) {
-      if (speakerBtn) { speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-}
-      return;
-    }
-
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    currentAudio = audio;
-
-    if (speakerBtn) {
-      speakerBtn.innerHTML = `
-        <span class="nabad-wave-anim">
-          <span></span><span></span><span></span><span></span><span></span>
-        </span>`;
-    }
-
-    audio.play();
-
-    audio.onended = () => {
-      URL.revokeObjectURL(url);
-      currentAudio = null;
-      if (speakerBtn) {
-        speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-        speakerBtn.classList.remove('playing');
-      }
-    };
-
-    audio.onerror = () => {
-      URL.revokeObjectURL(url);
-      currentAudio = null;
-      if (speakerBtn) {
-        speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-        speakerBtn.classList.remove('playing');
-      }
-    };
-
-  } catch {
-    if (speakerBtn) { speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-}
-  }
-}
-// ──────────────────────────────────────────────────────────────
-
-// ── PUSH NOTIFICATIONS ────────────────────────────────────────
-async function initPushNotifications() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    const existing = await reg.pushManager.getSubscription();
-    if (existing) {
-      state.pushSubscription = existing;
-      localStorage.setItem('nabad_push_sub', JSON.stringify(existing));
-    }
-  } catch { /* fail silently */ }
-}
-
-async function requestPushPermission() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
-
-    const reg = await navigator.serviceWorker.ready;
-    const subscription = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: 'BGwNhFYLt-66J8IctOPqc9kah_8S2VhrRjY8Uo2JjPy9-Q6NZ7oRToAvHVdarcFhU0Lc7Y5qatP6jerVjt8DWsg'
-    });
-
-    state.pushSubscription = subscription;
-    localStorage.setItem('nabad_push_sub', JSON.stringify(subscription));
-
-    await fetch('/api/notify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subscription,
-        title: '🔥 Nabad is ready',
-        body: 'Your AI co-founder is online. Talk to me anytime.'
-      })
-    });
-  } catch { /* fail silently */ }
-}
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
   async function sendMessage() {
     if (state.sending) return;
-
     const text = (refs.input.value || '').trim();
     if (!text) return;
 
-    if (!state.personalityChosen) {
-      state.personality       = 'auto';
-      state.personalityChosen = true;
-      state.onboarded         = true;
-      savePersonality(state.personality);
-      saveOnboarded();
-      updatePersonalityBadge();
-      setInputPlaceholder();
-      refs.messages.innerHTML = '';
-    }
-
-    state.sending = true;
-
-    const historySnapshot = [
-      ...state.messages.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: text }
-    ];
-
-    const userBubble = renderMessage('user', text, true);
-
-    refs.input.value        = '';
+    refs.input.value = '';
     refs.input.style.height = 'auto';
-    _lastScrollHeight       = 0;
+    _lastScrollHeight = 0;
+    state.sending = true;
+    refs.send.disabled = true;
+
+    renderMessage('user', text);
+
+    // Logo "thinking" animation
+    const logo = document.getElementById('nabad-logo');
+    if (logo) logo.classList.add('thinking');
+
     showTyping(true);
 
+    // Hide warroom suggestion if visible
+    const wrSug = document.getElementById('nabad-warroom-suggestion');
+    if (wrSug) { wrSug.classList.remove('show'); }
+
     try {
-      const profileSummary = buildProfileSummary();
+      const profile  = buildProfileSummary();
+      const history  = state.messages.slice(-50).map(m => ({ role: m.role, content: m.content }));
 
-      const payload = {
-        messages:    historySnapshot,
-        personality: state.personality,
-        userProfile: profileSummary
-      };
-
-      const response = await fetch(CONFIG.apiUrl, {
-        method:  'POST',
+      const resp = await fetch(CONFIG.apiUrl, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload)
+        body: JSON.stringify({
+          messages:    history,
+          personality: state.personality,
+          userProfile: profile
+        })
       });
 
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.reply || 'Request failed');
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-      // ── Nabad detected meaningful info ──
-      // ── Nabad detected meaningful info ──
-if (data?.detectedInfo === true) {
-  triggerNabadDetected(userBubble);
-}
-
-// ── War Room suggestion ──
-if (data?.suggestWarRoom === true) {
-  showWarRoomSuggestion(String(text) || '');
-}
-
-const replyText = data?.reply || '<p>Sorry — I could not generate a response right now.</p>';
-renderMessage('assistant', replyText, true);
-if (state.voiceMode) {
-  const lastBubble = refs.messages.querySelector('.nabad-msg.bot:last-child .nabad-bubble');
-  const speakerBtn = lastBubble?.querySelector('.nabad-speaker-btn');
-  speakReply(replyText, speakerBtn);
-}
-
-        } catch (err) {
-      renderMessage(
-        'assistant',
-        `<h3>Sorry — something went wrong</h3><p>Please try again in a moment.</p>`,
-        true
-      );
-      console.error('[NABAD WIDGET ERROR]', err);
-    } finally {
-      // Ask for push permission after first message
-      if (!state.pushSubscription && state.messages.length === 1) {
-        setTimeout(() => requestPushPermission(), 2000);
-      }
-      state.sending = false;
+      const data = await resp.json();
       showTyping(false);
+      if (logo) logo.classList.remove('thinking');
+
+      const reply = data.reply || '<p>Sorry — no response received.</p>';
+      renderMessage('assistant', reply);
+
+      // ── Handle detectedInfo ──
+      if (data.detectedInfo) {
+        const info = data.detectedInfo;
+        if (info.businessName && !state.userProfile.businessName) {
+          state.userProfile.businessName = info.businessName;
+          saveUserProfile(state.userProfile);
+        }
+        if (info.location && !state.userProfile.location) {
+          state.userProfile.location = info.location;
+          saveUserProfile(state.userProfile);
+        }
+      }
+
+      // ── Handle suggestWarRoom ──
+      if (data.suggestWarRoom) {
+        showWarRoomSuggestion(data.suggestWarRoom);
+      }
+
+      // ── [PC-1] Handle detectedPersonality (2-message rule) ──
+      if (data.detectedPersonality && data.detectedPersonality !== 'auto') {
+        const detected = data.detectedPersonality;
+        if (detected === state.personalityBuffer) {
+          state.personalityCount += 1;
+        } else {
+          state.personalityBuffer = detected;
+          state.personalityCount  = 1;
+        }
+
+        if (state.personalityCount >= 2 && detected !== state.personality) {
+          const prevPersonality = state.personality;
+          state.personality      = detected;
+          state.personalityCount = 0;
+          state.personalityBuffer = null;
+          savePersonality(state.personality);
+          setInputPlaceholder();
+          updatePersonalityBadge();
+          applyPersonalityColor(detected, prevPersonality !== 'auto');
+        }
+      }
+
+    } catch (err) {
+      showTyping(false);
+      if (logo) logo.classList.remove('thinking');
+      console.error('[NABAD] sendMessage error:', err);
+      renderMessage('assistant', '<p>⚠️ Something went wrong. Please try again.</p>');
+    } finally {
+      state.sending      = false;
+      refs.send.disabled = false;
       refs.input.focus();
     }
   }
 
-  // ── INIT ──────────────────────────────────────────────────────
-  function init() {
-    injectStyles();
-    initPushNotifications();
-    buildShell();
-    window.__NABAD_OPEN_WIDGET__  = () => toggleWidget(true);
-    window.__NABAD_CLOSE_WIDGET__ = () => toggleWidget(false);
+  // ── WAR ROOM SUGGESTION BANNER ────────────────────────────────
+  function showWarRoomSuggestion(situation) {
+    let banner = document.getElementById('nabad-warroom-suggestion');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'nabad-warroom-suggestion';
+      banner.innerHTML = `
+        <span id="nabad-warroom-text"></span>
+        <button id="nabad-warroom-open" type="button">Open War Room</button>
+        <button id="nabad-warroom-dismiss" type="button">✕</button>
+      `;
+      refs.typing.after(banner);
+      banner.querySelector('#nabad-warroom-open').addEventListener('click', () => {
+        banner.classList.remove('show');
+        openWarRoom(situation);
+      });
+      banner.querySelector('#nabad-warroom-dismiss').addEventListener('click', () => {
+        banner.classList.remove('show');
+      });
+    }
+    banner.querySelector('#nabad-warroom-text').textContent =
+      `⚔️ This looks strategic — open the War Room?`;
+    setTimeout(() => banner.classList.add('show'), 100);
+    setTimeout(() => banner.classList.remove('show'), 8000);
   }
 
-  loadDOMPurify(() => {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
+  // ── WAR ROOM ─────────────────────────────────────────────────
+  async function openWarRoom(prefillSituation = '') {
+    state.warRoom = true;
+    document.getElementById('nabad-input-wrap').style.display = 'none';
+
+    refs.messages.innerHTML = `
+      <div id="nabad-warroom-screen">
+        <div class="nabad-wr-header">
+          <div class="nabad-wr-icon">⚔️</div>
+          <h3>War Room</h3>
+          <p>Bring your toughest business challenge.<br>Get 3 expert perspectives simultaneously.</p>
+          ${prefillSituation ? `<p class="nabad-wr-situation">"${escapeHtml(prefillSituation)}"</p>` : ''}
+        </div>
+        <div class="nabad-wr-input-block">
+          <textarea id="nabad-wr-input" rows="3" placeholder="Describe the situation, decision, or problem you're facing...">${escapeHtml(prefillSituation)}</textarea>
+          <button class="nabad-ob-btn" id="nabad-wr-go" type="button">⚔️ Launch War Room</button>
+          <button class="nabad-ob-back" id="nabad-wr-back" type="button">← Back to chat</button>
+        </div>
+        <div id="nabad-wr-advisors"></div>
+      </div>
+    `;
+
+    refs.messages.querySelector('#nabad-wr-back').addEventListener('click', backToChat);
+    refs.messages.querySelector('#nabad-wr-go').addEventListener('click', async () => {
+      const situation = (refs.messages.querySelector('#nabad-wr-input').value || '').trim();
+      if (!situation) return;
+      await runWarRoom(situation);
+    });
+
+    // Auto-launch if situation already provided
+    if (prefillSituation.trim()) {
+      await runWarRoom(prefillSituation.trim());
     }
+
+    scrollToBottom();
+  }
+
+  const WAR_ROOM_ADVISORS = [
+    { id: 'strategist',    icon: '🧠', name: 'The Strategist',    desc: 'Long-term positioning & decisions' },
+    { id: 'growth',        icon: '📈', name: 'The Growth Hacker',  desc: 'Fast traction & momentum'          },
+    { id: 'straight_talk', icon: '🎯', name: 'The Straight Talker', desc: 'Brutal honesty & reality check'   }
+  ];
+
+  async function runWarRoom(situation) {
+    const advisorsEl = document.getElementById('nabad-wr-advisors');
+    if (!advisorsEl) return;
+
+    advisorsEl.innerHTML = WAR_ROOM_ADVISORS.map(a => `
+      <div class="nabad-wr-card" id="nabad-wr-card-${a.id}">
+        <div class="nabad-wr-card-header">
+          <div class="nabad-wr-card-icon">${a.icon}</div>
+          <div>
+            <div class="nabad-wr-card-name">${escapeHtml(a.name)}</div>
+            <div class="nabad-wr-card-desc">${escapeHtml(a.desc)}</div>
+          </div>
+        </div>
+        <div class="nabad-wr-card-reply">
+          <span class="nabad-dots"><span></span><span></span><span></span></span>
+        </div>
+      </div>
+    `).join('');
+
+    scrollToBottom();
+
+    const profile = buildProfileSummary();
+
+    await Promise.all(WAR_ROOM_ADVISORS.map(async advisor => {
+      try {
+        const resp = await fetch(CONFIG.apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: situation }],
+            personality: advisor.id,
+            userProfile: profile,
+            warRoom: true
+          })
+        });
+        const data = await resp.json();
+        const card = document.getElementById(`nabad-wr-card-${advisor.id}`);
+        if (card) {
+          card.querySelector('.nabad-wr-card-reply').innerHTML =
+            sanitizeHtml(markdownToHtml(data.reply || 'No response.'));
+        }
+      } catch {
+        const card = document.getElementById(`nabad-wr-card-${advisor.id}`);
+        if (card) {
+          card.querySelector('.nabad-wr-card-reply').textContent = '⚠️ Could not get a response.';
+        }
+      }
+      scrollToBottom();
+    }));
+  }
+
+  // ── BACK TO CHAT ─────────────────────────────────────────────
+  function backToChat() {
+    state.warRoom = false;
+    document.getElementById('nabad-input-wrap').style.display = 'flex';
+    refs.messages.innerHTML = '';
+    updatePersonalityBadge();
+    if (!state.messages.length) {
+      renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+    } else {
+      state.messages.slice(-50).forEach(m => renderMessage(m.role, m.content, false));
+    }
+    scrollToBottom();
+    refs.input.focus();
+  }
+
+  // ── NEW CHAT ──────────────────────────────────────────────────
+  function newChat() {
+    confirmAction('Start a new conversation? This will clear the current chat.', () => {
+      state.messages      = [];
+      state.briefShown    = false;
+      state.warRoom       = false;
+      saveMessages();
+      refs.messages.innerHTML = '';
+      document.getElementById('nabad-input-wrap').style.display = 'flex';
+      renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+      scrollToBottom();
+      refs.input.focus();
+    });
+  }
+
+  // ── CHANGE PERSONALITY ────────────────────────────────────────
+  function changePersonality() {
+    document.getElementById('nabad-input-wrap').style.display = 'none';
+    refs.messages.innerHTML = `
+      <div id="nabad-onboarding">
+        <h3>Switch your advisor</h3>
+        <p>Pick how you want Nabad to think and respond.</p>
+        <div class="nabad-personality-grid">
+          ${PERSONALITIES.map(p => `
+            <button
+              class="nabad-personality-card ${state.personality === p.id ? 'active' : ''}"
+              data-personality="${p.id}"
+              type="button"
+            >
+              <div class="nabad-personality-title">
+                ${p.icon}
+                <span>${escapeHtml(p.title)}</span>
+              </div>
+              <div class="nabad-personality-desc">${escapeHtml(p.desc)}</div>
+            </button>
+          `).join('')}
+        </div>
+        <button class="nabad-ob-back" id="nabad-change-back" type="button" style="margin-top:12px">← Back to chat</button>
+      </div>
+    `;
+
+    refs.messages.querySelectorAll('.nabad-personality-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const newId = btn.getAttribute('data-personality') || 'auto';
+        const prev  = state.personality;
+        state.personality       = newId;
+        state.personalityChosen = true;
+        state.personalityBuffer = null;
+        state.personalityCount  = 0;
+        savePersonality(newId);
+        updatePersonalityBadge();
+        setInputPlaceholder();
+        applyPersonalityColor(newId, prev !== newId);
+        backToChat();
+      });
+    });
+
+    refs.messages.querySelector('#nabad-change-back')
+      .addEventListener('click', backToChat);
+
+    scrollToBottom();
+  }
+
+  // ── OPTIONS POPUP ─────────────────────────────────────────────
+  function showOptionsPopup() {
+    let popup = document.getElementById('nabad-options-popup');
+    if (popup) { popup.classList.toggle('show'); return; }
+
+    popup = document.createElement('div');
+    popup.id = 'nabad-options-popup';
+    popup.className = 'nabad-options-popup';
+    popup.innerHTML = `
+      <button class="nabad-options-btn" id="nabad-opt-new"      type="button">💬 New Chat</button>
+      <button class="nabad-options-btn" id="nabad-opt-persona"  type="button">🧠 Change Advisor</button>
+      <button class="nabad-options-btn" id="nabad-opt-memory"   type="button">📚 My Memory</button>
+      <button class="nabad-options-btn" id="nabad-opt-warroom"  type="button">⚔️ War Room</button>
+      <div class="nabad-options-divider"></div>
+      <button class="nabad-options-btn danger" id="nabad-opt-reset" type="button">🗑️ Reset Everything</button>
+    `;
+
+    refs.panel.appendChild(popup);
+
+    popup.querySelector('#nabad-opt-new').addEventListener('click', () => {
+      popup.classList.remove('show'); newChat();
+    });
+    popup.querySelector('#nabad-opt-persona').addEventListener('click', () => {
+      popup.classList.remove('show'); changePersonality();
+    });
+    popup.querySelector('#nabad-opt-memory').addEventListener('click', () => {
+      popup.classList.remove('show'); showMemoryScreen();
+    });
+    popup.querySelector('#nabad-opt-warroom').addEventListener('click', () => {
+      popup.classList.remove('show'); openWarRoom('');
+    });
+    popup.querySelector('#nabad-opt-reset').addEventListener('click', () => {
+      popup.classList.remove('show');
+      confirmAction('Reset everything? This will clear all messages, memory, and your profile.', () => {
+        Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
+        localStorage.removeItem('nabad_insights');
+        state.messages          = [];
+        state.personality       = 'auto';
+        state.personalityChosen = false;
+        state.onboarded         = false;
+        state.userProfile       = {};
+        state.briefShown        = false;
+        state.personalityBuffer = null;
+        state.personalityCount  = 0;
+        refs.messages.innerHTML = '';
+        document.getElementById('nabad-input-wrap').style.display = 'flex';
+        updatePersonalityBadge();
+        applyPersonalityColor('auto', false);
+        setInputPlaceholder();
+        renderOnboardingScreen1();
+      });
+    });
+
+    // Close popup when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', function handler(e) {
+        if (!popup.contains(e.target) && e.target.id !== 'nabad-new-chat') {
+          popup.classList.remove('show');
+          document.removeEventListener('click', handler);
+        }
+      });
+    }, 50);
+
+    popup.classList.add('show');
+  }
+
+  // ── MEMORY SCREEN ─────────────────────────────────────────────
+  function showMemoryScreen() {
+    document.getElementById('nabad-input-wrap').style.display = 'none';
+    const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
+    const profile  = state.userProfile || {};
+
+    refs.messages.innerHTML = `
+      <div id="nabad-onboarding">
+        <h3>📚 Your Memory</h3>
+        <p>Everything Nabad remembers about you.</p>
+
+        ${Object.keys(profile).length ? `
+          <div style="margin-bottom:16px;">
+            <div class="nabad-brief-card-label" style="margin-bottom:8px;">👤 Your Profile</div>
+            ${Object.entries(profile)
+              .filter(([k]) => k !== 'path')
+              .map(([k, v]) => `
+                <div style="padding:8px 12px;margin-bottom:6px;background:#f8faff;border-radius:10px;border:1px solid rgba(37,99,235,0.08);font-size:13px;color:#334155;">
+                  <strong style="color:#0f172a;text-transform:capitalize">${escapeHtml(k.replace(/([A-Z])/g, ' $1'))}:</strong>
+                  ${escapeHtml(String(v))}
+                </div>
+              `).join('')}
+          </div>
+        ` : ''}
+
+        ${insights.length ? `
+          <div>
+            <div class="nabad-brief-card-label" style="margin-bottom:8px;">💡 Saved Insights (${insights.length})</div>
+            ${insights.slice().reverse().map((ins, i) => `
+              <div style="padding:8px 12px;margin-bottom:6px;background:#f0fdf4;border-radius:10px;border:1px solid rgba(34,197,94,0.12);font-size:13px;color:#14532d;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <span>✓ ${escapeHtml(ins.text)}</span>
+                <span style="font-size:11px;color:#86efac;white-space:nowrap;margin-top:1px">${escapeHtml(ins.date || '')}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<p style="color:#94a3b8;font-size:13px;text-align:center;padding:16px 0;">No saved insights yet.<br>Tap the 👍 button on any response to save it.</p>`}
+
+        <button class="nabad-ob-back" id="nabad-memory-back" type="button" style="margin-top:16px">← Back to chat</button>
+      </div>
+    `;
+
+    refs.messages.querySelector('#nabad-memory-back')
+      .addEventListener('click', backToChat);
+
+    scrollToBottom();
+  }
+
+  // ── TRIGGER NABAD DETECTED ANIMATION ─────────────────────────
+  function triggerNabadDetected(personalityId) {
+    const logo = document.getElementById('nabad-logo');
+    if (!logo) return;
+    logo.classList.remove('nabad-logo-pulse');
+    void logo.offsetWidth; // reflow
+    logo.classList.add('nabad-logo-pulse');
+    logo.addEventListener('animationend', () => {
+      logo.classList.remove('nabad-logo-pulse');
+    }, { once: true });
+  }
+
+  // ── SPEECH SYNTHESIS / VOICE ──────────────────────────────────
+  let currentAudio  = null;
+  let mediaRecorder = null;
+  let audioChunks   = [];
+  let voiceTimer    = null;
+  let voiceSeconds  = 0;
+
+  function speakReply(text, btn) {
+    if (!text) return;
+    const clean = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 400);
+    if (!clean) return;
+
+    const voices  = window.speechSynthesis?.getVoices() || [];
+    const enVoice = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
+                    voices.find(v => v.lang.startsWith('en')) || null;
+
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.voice  = enVoice;
+    utter.rate   = 1.05;
+    utter.pitch  = 1.0;
+    utter.volume = 1.0;
+
+    btn.innerHTML = `
+      <div class="nabad-wave-anim">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div> Stop`;
+    btn.classList.add('playing');
+
+    utter.onend = utter.onerror = () => {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+      btn.classList.remove('playing');
+    };
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  }
+
+  async function startVoiceRecording() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert('Voice recording is not supported in your browser.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks  = [];
+      mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        await transcribeAudio(blob);
+      };
+
+      mediaRecorder.start(200);
+
+      const micBtn = document.getElementById('nabad-mic');
+      if (micBtn) micBtn.classList.add('recording');
+      document.getElementById('nabad-voice-status')?.classList.add('show');
+
+      voiceSeconds = 0;
+      const timerEl = document.getElementById('nabad-voice-timer');
+      voiceTimer = setInterval(() => {
+        voiceSeconds++;
+        const m = Math.floor(voiceSeconds / 60);
+        const s = String(voiceSeconds % 60).padStart(2, '0');
+        if (timerEl) timerEl.textContent = `${m}:${s}`;
+        if (voiceSeconds >= 60) stopVoiceRecording();
+      }, 1000);
+
+    } catch (err) {
+      console.error('[NABAD] Microphone error:', err);
+      alert('Could not access microphone. Please check your permissions.');
+    }
+  }
+
+  function stopVoiceRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
+    clearInterval(voiceTimer);
+    voiceTimer = null;
+
+    const micBtn = document.getElementById('nabad-mic');
+    if (micBtn) micBtn.classList.remove('recording');
+    document.getElementById('nabad-voice-status')?.classList.remove('show');
+  }
+
+  async function transcribeAudio(blob) {
+    const formData = new FormData();
+    formData.append('file', blob, 'voice.webm');
+    formData.append('model', 'whisper-1');
+
+    try {
+      const resp = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await resp.json();
+      const transcript = (data.text || '').trim();
+      if (transcript && refs.input) {
+        refs.input.value = transcript;
+        autoGrowTextarea();
+        refs.input.focus();
+      }
+    } catch (err) {
+      console.error('[NABAD] Transcription error:', err);
+    }
+  }
+
+  // ── LAUNCHER CLICK ────────────────────────────────────────────
+  function bindLauncherClick() {
+    if (refs.launcher) {
+      refs.launcher.addEventListener('click', () => toggleWidget(true));
+    }
+  }
+
+  // ── INIT ─────────────────────────────────────────────────────
+  loadDOMPurify(() => {
+    injectStyles();
+    buildShell();
+    bindLauncherClick();
   });
 
 })();
