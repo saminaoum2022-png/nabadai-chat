@@ -1010,9 +1010,27 @@ const check = await openai.chat.completions.create({
   max_tokens: 5,
   messages: [
     {
-      role: 'system',
-      content: `You are a classifier. Reply only "yes" or "no". Does this message contain ANY of the following about the user: their name, business name, location, city, country, what they sell, revenue, income, challenge, problem, skill, idea, industry, team size, pricing, or anything personal about their work or life situation? Be generous — if in doubt say "yes". Message: "${userMessage}"`
-    }
+  role: 'system',
+  content: `You are a smart data extractor. Extract any personal or business information from the user message into a JSON object.
+
+Rules:
+- "I live in X" or "I'm in X" or "I'm based in X" = location
+- "I run X" or "I have X business" = businessName
+- "I sell X" or "I offer X" = whatYouSell
+- "I make X per month" or "revenue is X" = revenue
+- "I'm good at X" or "my skill is X" = skills
+- "my problem is X" or "I struggle with X" = biggestChallenge
+- "I want to start X" or "my idea is X" = ideaSummary
+- Be GENEROUS — extract anything meaningful even if phrased casually
+
+Available fields: businessName, location, whatYouSell, revenue, biggestChallenge, targetCustomer, ideaSummary, currentProgress, biggestBlock, skills, industry, preference, timeCommitment
+
+Return ONLY a JSON object. If truly nothing found return {}.`
+},
+{
+  role: 'user',
+  content: userMessage
+}
   ]
 });
     
