@@ -4818,6 +4818,10 @@ function setSendState(stateLabel) {
         bindLauncherClick();
       }
 
+// Expose public open API for index.js auto-open
+window.__NABAD_OPEN_WIDGET__ = () => toggleWidget(true);
+
+
       // 4️⃣ FOURTH: Load DOMPurify in background (non-blocking)
       if (typeof loadDOMPurify === 'function') {
         loadDOMPurify(() => {
