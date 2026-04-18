@@ -3059,17 +3059,29 @@ Time: ${hour}:00`
       renderMessage('assistant', reply);
 
       // ── Handle detectedInfo ──
-      if (data.detectedInfo) {
-        const info = data.detectedInfo;
-        if (info.businessName && !state.userProfile.businessName) {
-          state.userProfile.businessName = info.businessName;
-          saveUserProfile(state.userProfile);
-        }
-        if (info.location && !state.userProfile.location) {
-          state.userProfile.location = info.location;
-          saveUserProfile(state.userProfile);
-        }
-      }
+if (data.detectedInfo && typeof data.detectedInfo === 'object') {
+  const info = data.detectedInfo;
+  let profileUpdated = false;
+
+  const fieldsToCapture = [
+    'businessName', 'location', 'whatYouSell', 'revenue',
+    'biggestChallenge', 'targetCustomer', 'ideaSummary',
+    'currentProgress', 'biggestBlock', 'skills',
+    'problems', 'preference', 'timeCommitment', 'industry'
+  ];
+
+  fieldsToCapture.forEach(field => {
+    if (info[field] && !state.userProfile[field]) {
+      state.userProfile[field] = info[field];
+      profileUpdated = true;
+    }
+  });
+
+  if (profileUpdated) {
+    saveUserProfile(state.userProfile);
+    showProfileUpdateToast(info);
+  }
+}
 
       // ── Handle suggestWarRoom ──
       if (data.suggestWarRoom) {
