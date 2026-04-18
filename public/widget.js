@@ -4796,35 +4796,22 @@ function setSendState(stateLabel) {
 
  // ── INIT ────────────────────────────────────────────────────
 (function startWidget() {
-
   function initUI() {
     try {
-      console.log('[NABAD] init started');
-
-      // 1. Inject styles
       injectStyles();
-
-      // 2. Build DOM shell
       buildShell();
-
-      // 3. Bind launcher click (desktop)
       bindLauncherClick();
 
-      // 4. Expose public API — index.js calls this to open the widget
       window.__NABAD_OPEN_WIDGET__ = function () {
-        // Always restore header + input before opening
-        const header    = document.getElementById('nabad-header');
-        const inputWrap = document.getElementById('nabad-input-wrap');
-        if (header)    header.style.display    = 'flex';
+        var header = document.getElementById('nabad-header');
+        var inputWrap = document.getElementById('nabad-input-wrap');
+        if (header) header.style.display = 'flex';
         if (inputWrap) inputWrap.style.display = 'flex';
-
         state.open = true;
         refs.panel.classList.add('open');
         refs.panel.setAttribute('aria-hidden', 'false');
         refs.root.classList.add('nabad-open');
         applyScrollLock();
-
-        // Decide what to render
         if (!state.onboarded && !state.messages.length) {
           renderOnboardingIntro();
         } else if (shouldShowMorningBrief()) {
@@ -4834,16 +4821,37 @@ function setSendState(stateLabel) {
           if (!state.messages.length) {
             renderMessage('assistant', getPersonalityGreeting(state.personality), false);
           } else {
-            state.messages.forEach(m => renderMessage(m.role, m.content, false));
+            state.messages.forEach(function(m) { renderMessage(m.role, m.content, false); });
           }
           scrollToBottom();
           if (refs.input) refs.input.focus();
         }
       };
 
-      // 5. Load DOMPurify in background
-      loadDOMPurify(() => console.log('[NABAD] DOMPurify ready'));
+      loadDOMPurify(function() {});
 
-      // 6. Load Supabase in background
-      setTimeout(() => loadSupabase(() => { getCurrentUser().then(u => { if(u) { state.authUser = u; loadProfileFromSupabase().catch(()=>{}); loadMessagesFromSupabase().catch(()=>{}); }}).catch(()=>{}); }), 3000);
+      setTimeout(function() {
+        loadSupabase(function() {
+          getCurrentUser().then(function(user) {
+            if (user) {
+              state.authUser = user;
+              loadProfileFromSupabase().catch(function(){});
+              loadMessagesFromSupabase().catch(function(){});
+            }
+          }).catch(function(){});
+        });
+      }, 4000);
+
+    } catch(e) {
+      console.error('[NABAD] init error:', e);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initUI);
+  } else {
+    initUI();
+  }
+})();
+
 
