@@ -2231,6 +2231,287 @@
         border-color: rgba(34,197,94,0.3);
         background: rgba(34,197,94,0.08);
       }
+      
+      /* ── Settings Page ── */
+#nabad-settings-page {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+#nabad-settings-page.open {
+  transform: translateX(0);
+}
+
+#nabad-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 14px;
+  background: linear-gradient(180deg, rgba(226,240,255,0.96) 0%, rgba(240,249,255,0.95) 100%);
+  border-bottom: 1px solid rgba(37,99,235,0.08);
+  flex-shrink: 0;
+}
+
+#nabad-settings-back {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.85);
+  color: #1e3a8a;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(15,23,42,0.07);
+  flex-shrink: 0;
+}
+
+#nabad-settings-back:hover { background: #fff; }
+
+#nabad-settings-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+#nabad-settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nabad-settings-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.nabad-settings-card {
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid rgba(37,99,235,0.08);
+  box-shadow: 0 4px 16px rgba(15,23,42,0.05);
+  overflow: hidden;
+}
+
+.nabad-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.nabad-settings-row:hover { background: rgba(37,99,235,0.03); }
+
+.nabad-settings-row + .nabad-settings-row {
+  border-top: 1px solid rgba(15,23,42,0.05);
+}
+
+.nabad-settings-row-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.nabad-settings-row-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.nabad-settings-row-icon.red {
+  background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+}
+
+.nabad-settings-row-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.nabad-settings-row-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.nabad-settings-row-label.danger { color: #ef4444; }
+.nabad-settings-row-arrow {
+  color: #cbd5e1;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* ── Auto-detect toggle ── */
+.nabad-toggle-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.nabad-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.nabad-toggle {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.nabad-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.nabad-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #e2e8f0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+
+.nabad-toggle-slider::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: transform 0.25s ease;
+}
+
+.nabad-toggle input:checked + .nabad-toggle-slider {
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+}
+
+.nabad-toggle input:checked + .nabad-toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* ── Personality grid inside settings ── */
+#nabad-settings-personality-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px 16px;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.3s ease,
+              opacity 0.3s ease;
+  opacity: 0;
+}
+
+#nabad-settings-personality-grid.visible {
+  max-height: 700px;
+  padding: 0 16px 16px;
+  opacity: 1;
+}
+
+.nabad-settings-personality-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(37,99,235,0.10);
+  background: rgba(255,255,255,0.98);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+}
+
+.nabad-settings-personality-chip:hover {
+  border-color: rgba(37,99,235,0.25);
+  background: #f8faff;
+}
+
+.nabad-settings-personality-chip.active {
+  border-color: rgba(37,99,235,0.4);
+  background: linear-gradient(135deg, #eff6ff, #f8faff);
+  box-shadow: 0 4px 14px rgba(37,99,235,0.10);
+}
+
+.nabad-settings-personality-chip .chip-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nabad-settings-personality-chip .chip-text { flex: 1; min-width: 0; }
+
+.nabad-settings-personality-chip .chip-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.nabad-settings-personality-chip .chip-desc {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.nabad-settings-personality-chip .chip-check {
+  font-size: 16px;
+  color: #2563eb;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  flex-shrink: 0;
+}
+
+.nabad-settings-personality-chip.active .chip-check { opacity: 1; }
+
+@media (max-width: 640px) {
+  #nabad-settings-page { border-radius: 0; }
+}
+      
     `;
     document.head.appendChild(style);
   }
@@ -2335,7 +2616,7 @@
 
   // ── EVENTS ───────────────────────────────────────────────────
   function bindEvents(root) {
-    root.querySelector('#nabad-new-chat').addEventListener('click', showOptionsPopup);
+    root.querySelector('#nabad-new-chat').addEventListener('click', openSettingsPage);
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
 
@@ -3466,39 +3747,201 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
     scrollToBottom();
   }
 
-  // ── OPTIONS POPUP ─────────────────────────────────────────────
-  function showOptionsPopup() {
-    let popup = document.getElementById('nabad-options-popup');
-    if (popup) { popup.classList.toggle('show'); return; }
+  // ── SETTINGS PAGE ─────────────────────────────────────────────
+function openSettingsPage() {
+  // Remove old dropdown if it exists
+  const oldPopup = document.getElementById('nabad-options-popup');
+  if (oldPopup) oldPopup.remove();
 
-    popup = document.createElement('div');
-    popup.id = 'nabad-options-popup';
-    popup.className = 'nabad-options-popup';
-    popup.innerHTML = `
-      <button class="nabad-options-btn" id="nabad-opt-new"      type="button">💬 New Chat</button>
-      <button class="nabad-options-btn" id="nabad-opt-persona"  type="button">🧠 Change Advisor</button>
-      <button class="nabad-options-btn" id="nabad-opt-memory"   type="button">📚 My Memory</button>
-      <button class="nabad-options-btn" id="nabad-opt-warroom"  type="button">⚔️ War Room</button>
-      <div class="nabad-options-divider"></div>
-      <button class="nabad-options-btn danger" id="nabad-opt-reset" type="button">🗑️ Reset Everything</button>
-    `;
+  // Remove existing settings page if open
+  const existing = document.getElementById('nabad-settings-page');
+  if (existing) {
+    existing.classList.remove('open');
+    setTimeout(() => existing.remove(), 350);
+    return;
+  }
 
-    refs.panel.appendChild(popup);
+  const isAutoDetect = state.personality === 'auto';
 
-    popup.querySelector('#nabad-opt-new').addEventListener('click', () => {
-      popup.classList.remove('show'); newChat();
+  const page = document.createElement('div');
+  page.id = 'nabad-settings-page';
+  page.innerHTML = `
+    <div id="nabad-settings-header">
+      <button id="nabad-settings-back" type="button" aria-label="Back">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
+      <div id="nabad-settings-title">Settings</div>
+    </div>
+
+    <div id="nabad-settings-body">
+
+      <!-- AI MODE SECTION -->
+      <div>
+        <div class="nabad-settings-section-label">🤖 AI Mode</div>
+        <div class="nabad-settings-card">
+
+          <!-- Auto-detect toggle -->
+          <div class="nabad-toggle-wrap">
+            <div class="nabad-toggle-left">
+              <div class="nabad-settings-row-icon">🌀</div>
+              <div>
+                <div class="nabad-settings-row-label">Auto-detect mode</div>
+                <div class="nabad-settings-row-desc">Nabad switches personality based on your conversation</div>
+              </div>
+            </div>
+            <label class="nabad-toggle">
+              <input type="checkbox" id="nabad-auto-toggle" ${isAutoDetect ? 'checked' : ''} />
+              <span class="nabad-toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Personality grid (hidden when auto is ON) -->
+          <div id="nabad-settings-personality-grid" class="${!isAutoDetect ? 'visible' : ''}">
+            ${PERSONALITIES.filter(p => p.id !== 'auto').map(p => `
+              <div class="nabad-settings-personality-chip ${state.personality === p.id ? 'active' : ''}"
+                data-personality="${p.id}">
+                <div class="chip-icon">${p.icon}</div>
+                <div class="chip-text">
+                  <div class="chip-name">${escapeHtml(p.title)}</div>
+                  <div class="chip-desc">${escapeHtml(p.desc)}</div>
+                </div>
+                <div class="chip-check">✓</div>
+              </div>
+            `).join('')}
+          </div>
+
+        </div>
+      </div>
+
+      <!-- CHAT SECTION -->
+      <div>
+        <div class="nabad-settings-section-label">💬 Chat</div>
+        <div class="nabad-settings-card">
+          <div class="nabad-settings-row" id="nabad-set-new-chat">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon">🔄</div>
+              <div>
+                <div class="nabad-settings-row-label">New Chat</div>
+                <div class="nabad-settings-row-desc">Start fresh conversation</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
+          <div class="nabad-settings-row" id="nabad-set-memory">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon">📚</div>
+              <div>
+                <div class="nabad-settings-row-label">My Memory</div>
+                <div class="nabad-settings-row-desc">View everything Nabad knows about you</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
+          <div class="nabad-settings-row" id="nabad-set-warroom">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon">⚔️</div>
+              <div>
+                <div class="nabad-settings-row-label">War Room</div>
+                <div class="nabad-settings-row-desc">3 expert perspectives on one problem</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DANGER SECTION -->
+      <div>
+        <div class="nabad-settings-section-label">⚠️ Danger Zone</div>
+        <div class="nabad-settings-card">
+          <div class="nabad-settings-row" id="nabad-set-reset">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon red">🗑️</div>
+              <div>
+                <div class="nabad-settings-row-label danger">Reset Everything</div>
+                <div class="nabad-settings-row-desc">Clear all messages, memory, and profile</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  refs.panel.appendChild(page);
+
+  // Slide in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { page.classList.add('open'); });
+  });
+
+  // ── Close / back ──
+  function closeSettings() {
+    page.classList.remove('open');
+    setTimeout(() => page.remove(), 350);
+  }
+
+  page.querySelector('#nabad-settings-back').addEventListener('click', closeSettings);
+
+  // ── Auto-detect toggle ──
+  const autoToggle = page.querySelector('#nabad-auto-toggle');
+  const personalityGrid = page.querySelector('#nabad-settings-personality-grid');
+
+  autoToggle.addEventListener('change', () => {
+    const isAuto = autoToggle.checked;
+    if (isAuto) {
+      personalityGrid.classList.remove('visible');
+      state.personality       = 'auto';
+      state.personalityBuffer = null;
+      state.personalityCount  = 0;
+      savePersonality('auto');
+      setInputPlaceholder();
+      applyPersonalityColor('auto', false);
+    } else {
+      personalityGrid.classList.add('visible');
+    }
+  });
+
+  // ── Personality chip selection ──
+  page.querySelectorAll('.nabad-settings-personality-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const newId = chip.getAttribute('data-personality');
+      page.querySelectorAll('.nabad-settings-personality-chip')
+        .forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      const prev = state.personality;
+      state.personality       = newId;
+      state.personalityChosen = true;
+      state.personalityBuffer = null;
+      state.personalityCount  = 0;
+      savePersonality(newId);
+      setInputPlaceholder();
+      updatePersonalityBadge();
+      applyPersonalityColor(newId, prev !== newId);
     });
-    popup.querySelector('#nabad-opt-persona').addEventListener('click', () => {
-      popup.classList.remove('show'); changePersonality();
-    });
-    popup.querySelector('#nabad-opt-memory').addEventListener('click', () => {
-      popup.classList.remove('show'); showMemoryScreen();
-    });
-    popup.querySelector('#nabad-opt-warroom').addEventListener('click', () => {
-      popup.classList.remove('show'); openWarRoom('');
-    });
-    popup.querySelector('#nabad-opt-reset').addEventListener('click', () => {
-      popup.classList.remove('show');
+  });
+
+  // ── Chat actions ──
+  page.querySelector('#nabad-set-new-chat').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => newChat(), 360);
+  });
+  page.querySelector('#nabad-set-memory').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => showMemoryScreen(), 360);
+  });
+  page.querySelector('#nabad-set-warroom').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => openWarRoom(''), 360);
+  });
+
+  // ── Reset ──
+  page.querySelector('#nabad-set-reset').addEventListener('click', () => {
+    closeSettings();
+    setTimeout(() => {
       confirmAction('Reset everything? This will clear all messages, memory, and your profile.', () => {
         Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
         localStorage.removeItem('nabad_insights');
@@ -3515,22 +3958,11 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
         updatePersonalityBadge();
         applyPersonalityColor('auto', false);
         setInputPlaceholder();
-        renderOnboardingScreen1();
+        renderOnboardingIntro();
       });
-    });
-
-    // Close popup when clicking outside
-    setTimeout(() => {
-      document.addEventListener('click', function handler(e) {
-        if (!popup.contains(e.target) && e.target.id !== 'nabad-new-chat') {
-          popup.classList.remove('show');
-          document.removeEventListener('click', handler);
-        }
-      });
-    }, 50);
-
-    popup.classList.add('show');
-  }
+    }, 360);
+  });
+}
 
   // ── MEMORY SCREEN ─────────────────────────────────────────────
   function showMemoryScreen() {
