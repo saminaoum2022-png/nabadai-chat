@@ -3702,6 +3702,45 @@ function showProfileUpdateToast(info) {
   }, 4000);
 }
 
+// ── SEND STATE MANAGER ─────────────────────────────────────────
+function setSendState(stateLabel) {
+  const sendBtn = refs.send;
+  const micBtn  = document.getElementById('nabad-mic');
+
+  const states = {
+    idle: {
+      sendDisabled: false, sendOpacity: '1',   sendCursor: 'pointer',     sendTitle: 'Send',
+      micDisabled:  false, micOpacity:  '1',   micCursor:  'pointer'
+    },
+    transcribing: {
+      sendDisabled: true,  sendOpacity: '0.4', sendCursor: 'not-allowed', sendTitle: 'Transcribing voice…',
+      micDisabled:  true,  micOpacity:  '0.4', micCursor:  'not-allowed'
+    },
+    thinking: {
+      sendDisabled: true,  sendOpacity: '0.4', sendCursor: 'not-allowed', sendTitle: 'Nabad is thinking…',
+      micDisabled:  true,  micOpacity:  '0.4', micCursor:  'not-allowed'
+    },
+    speaking: {
+      sendDisabled: true,  sendOpacity: '0.4', sendCursor: 'not-allowed', sendTitle: 'Nabad is speaking…',
+      micDisabled:  true,  micOpacity:  '0.4', micCursor:  'not-allowed'
+    }
+  };
+
+  const s = states[stateLabel] || states.idle;
+
+  if (sendBtn) {
+    sendBtn.disabled      = s.sendDisabled;
+    sendBtn.style.opacity = s.sendOpacity;
+    sendBtn.style.cursor  = s.sendCursor;
+    sendBtn.title         = s.sendTitle;
+  }
+  if (micBtn) {
+    micBtn.disabled      = s.micDisabled;
+    micBtn.style.opacity = s.micOpacity;
+    micBtn.style.cursor  = s.micCursor;
+  }
+}
+
   // ── LAUNCHER CLICK ────────────────────────────────────────────
   function bindLauncherClick() {
     if (refs.launcher) {
