@@ -4845,28 +4845,5 @@ function setSendState(stateLabel) {
       loadDOMPurify(() => console.log('[NABAD] DOMPurify ready'));
 
       // 6. Load Supabase in background
-      loadSupabase(() => {
-        console.log('[NABAD] Supabase ready');
-        getCurrentUser()
-          .then(user => {
-            if (user) {
-              state.authUser = user;
-              loadProfileFromSupabase().catch(() => {});
-              loadMessagesFromSupabase().catch(() => {});
-            }
-          })
-          .catch(() => {});
-      });
+      setTimeout(() => loadSupabase(() => { getCurrentUser().then(u => { if(u) { state.authUser = u; loadProfileFromSupabase().catch(()=>{}); loadMessagesFromSupabase().catch(()=>{}); }}).catch(()=>{}); }), 3000);
 
-    } catch (e) {
-      console.error('[NABAD] init error:', e);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initUI);
-  } else {
-    initUI();
-  }
-
-})();
