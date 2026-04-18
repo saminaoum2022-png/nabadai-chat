@@ -3452,35 +3452,62 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   let voiceTimer    = null;
   let voiceSeconds  = 0;
 
-  function speakReply(text, btn) {
-    if (!text) return;
-    const clean = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 400);
-    if (!clean) return;
+  async function speakReply(text, btn) {
+  if (!text) return;
+  const clean = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  if (!clean) return;
 
-    const voices  = window.speechSynthesis?.getVoices() || [];
-    const enVoice = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
-                    voices.find(v => v.lang.startsWith('en')) || null;
+  // Show loading state
+  btn.innerHTML = `<span class="nabad-loading-dots"><span></span><span></span><span></span></span>`;
+  btn.classList.add('playing');
 
-    const utter = new SpeechSynthesisUtterance(clean);
-    utter.voice  = enVoice;
-    utter.rate   = 1.05;
-    utter.pitch  = 1.0;
-    utter.volume = 1.0;
+  try {
+    const resp = await fetch('/api/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean })
+    });
 
+    if (!resp.ok) throw new Error('TTS failed');
+
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+
+    // Stop any currently playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+
+    currentAudio = new Audio(url);
+
+    // Show wave animation while playing
     btn.innerHTML = `
       <div class="nabad-wave-anim">
         <span></span><span></span><span></span><span></span><span></span>
       </div> Stop`;
-    btn.classList.add('playing');
 
-    utter.onend = utter.onerror = () => {
+    currentAudio.play();
+
+    currentAudio.onended = () => {
+      URL.revokeObjectURL(url);
+      currentAudio = null;
       btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
       btn.classList.remove('playing');
     };
 
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
+    currentAudio.onerror = () => {
+      currentAudio = null;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+      btn.classList.remove('playing');
+    };
+
+  } catch (err) {
+    console.error('[NABAD] TTS error:', err);
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+    btn.classList.remove('playing');
   }
+}
 
   async function startVoiceRecording() {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -3538,8 +3565,7 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
 
   async function transcribeAudio(blob) {
   const formData = new FormData();
-  formData.append('file', blob, 'voice.webm');
-  formData.append('model', 'whisper-1');
+  formData.append('audio', blob, 'voice.webm'); // ← 'audio' not 'file'
 
   try {
     const resp = await fetch('/api/transcribe', {
@@ -3552,7 +3578,6 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
       refs.input.value = transcript;
       autoGrowTextarea();
       refs.input.focus();
-      // ── Auto send after transcription ──
       setTimeout(() => sendMessage(), 300);
     }
   } catch (err) {
