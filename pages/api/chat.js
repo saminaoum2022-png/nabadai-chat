@@ -1209,11 +1209,12 @@ export default async function handler(req, res) {
   const selectedPersonality = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'].includes(body?.personality)
     ? body.personality : 'auto';
 
-  const memorySummary = cleanText(body?.memorySummary || '', 1500);
-  const detectedLocation = extractLocationFromMessages(messages);
-  const profileHasLocation = userProfile
-    ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
-    : false;
+  const userProfile = cleanText(body?.userProfile || '', 500);
+const memorySummary = cleanText(body?.memorySummary || '', 1500);
+const detectedLocation = extractLocationFromMessages(messages);
+const profileHasLocation = userProfile
+  ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
+  : false;
 
   // ── Positioning question ──
   if (isPositioningQuestion(lastUserMessage)) {
