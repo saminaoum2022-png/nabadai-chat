@@ -360,47 +360,6 @@ function showPersonalityPill(id) {
 
   scrollToBottom();
 }
-    
-  // Convert hex to rgb for background tint
-  const hex = c.pulse.replace('#', '');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-
-  const pill = document.createElement('div');
-  pill.style.cssText = [
-    'display:flex',
-    'align-items:center',
-    'justify-content:center',
-    'margin:4px auto 8px',
-    'width:fit-content',
-    `background:rgba(${r},${g},${b},0.10)`,
-    `border:1px solid rgba(${r},${g},${b},0.20)`,
-    'border-radius:999px',
-    'padding:5px 14px',
-    `color:${c.pulse}`,
-    'font-size:12px',
-    'font-weight:700',
-    'letter-spacing:0.2px',
-    'opacity:0',
-    'transform:translateY(6px)',
-    'transition:opacity 0.35s ease, transform 0.35s ease',
-    'pointer-events:none'
-  ].join(';');
-
-  pill.textContent = c.label;
-  refs.messages.appendChild(pill);
-
-  // Animate in
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      pill.style.opacity = '1';
-      pill.style.transform = 'translateY(0)';
-    });
-  });
-
-  scrollToBottom();
-}
 
   function confirmAction(message, onConfirm) {
     const overlay = document.createElement('div');
