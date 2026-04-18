@@ -1004,14 +1004,31 @@ function upgradeCardRecentlyShown(messages = [], lookback = 4) {
 async function detectMeaningfulInfo(userMessage, openai) {
   try {
     // Step 1 — quick yes/no check
-const check = await openai.chat.completions.create({
-  model: 'gpt-4o',
-  temperature: 0,
-  max_tokens: 5,
-  messages: [
-    {
-  role: 'system',
-  content: `You are a smart data extractor. Extract any personal or business information from the user message into a JSON object.
+    const check = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0,
+      max_tokens: 5,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a classifier. Reply only "yes" or "no". Does this message contain ANY of the following about the user: their name, business name, location, city, country, what they sell, revenue, income, challenge, problem, skill, idea, industry, team size, pricing, or anything personal about their work or life situation? Be generous — if in doubt say "yes". Message: "${userMessage}"`
+        }
+      ]
+    });
+
+    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
+    console.log('[NABAD DEBUG] Step1 answer:', answer);
+    if (answer !== 'yes') return null;
+
+    // Step 2 — extract the actual data
+    const extract = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0,
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a smart data extractor. Extract any personal or business information from the user message into a JSON object.
 
 Rules:
 - "I live in X" or "I'm in X" or "I'm based in X" = location
@@ -1026,46 +1043,6 @@ Rules:
 Available fields: businessName, location, whatYouSell, revenue, biggestChallenge, targetCustomer, ideaSummary, currentProgress, biggestBlock, skills, industry, preference, timeCommitment
 
 Return ONLY a JSON object. If truly nothing found return {}.`
-},
-{
-  role: 'user',
-  content: userMessage
-}
-  ]
-});
-    
-    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
-console.log('[NABAD DEBUG] Step1 answer:', answer); // ← ADD THIS LINE
-if (answer !== 'yes') return null;
-
-    // Step 2 — extract the actual info
-    const extract = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      temperature: 0,
-      max_tokens: 300,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a data extractor. Extract business information from the user message and return ONLY a valid JSON object. Only include fields that are clearly mentioned. Never guess or invent data.
-
-Available fields:
-- businessName: string
-- location: string  
-- whatYouSell: string
-- revenue: string
-- biggestChallenge: string
-- targetCustomer: string
-- ideaSummary: string
-- currentProgress: string
-- biggestBlock: string
-- skills: string
-- industry: string
-- preference: string
-- timeCommitment: string
-
-If nothing meaningful is found, return: {}
-
-Return ONLY the JSON object, no explanation, no markdown.`
         },
         {
           role: 'user',
@@ -1075,15 +1052,11 @@ Return ONLY the JSON object, no explanation, no markdown.`
     });
 
     const raw = extract.choices?.[0]?.message?.content?.trim() || '{}';
-
-    // Clean and parse
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return null;
 
     const parsed = JSON.parse(match[0]);
-
-    // Return null if empty object
-console.log('[NABAD DEBUG] Step2 parsed:', JSON.stringify(parsed));
+    console.log('[NABAD DEBUG] Step2 parsed:', JSON.stringify(parsed));
     if (!parsed || Object.keys(parsed).length === 0) return null;
 
     return parsed;
@@ -1094,6 +1067,7 @@ console.log('[NABAD DEBUG] Step2 parsed:', JSON.stringify(parsed));
     return null;
   }
 }
+
 
 async function detectWarRoom(userMessage, recentMessages, userProfile, openai) {
   try {
