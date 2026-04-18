@@ -4795,63 +4795,94 @@ function setSendState(stateLabel) {
 }
 
  // ── INIT ────────────────────────────────────────────────────
-(function startWidget() {
+(function () {
+  'use strict';
+
+  // Expose the open API IMMEDIATELY — before any async work
+  window.__NABAD_OPEN_WIDGET__ = function () {
+    if (!refs.panel) {
+      console.warn('[NABAD] panel not ready yet');
+      return;
+    }
+    const header   = document.getElementById('nabad-header');
+    const inputWrap = document.getElementById('nabad-input-wrap');
+    if (header)    header.style.display    = 'flex';
+    if (inputWrap) inputWrap.style.display = 'flex';
+
+    state.open = true;
+    refs.panel.classList.add('open');
+    refs.panel.setAttribute('aria-hidden', 'false');
+    refs.root.classList.add('nabad-open');
+
+    if (typeof applyScrollLock === 'function') applyScrollLock();
+
+    if (!state.onboarded && !state.messages.length) {
+      renderOnboardingIntro();
+    } else {
+      if (typeof updatePersonalityBadge === 'function') updatePersonalityBadge();
+      if (!state.messages.length) {
+        renderMessage('assistant', getPersonalityGreeting(state.personality), false);
+      } else {
+        state.messages.forEach(function (m) { renderMessage(m.role, m.content, false); });
+      }
+      if (typeof scrollToBottom === 'function') scrollToBottom();
+      if (refs.input) refs.input.focus();
+    }
+  };
+
   function initUI() {
     try {
-      injectStyles();
-      buildShell();
-      bindLauncherClick();
+      console.log('[NABAD] initUI started');
 
-      window.__NABAD_OPEN_WIDGET__ = function () {
-        var header = document.getElementById('nabad-header');
-        var inputWrap = document.getElementById('nabad-input-wrap');
-        if (header) header.style.display = 'flex';
-        if (inputWrap) inputWrap.style.display = 'flex';
-        state.open = true;
-        refs.panel.classList.add('open');
-        refs.panel.setAttribute('aria-hidden', 'false');
-        refs.root.classList.add('nabad-open');
-        applyScrollLock();
-        if (!state.onboarded && !state.messages.length) {
-          renderOnboardingIntro();
-        } else if (shouldShowMorningBrief()) {
-          showMorningBrief();
-        } else {
-          updatePersonalityBadge();
-          if (!state.messages.length) {
-            renderMessage('assistant', getPersonalityGreeting(state.personality), false);
-          } else {
-            state.messages.forEach(function(m) { renderMessage(m.role, m.content, false); });
-          }
-          scrollToBottom();
-          if (refs.input) refs.input.focus();
-        }
-      };
+      // 1. Inject styles
+      if (typeof injectStyles === 'function') injectStyles();
 
-      loadDOMPurify(function() {});
+      // 2. Build the DOM shell
+      if (typeof buildShell === 'function') buildShell();
+      else { console.error('[NABAD] buildShell missing'); return; }
 
-      setTimeout(function() {
-        loadSupabase(function() {
-          getCurrentUser().then(function(user) {
-            if (user) {
-              state.authUser = user;
-              loadProfileFromSupabase().catch(function(){});
-              loadMessagesFromSupabase().catch(function(){});
+      // 3. Bind launcher (hidden on mobile but harmless)
+      if (typeof bindLauncherClick === 'function') bindLauncherClick();
+
+      // 4. Load DOMPurify in background — non-blocking
+      if (typeof loadDOMPurify === 'function') {
+        loadDOMPurify(function () { console.log('[NABAD] DOMPurify ready'); });
+      }
+
+      // 5. Load Supabase LATE — 5-second delay, fully non-blocking
+      setTimeout(function () {
+        if (typeof loadSupabase === 'function') {
+          loadSupabase(function () {
+            console.log('[NABAD] Supabase ready');
+            if (typeof getCurrentUser === 'function') {
+              getCurrentUser().then(function (user) {
+                if (user) {
+                  state.authUser = user;
+                  if (typeof loadProfileFromSupabase === 'function')
+                    loadProfileFromSupabase().catch(function () {});
+                  if (typeof loadMessagesFromSupabase === 'function')
+                    loadMessagesFromSupabase().catch(function () {});
+                }
+              }).catch(function () {});
             }
-          }).catch(function(){});
-        });
-      }, 4000);
+          });
+        }
+      }, 5000);
 
-    } catch(e) {
-      console.error('[NABAD] init error:', e);
+      console.log('[NABAD] initUI complete — widget ready');
+
+    } catch (e) {
+      console.error('[NABAD] initUI error:', e);
     }
   }
 
+  // Run initUI as soon as the DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initUI);
   } else {
     initUI();
   }
+
 })();
 
 
