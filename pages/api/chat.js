@@ -565,13 +565,9 @@ function shouldOfferSnapshot(messages = []) {
   return hasRichBusinessContext(messages);
 }
 
-// CHANGE 5a — generateBusinessSnapshot now accepts and uses userProfile
 async function generateBusinessSnapshot(messages = [], location = '', openaiClient, userProfile = '') {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
-
-  // Prepend onboarding profile context if available so GPT has richer input
   const profileContext = userProfile ? `User onboarding profile:\n${userProfile}\n\n` : '';
-
   const prompt = `${profileContext}Based on this business conversation, create a concise Business Snapshot JSON with these exact fields:
 {
   "businessType": "one-line description",
@@ -747,13 +743,9 @@ function isOfferCardRequest(text = '') {
     || /\b(build|create|design|make)\b.{0,30}\b(flagship|signature|premium)\b.{0,30}\b(offer|package|service)\b/i.test(text);
 }
 
-// CHANGE 5b — generateOfferCard now accepts and uses userProfile
 async function generateOfferCard(messages = [], location = '', openaiClient, userProfile = '') {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
-
-  // Prepend onboarding profile context if available
   const profileContext = userProfile ? `User onboarding profile:\n${userProfile}\n\n` : '';
-
   const prompt = `${profileContext}You MUST return valid JSON only. No explanation. No markdown wrapping. No code blocks. No backticks. Just the raw JSON object with real values filled in based on the business context below.
 
 Return ONLY this JSON structure:
@@ -1067,6 +1059,47 @@ Current message: "${userMessage}"`
   }
 }
 
+// ── Personality Classifier ────────────────────────────────────────────────────
+async function classifyPersonality(userMessage = '', currentPersonality = 'auto', openaiClient) {
+  try {
+    const resp = await openaiClient.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0,
+      max_tokens: 10,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a classifier. Reply with ONLY one word — the personality that best matches the user's message.
+
+Choose from: strategist, growth, branding, offer, creative, straight_talk, auto
+
+Rules:
+- strategist → user is talking about competitive positioning, market strategy, long-term direction, pivoting, how to beat competitors
+- growth → user is talking about sales, revenue growth, getting more clients, marketing, conversion, funnels
+- branding → user is talking about brand identity, naming, logo, messaging, perception, how they look or sound
+- offer → user is talking about pricing, packaging, products, services, deals, monetization
+- creative → user wants something invented, reimagined, unconventional, bold ideas, something different
+- straight_talk → user is stuck, frustrated, venting, or asking for a direct opinion with no fluff
+- auto → message is vague, casual, emotional, or does not clearly fit any of the above
+
+Current mode: ${currentPersonality}
+IMPORTANT: Only switch away from current mode if the new signal is CLEAR and STRONG.
+If the message is casual, greeting, vague, or emotional — return: auto
+
+User message: "${userMessage}"
+
+Reply with one word only:`
+        }
+      ]
+    });
+    const raw = resp.choices?.[0]?.message?.content?.trim().toLowerCase();
+    const valid = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'];
+    return valid.includes(raw) ? raw : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
 // ── Main Handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   setCors(req, res);
@@ -1081,7 +1114,7 @@ export default async function handler(req, res) {
   catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
 
   const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
-  const messages = rawMessages.slice(-20).map(m => ({
+  const messages = rawMessages.slice(-50).map(m => ({
     role: ['user', 'assistant', 'system'].includes(m.role) ? m.role : 'user',
     content: typeof m.content === 'string' ? m.content.slice(0, 4000) : m.content
   }));
@@ -1090,31 +1123,28 @@ export default async function handler(req, res) {
   if (!lastUserMsg) return res.status(400).json({ error: 'No user message found' });
   const lastUserMessage = cleanText(getMessageText(lastUserMsg.content), 1200);
   if (!lastUserMessage) return res.status(400).json({ error: 'Empty message' });
-const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|scared|worried|anxious|frustrated|tired|burnout|give up|hopeless|stressed)\b/i.test(lastUserMessage);
+
+  const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|scared|worried|anxious|frustrated|tired|burnout|give up|hopeless|stressed)\b/i.test(lastUserMessage);
   const selectedPersonality = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'].includes(body?.personality)
     ? body.personality : 'auto';
 
-  // CHANGE 1 — extract userProfile from request body (sent by widget onboarding)
   const userProfile = cleanText(body?.userProfile || '', 500);
-
   const detectedLocation = extractLocationFromMessages(messages);
-
-  // CHANGE 4 — check if userProfile already contains location so we don't ask again
   const profileHasLocation = userProfile
     ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
     : false;
 
   // ── Positioning question ──
   if (isPositioningQuestion(lastUserMessage)) {
-    return res.status(200).json({ reply: POSITIONING_REPLY });
+    return res.status(200).json({ reply: POSITIONING_REPLY, detectedPersonality: 'auto' });
   }
 
   // ── Stock photo ──
   if (isStockPhotoRequest(lastUserMessage)) {
-    return res.status(200).json({ reply: buildStockPhotoHtml(lastUserMessage) });
+    return res.status(200).json({ reply: buildStockPhotoHtml(lastUserMessage), detectedPersonality: 'auto' });
   }
 
-  // ── Premium image confirmation (explicit phrases like "use premium") ──
+  // ── Premium image confirmation ──
   if (
     isPremiumImageConfirmation(lastUserMessage) &&
     (conversationRecentlyHadImage(messages) || upgradeCardRecentlyShown(messages))
@@ -1127,16 +1157,17 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
         : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       const ideogramUrl = await generateWithIdeogram(prompt);
       const imageType = detectImageType(prompt);
-      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
+      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[IDEOGRAM ERROR]', err?.message);
       return res.status(200).json({
-        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`
+        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`,
+        detectedPersonality: 'auto'
       });
     }
   }
 
-  // ── Premium image via plain "yes" only when upgrade card shown in last 2 messages ──
+  // ── Premium image via yes ──
   const upgradeVeryRecent = upgradeCardRecentlyShown(messages, 2);
   const explicitPremiumIntent = /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium)\b/i.test(lastUserMessage);
 
@@ -1152,16 +1183,17 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
         : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       const ideogramUrl = await generateWithIdeogram(prompt);
       const imageType = detectImageType(prompt);
-      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
+      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[IDEOGRAM ERROR]', err?.message);
       return res.status(200).json({
-        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`
+        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`,
+        detectedPersonality: 'auto'
       });
     }
   }
 
-  // ── Image quality complaint → offer premium upgrade ──
+  // ── Image quality complaint ──
   if (
     isImageQualityComplaint(lastUserMessage) &&
     conversationRecentlyHadImage(messages) &&
@@ -1169,10 +1201,10 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
     !upgradeCardRecentlyShown(messages)
   ) {
     const lastMeta = extractLastImageMeta(messages);
-    return res.status(200).json({ reply: buildPremiumUpgradeOffer(lastMeta?.prompt || '') });
+    return res.status(200).json({ reply: buildPremiumUpgradeOffer(lastMeta?.prompt || ''), detectedPersonality: 'auto' });
   }
 
-  // ── Standard image generation (Pollinations) ──
+  // ── Standard image generation ──
   if (shouldGenerateImage(lastUserMessage, messages)) {
     try {
       const imageType = detectImageType(lastUserMessage);
@@ -1189,10 +1221,10 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
       imagePrompt = enrichImagePrompt(imagePrompt, imageType);
       const seed = Math.floor(Math.random() * 999999);
       const imageUrl = buildPollinationsUrl(imagePrompt, { seed, model: 'flux' });
-      return res.status(200).json({ reply: buildImageReplyHtml(imageUrl, imagePrompt, imageType) });
+      return res.status(200).json({ reply: buildImageReplyHtml(imageUrl, imagePrompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[IMAGE GEN ERROR]', err?.message);
-      return res.status(200).json({ reply: '<p>Image generation hit a snag — please try again.</p>' });
+      return res.status(200).json({ reply: '<p>Image generation hit a snag — please try again.</p>', detectedPersonality: 'auto' });
     }
   }
 
@@ -1200,46 +1232,48 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
   if (YES_PATTERN.test(lastUserMessage.trim())) {
     const lastOffer = getLastOffer(messages);
 
-    // CHANGE 5c — pass userProfile into generateOfferCard
     if (lastOffer === 'offer') {
       try {
         const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
-        return res.status(200).json({ reply: buildOfferCard(offerData) });
+        return res.status(200).json({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
       } catch (err) { console.error('[OFFER CONFIRM ERROR]', err?.message); }
     }
 
-    // CHANGE 5d — pass userProfile into generateBusinessSnapshot
     if (lastOffer === 'snapshot' && snapshotAlreadyOffered(messages) && hasRichBusinessContext(messages)) {
       try {
         const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai, userProfile);
-        return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation) });
+        return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation), detectedPersonality: 'strategist' });
       } catch (err) { console.error('[SNAPSHOT CONFIRM ERROR]', err?.message); }
     }
 
     if (lastOffer === 'action-plan') {
       try {
         const planData = await generateActionPlan(messages, detectedLocation, openai);
-        return res.status(200).json({ reply: buildActionPlanCard(planData) });
+        return res.status(200).json({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
       } catch (err) { console.error('[ACTION PLAN CONFIRM ERROR]', err?.message); }
     }
+
     if (lastOffer === 'score') {
       try {
         const scoreData = await generateNabadScore(messages, openai);
-        return res.status(200).json({ reply: buildScoreCard(scoreData) });
+        return res.status(200).json({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
       } catch (err) { console.error('[SCORE CONFIRM ERROR]', err?.message); }
     }
+
     if (lastOffer === 'pricing') {
       try {
         const pricingData = await generatePricingTable(messages, detectedLocation, openai);
-        return res.status(200).json({ reply: buildPricingTableCard(pricingData) });
+        return res.status(200).json({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
       } catch (err) { console.error('[PRICING CONFIRM ERROR]', err?.message); }
     }
+
     if (lastOffer === 'matrix') {
       try {
         const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
-        return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
+        return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
       } catch (err) { console.error('[MATRIX CONFIRM ERROR]', err?.message); }
     }
+
     if (lastOffer === 'premium-image' && upgradeCardRecentlyShown(messages, 2)) {
       try {
         const lastMeta = extractLastImageMeta(messages);
@@ -1248,7 +1282,7 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
           : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
         const ideogramUrl = await generateWithIdeogram(prompt);
         const imageType = detectImageType(prompt);
-        return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType) });
+        return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
       } catch (err) { console.error('[IDEOGRAM YES ERROR]', err?.message); }
     }
   }
@@ -1257,7 +1291,7 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
   if (isIdeaScoringRequest(lastUserMessage)) {
     try {
       const scoreData = await generateNabadScore(messages, openai);
-      return res.status(200).json({ reply: buildScoreCard(scoreData) });
+      return res.status(200).json({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
     } catch (err) { console.error('[SCORE ERROR]', err?.message); }
   }
 
@@ -1265,16 +1299,15 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
   if (isPricingTableRequest(lastUserMessage)) {
     try {
       const pricingData = await generatePricingTable(messages, detectedLocation, openai);
-      return res.status(200).json({ reply: buildPricingTableCard(pricingData) });
+      return res.status(200).json({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
     } catch (err) { console.error('[PRICING ERROR]', err?.message); }
   }
 
-  // ── Offer Card (direct request, not via YES) ──
-  // CHANGE 5e — pass userProfile into generateOfferCard for direct requests too
+  // ── Offer Card ──
   if (isOfferCardRequest(lastUserMessage)) {
     try {
       const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
-      return res.status(200).json({ reply: buildOfferCard(offerData) });
+      return res.status(200).json({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
     } catch (err) { console.error('[OFFER ERROR]', err?.message); }
   }
 
@@ -1282,7 +1315,7 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
   if (isPositioningMatrixRequest(lastUserMessage)) {
     try {
       const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
-      return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData) });
+      return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
     } catch (err) { console.error('[MATRIX ERROR]', err?.message); }
   }
 
@@ -1290,11 +1323,11 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
   if (isActionPlanRequest(lastUserMessage)) {
     try {
       const planData = await generateActionPlan(messages, detectedLocation, openai);
-      return res.status(200).json({ reply: buildActionPlanCard(planData) });
+      return res.status(200).json({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
     } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message); }
   }
 
-  // CHANGE 4 — location ask now also skips if userProfile already contains location
+  // ── Location ask ──
   const userMsgCount = messages.filter(m => m.role === 'user').length;
   if (
     userMsgCount >= 2 &&
@@ -1307,7 +1340,8 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
     !shouldGenerateImage(lastUserMessage, messages)
   ) {
     return res.status(200).json({
-      reply: `<p>Before I go deeper — <strong>where are you based?</strong> 📍 It'll help me give advice that's actually relevant to your market, costs, and local conditions.</p>`
+      reply: `<p>Before I go deeper — <strong>where are you based?</strong> 📍 It'll help me give advice that's actually relevant to your market, costs, and local conditions.</p>`,
+      detectedPersonality: 'auto'
     });
   }
 
@@ -1328,7 +1362,7 @@ const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|sca
       personalitySource: personalityResolution.source,
       businessMode: businessMode.id,
       detectedLocation,
-      userProfile: userProfile ? userProfile.slice(0, 80) + '...' : 'none' // CHANGE 1 debug log
+      userProfile: userProfile ? userProfile.slice(0, 80) + '...' : 'none'
     });
   }
 
@@ -1414,80 +1448,78 @@ END WITH ONE QUESTION — always, make it land:
 
 NEVER EVER:
 - "Great question" / "Absolutely" / "Of course" / "Certainly" / "Happy to help"
-- Start with a compliment, affirmation, or anything reassuring — earn the warmth, don't open with it
+- Start with a compliment, affirmation, or anything reassuring
 - Repeat back what the user just said
 - Give an overview instead of an idea
 - Sound like a consultant, a coach, or a customer service rep
-- Use more than one emoji per reply — only when it genuinely adds energy
+- Use more than one emoji per reply
 - Write markdown of any kind
 - Give balanced "on one hand / on the other hand" answers — pick one and own it
 - Ask a question instead of giving an answer — lead with your idea, then ask
 - Ask "where are you based?" before giving your actual view
-- Open with "you're not alone" or anything that normalizes before challenging
 - Summarize what the user just said back to them
-- Give generic advice that could apply to any business — always be specific
+- Give generic advice that could apply to any business
 `;
 
-const variationSeeds = [
-  'Lead with the one thing they need to hear, not the one thing they want to hear.',
-  'Start with what most founders get completely wrong about this.',
-  'Open with the uncomfortable truth hiding inside their message.',
-  'Lead with a contrarian take — then back it up.',
-  'Start with the assumption they are making that might be costing them.',
-  'Open with what this situation will look like in 12 months if nothing changes.',
-  'Lead with the real question underneath the question they asked.',
-  'Start with the move nobody in their position thinks to make.',
-  'Open with what a founder who failed at this exact thing would tell them.',
-  'Lead with the one thing they are probably avoiding right now.'
-];
+  const variationSeeds = [
+    'Lead with the one thing they need to hear, not the one thing they want to hear.',
+    'Start with what most founders get completely wrong about this.',
+    'Open with the uncomfortable truth hiding inside their message.',
+    'Lead with a contrarian take — then back it up.',
+    'Start with the assumption they are making that might be costing them.',
+    'Open with what this situation will look like in 12 months if nothing changes.',
+    'Lead with the real question underneath the question they asked.',
+    'Start with the move nobody in their position thinks to make.',
+    'Open with what a founder who failed at this exact thing would tell them.',
+    'Lead with the one thing they are probably avoiding right now.'
+  ];
 
   const todaySeed = variationSeeds[Math.floor(Math.random() * variationSeeds.length)];
 
-  // CHANGE 2 & 3 — userProfile line confirmed present; main prompt instructs Nabad to use it naturally
-const isWarRoom = body?.warRoom === true;
-const warRoomAdvisor = body?.warRoomAdvisor || null;
+  const isWarRoom = body?.warRoom === true;
+  const warRoomAdvisor = body?.warRoomAdvisor || null;
 
-// ── TIMING INTELLIGENCE ──────────────────────────────────────
-const now = new Date();
-const timeHour = now.getHours();
-const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
-const fullDate = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-const monthNum = now.getMonth() + 1;
-const quarter = Math.ceil(monthNum / 3);
+  // ── TIMING INTELLIGENCE ──────────────────────────────────────
+  const now = new Date();
+  const timeHour = now.getHours();
+  const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+  const fullDate = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const monthNum = now.getMonth() + 1;
+  const quarter = Math.ceil(monthNum / 3);
 
-const timeOfDay =
-  timeHour >= 5  && timeHour < 12 ? 'morning'    :
-  timeHour >= 12 && timeHour < 17 ? 'afternoon'  :
-  timeHour >= 17 && timeHour < 21 ? 'evening'    : 'late night';
+  const timeOfDay =
+    timeHour >= 5  && timeHour < 12 ? 'morning'    :
+    timeHour >= 12 && timeHour < 17 ? 'afternoon'  :
+    timeHour >= 17 && timeHour < 21 ? 'evening'    : 'late night';
 
-const seasonalContext = (() => {
-  if (monthNum === 3 || monthNum === 4) return 'Q2 in the UAE — historically slower for services. Smart founders use this period to build systems, refine offers, and prepare for the Q3 surge.';
-  if (monthNum >= 6 && monthNum <= 8)   return 'Summer in the UAE — many decision-makers are travelling. Best for internal work, team building, and pipeline prep.';
-  if (monthNum === 9 || monthNum === 10) return 'September–October in UAE — one of the strongest sales windows of the year. High urgency, high activity.';
-  if (monthNum === 11 || monthNum === 12) return 'Q4 — year-end push. Budgets are being spent or frozen. Founders should be closing and planning for next year simultaneously.';
-  if (monthNum === 1 || monthNum === 2)  return 'New year energy — founders are setting targets, signing new deals, and making big decisions. High momentum window.';
-  return '';
-})();
+  const seasonalContext = (() => {
+    if (monthNum === 3 || monthNum === 4) return 'Q2 in the UAE — historically slower for services. Smart founders use this period to build systems, refine offers, and prepare for the Q3 surge.';
+    if (monthNum >= 6 && monthNum <= 8)   return 'Summer in the UAE — many decision-makers are travelling. Best for internal work, team building, and pipeline prep.';
+    if (monthNum === 9 || monthNum === 10) return 'September–October in UAE — one of the strongest sales windows of the year. High urgency, high activity.';
+    if (monthNum === 11 || monthNum === 12) return 'Q4 — year-end push. Budgets are being spent or frozen. Founders should be closing and planning for next year simultaneously.';
+    if (monthNum === 1 || monthNum === 2)  return 'New year energy — founders are setting targets, signing new deals, and making big decisions. High momentum window.';
+    return '';
+  })();
 
-const dayContext = (() => {
-  if (dayOfWeek === 'Monday')    return 'Start of the week — the user may be planning, setting priorities, or dealing with weekend carry-over decisions.';
-  if (dayOfWeek === 'Tuesday' || dayOfWeek === 'Wednesday') return 'Mid-week — peak execution time. The user is likely heads-down building or selling.';
-  if (dayOfWeek === 'Thursday') return 'Thursday — end of UAE business week. Good day for closing, reviewing, and making final decisions before the weekend.';
-  if (dayOfWeek === 'Friday')   return 'Friday — most of the UAE business world is winding down. Reflection and strategy over execution.';
-  if (dayOfWeek === 'Saturday') return 'Weekend — the user is either resting or doing deep work by choice. Respect their energy.';
-  if (dayOfWeek === 'Sunday')   return 'Sunday in the UAE is the start of the work week — high energy, lots of planning, inbox is full.';
-  return '';
-})();
+  const dayContext = (() => {
+    if (dayOfWeek === 'Monday')    return 'Start of the week — the user may be planning, setting priorities, or dealing with weekend carry-over decisions.';
+    if (dayOfWeek === 'Tuesday' || dayOfWeek === 'Wednesday') return 'Mid-week — peak execution time. The user is likely heads-down building or selling.';
+    if (dayOfWeek === 'Thursday') return 'Thursday — end of UAE business week. Good day for closing, reviewing, and making final decisions before the weekend.';
+    if (dayOfWeek === 'Friday')   return 'Friday — most of the UAE business world is winding down. Reflection and strategy over execution.';
+    if (dayOfWeek === 'Saturday') return 'Weekend — the user is either resting or doing deep work by choice. Respect their energy.';
+    if (dayOfWeek === 'Sunday')   return 'Sunday in the UAE is the start of the work week — high energy, lots of planning, inbox is full.';
+    return '';
+  })();
 
-const timeContext = (() => {
-  if (timeOfDay === 'morning')    return 'It is morning — the user is fresh. They may want clarity, a plan, or momentum to start the day strong.';
-  if (timeOfDay === 'afternoon')  return 'It is afternoon — the user is in execution mode or hitting a mid-day wall. Be sharp and actionable.';
-  if (timeOfDay === 'evening')    return 'It is evening — the user is winding down or working late by choice. They may need perspective more than tactics.';
-  if (timeOfDay === 'late night') return 'It is late night — the user is either very focused or overthinking something. Be grounding, direct, and calm.';
-  return '';
-})();
+  const timeContext = (() => {
+    if (timeOfDay === 'morning')    return 'It is morning — the user is fresh. They may want clarity, a plan, or momentum to start the day strong.';
+    if (timeOfDay === 'afternoon')  return 'It is afternoon — the user is in execution mode or hitting a mid-day wall. Be sharp and actionable.';
+    if (timeOfDay === 'evening')    return 'It is evening — the user is winding down or working late by choice. They may need perspective more than tactics.';
+    if (timeOfDay === 'late night') return 'It is late night — the user is either very focused or overthinking something. Be grounding, direct, and calm.';
+    return '';
+  })();
 
-const timingIntelligence = `TIMING INTELLIGENCE (use this to colour your response naturally — do NOT recite it robotically):
+  const timingIntelligence = `TIMING INTELLIGENCE (use this to colour your response naturally — do NOT recite it robotically):
 - Current date: ${fullDate}
 - Time of day: ${timeOfDay} (${timeHour}:00)
 - Day: ${dayContext}
@@ -1495,10 +1527,9 @@ const timingIntelligence = `TIMING INTELLIGENCE (use this to colour your respons
 - Season: ${seasonalContext}
 - Quarter: Q${quarter}
 Use this awareness subtly — adjust your tone, urgency, and advice to match where the user actually is in their day, week, and business year. Never say "I notice it's morning" — just let it shape how you respond.`.trim();
-// ─────────────────────────────────────────────────────────────
 
-const systemPromptParts = [
-  `You are NabadAI — not an assistant, not a chatbot, but a rare mind that sits at the intersection of business strategy, human psychology, and real-world execution. You have seen ideas become empires and watched promising businesses collapse from a single blind spot. You think in systems, patterns, and connections that most people miss.
+  const systemPromptParts = [
+    `You are NabadAI — not an assistant, not a chatbot, but a rare mind that sits at the intersection of business strategy, human psychology, and real-world execution. You have seen ideas become empires and watched promising businesses collapse from a single blind spot. You think in systems, patterns, and connections that most people miss.
 
 You don't just answer questions — you see what's behind them. When someone asks about pricing, you hear the fear of undervaluing themselves. When someone asks about growth, you sense whether they're ready for it or just excited by the idea. You connect what's being said now to what was said before, and you find the thread that ties everything together.
 
@@ -1506,17 +1537,18 @@ You are direct, warm, and genuinely invested. You challenge assumptions not to b
 
 You are NOT an assistant. You do NOT over-explain. You have energy, edge, and genuine opinions. If a user profile is provided below, use it naturally — reference their business name, revenue, idea, or challenge when relevant. Do NOT ask for information they already gave during onboarding. If they are at the idea stage, treat them as a co-founder validating a startup. If they are still figuring things out, act as a discovery partner helping them find their direction.`,
 
-  `Variation directive for this response: ${todaySeed}`,
-  timingIntelligence,
-  (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
-  businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
-  userProfile ? `User profile (from onboarding): ${userProfile}` : '',
-  proactiveIntelligence,
-  memoryContext,
-  locationContext,
-  websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
-  toneInstruction
-].filter(Boolean).join('\n');
+    `Variation directive for this response: ${todaySeed}`,
+    timingIntelligence,
+    (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
+    businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
+    userProfile ? `User profile (from onboarding): ${userProfile}` : '',
+    proactiveIntelligence,
+    memoryContext,
+    locationContext,
+    websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
+    toneInstruction
+  ].filter(Boolean).join('\n');
+
   try {
     const chatMessages = [
       { role: 'system', content: systemPromptParts },
@@ -1525,28 +1557,30 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     const baseTemp = personalityConfig.temperature || businessMode.temperature || 0.82;
     const temperature = Math.min(1.0, baseTemp + (Math.random() * 0.1 - 0.05));
     const maxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: chatMessages,
       temperature,
       max_tokens: maxTokens
     });
+
     const rawReply = completion.choices?.[0]?.message?.content || '';
 
-    let detectedInfo = false;
-    let suggestWarRoom = false;
-    try {
-      detectedInfo = await detectMeaningfulInfo(lastUserMessage, openai);
-    } catch {
-      detectedInfo = false;
-    }
-    try {
-      suggestWarRoom = await detectWarRoom(lastUserMessage, messages, userProfile || '', openai);
-    } catch {
-      suggestWarRoom = false;
-    }
+    // ── Run all three classifiers in parallel ──────────────────
+    const [detectedInfo, suggestWarRoom, detectedPersonality] = await Promise.all([
+      detectMeaningfulInfo(lastUserMessage, openai).catch(() => false),
+      detectWarRoom(lastUserMessage, messages, userProfile || '', openai).catch(() => false),
+      classifyPersonality(lastUserMessage, personalityResolution.personalityId, openai).catch(() => 'auto')
+    ]);
 
-    return res.status(200).json({ reply: ensureHtmlReply(rawReply), detectedInfo, suggestWarRoom });
+    return res.status(200).json({
+      reply: ensureHtmlReply(rawReply),
+      detectedInfo,
+      suggestWarRoom,
+      detectedPersonality
+    });
+
   } catch (err) {
     console.error('[GPT ERROR]', err?.message);
     return res.status(500).json({ error: 'AI service temporarily unavailable. Please try again.' });
@@ -1554,4 +1588,3 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
 }
 
 export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
-
