@@ -3537,26 +3537,28 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   }
 
   async function transcribeAudio(blob) {
-    const formData = new FormData();
-    formData.append('file', blob, 'voice.webm');
-    formData.append('model', 'whisper-1');
+  const formData = new FormData();
+  formData.append('file', blob, 'voice.webm');
+  formData.append('model', 'whisper-1');
 
-    try {
-      const resp = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await resp.json();
-      const transcript = (data.text || '').trim();
-      if (transcript && refs.input) {
-        refs.input.value = transcript;
-        autoGrowTextarea();
-        refs.input.focus();
-      }
-    } catch (err) {
-      console.error('[NABAD] Transcription error:', err);
+  try {
+    const resp = await fetch('/api/transcribe', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await resp.json();
+    const transcript = (data.text || '').trim();
+    if (transcript && refs.input) {
+      refs.input.value = transcript;
+      autoGrowTextarea();
+      refs.input.focus();
+      // ── Auto send after transcription ──
+      setTimeout(() => sendMessage(), 300);
     }
+  } catch (err) {
+    console.error('[NABAD] Transcription error:', err);
   }
+}
 
 // ── PROFILE UPDATE TOAST ──────────────────────────────────────
 function showProfileUpdateToast(info) {
