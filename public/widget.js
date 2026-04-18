@@ -3005,26 +3005,25 @@ function showPersonalityPill(id) {
     refs.panel.classList.toggle('open', state.open);
     refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
     refs.root.classList.toggle('nabad-open', state.open);
-
     if (state.open) {
-      applyScrollLock();
-      setTimeout(() => {
-        if (!state.onboarded && !state.messages.length) {
-          renderOnboardingIntro();
-          scrollToBottom();
-          return;
-        }
-        if (shouldShowMorningBrief()) {
-          showMorningBrief();
-          return;
-        }
-        scrollToBottom();
-        if (refs.input) refs.input.focus();
-      }, 40);
-    } else {
-      releaseScrollLock();
+  applyScrollLock();
+  setTimeout(() => {
+    const isOnboarded = state.onboarded || state.onboardingComplete;
+    if (!isOnboarded && !state.messages.length) {
+      renderOnboardingIntro();
+      scrollToBottom();
+      return;
     }
-  }
+    if (shouldShowMorningBrief()) {
+      showMorningBrief();
+      return;
+    }
+    scrollToBottom();
+    if (refs.input) refs.input.focus();
+  }, 40);
+} else {
+  releaseScrollLock();
+}
 
   function updatePersonalityBadge() {
     if (!refs.badge) return;
@@ -3181,8 +3180,11 @@ if (!state.onboarded && !state.messages.length) {
   }
 
 function renderOnboardingIntro() {
-  document.getElementById('nabad-input-wrap').style.display = 'none';
-  document.getElementById('nabad-header').style.display = 'none';
+  const inputWrap = document.getElementById('nabad-input-wrap');
+  const header = document.getElementById('nabad-header');
+  if (inputWrap) inputWrap.style.display = 'none';
+  if (header) header.style.display = 'none';
+  if (!refs.messages) return;
   refs.messages.style.overflow = 'auto';
 
   const pulseColors = [
@@ -3255,7 +3257,10 @@ function renderOnboardingIntro() {
   let animFrame;
 
   function animatePulse() {
-    if (!document.getElementById('nabad-intro-logo-wrap')) return;
+    if (!document.getElementById('nabad-intro-logo-wrap')) {
+      cancelAnimationFrame(animFrame);
+      return;
+    }
     lerpProgress += 0.006;
     if (lerpProgress >= 1) {
       lerpProgress = 0;
@@ -3267,7 +3272,6 @@ function renderOnboardingIntro() {
       lerpProgress
     );
 
-    // Scale in/out synced with ring
     const logoImg = document.getElementById('nabad-intro-logo-img');
     if (logoImg) {
       const scale = 1 + 0.045 * Math.sin(lerpProgress * Math.PI);
@@ -3289,6 +3293,17 @@ function renderOnboardingIntro() {
   }
   animatePulse();
   // ── END PULSE BLOCK ──
+
+  // ── START BUTTON BINDING ──
+  const startBtn = document.getElementById('nabad-intro-start');
+  if (startBtn) {
+    startBtn.addEventListener('click', () => {
+      cancelAnimationFrame(animFrame);
+      pulseStyle.remove();
+      renderOnboardingScreen1();
+    });
+  }
+}
 
   // ── Button interactions ──
   const startBtn = document.getElementById('nabad-intro-start');
@@ -4772,17 +4787,28 @@ function setSendState(stateLabel) {
 
   // ── LAUNCHER CLICK ────────────────────────────────────────────
   function bindLauncherClick() {
-    if (refs.launcher) {
-      refs.launcher.addEventListener('click', () => toggleWidget(true));
-    }
+  if (refs.launcher) {
+    refs.launcher.addEventListener('click', () => toggleWidget());
   }
+}
 
-  // ── INIT ────────────────────────────────────────────────────
-loadSupabase(() => {
-  loadDOMPurify(() => {
-    injectStyles();
-    buildShell();
-    bindLauncherClick();
+ // ── INIT ────────────────────────────────────────────────────
+(function startWidget() {
+  function initUI() {
+    try {
+      injectStyles();
+      buildShell();
+      if (typeof bindLauncherClick === 'function') bindLauncherClick();
+    } catch (e) {
+      console.error('[NABAD] buildShell failed:', e);
+      return;
+    }
+
+    if (typeof getCurrentUser !== 'function') {
+      console.warn('[NABAD] No auth, loading as guest');
+      renderInitialState();
+      return;
+    }
 
     getCurrentUser().then(user => {
       if (user) {
@@ -4801,13 +4827,25 @@ loadSupabase(() => {
             } else {
               renderInitialState();
             }
-          });
-        });
+          }).catch(() => renderInitialState());
+        }).catch(() => renderInitialState());
       } else {
-        renderInitialState();  // guest user — no account
+        renderInitialState();
+      }
+    }).catch(() => renderInitialState());
+  }
+
+  if (typeof loadSupabase === 'function') {
+    loadSupabase(() => {
+      if (typeof loadDOMPurify === 'function') {
+        loadDOMPurify(() => initUI());
+      } else {
+        initUI();
       }
     });
-  });
-});
-
+  } else if (typeof loadDOMPurify === 'function') {
+    loadDOMPurify(() => initUI());
+  } else {
+    initUI();
+  }
 })();
