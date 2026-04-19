@@ -306,28 +306,27 @@ function isDirectPremiumTextRequest(text = '') {
 }
 
 function buildPremiumUpgradeOffer(lastPrompt = '') {
-  return `<div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:16px;padding:20px;color:#fff;margin:8px 0;border:1px solid rgba(168,85,247,.3)">
-  <div style="font-size:18px;font-weight:700;margin-bottom:8px">✨ Want a sharper result?</div>
-  <p style="font-size:13px;opacity:.8;margin:0 0 12px 0;line-height:1.5">Ideogram 2.0 renders text <strong>accurately</strong> and produces higher quality images — perfect for logos and branded content with exact spelling 🎯</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-    <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:10px;text-align:center">
-      <div style="font-size:10px;opacity:.5;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Current</div>
-      <div style="font-size:13px;font-weight:600">Pollinations</div>
-      <div style="font-size:11px;opacity:.6;margin-top:2px">Free · Good quality</div>
-      <div style="font-size:11px;opacity:.5;margin-top:2px">⚠️ Text may be off</div>
+  return `<div class="nabad-image-choice-card">
+  <div style="font-size:17px;font-weight:800;margin-bottom:6px">Want a sharper result?</div>
+  <p style="font-size:13px;color:#475569;margin:0 0 10px 0;line-height:1.5">Ideogram 2.0 is better for logos and visuals where exact text spelling matters.</p>
+  <div class="nabad-image-choice-grid" style="margin-bottom:12px">
+    <div class="nabad-image-choice-col">
+      <div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em">Current</div>
+      <strong style="font-size:13px">Pollinations</strong>
+      <div style="font-size:11px;color:#64748b;margin-top:2px">Free · fast</div>
+      <div style="font-size:11px;color:#b45309;margin-top:2px">Text can be inaccurate</div>
     </div>
-    <div style="background:rgba(168,85,247,.15);border-radius:10px;padding:10px;text-align:center;border:1px solid rgba(168,85,247,.4)">
-      <div style="font-size:10px;opacity:.5;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Premium</div>
-      <div style="font-size:13px;font-weight:600;color:#a855f7">Ideogram 2.0</div>
-      <div style="font-size:11px;opacity:.6;margin-top:2px">Best quality</div>
-      <div style="font-size:11px;color:#2ecc71;margin-top:2px">✅ Exact text rendering</div>
+    <div class="nabad-image-choice-col">
+      <div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em">Premium</div>
+      <strong style="font-size:13px">Ideogram 2.0</strong>
+      <div style="font-size:11px;color:#64748b;margin-top:2px">Sharper quality</div>
+      <div style="font-size:11px;color:#047857;margin-top:2px">Accurate text rendering</div>
     </div>
   </div>
-  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:6px">
-    <button data-nabad-action="image-free" style="background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.2);color:#fff;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">Regenerate Free</button>
-    <button data-nabad-action="image-premium" style="background:rgba(168,85,247,.22);border:1px solid rgba(168,85,247,.55);color:#fff;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">Use Ideogram</button>
+  <div style="display:flex;gap:8px;justify-content:flex-start;flex-wrap:wrap">
+    <button data-nabad-action="image-free">Regenerate Free</button>
+    <button data-nabad-action="image-premium">Use Ideogram</button>
   </div>
-  <p style="font-size:12px;opacity:.6;margin:10px 0 0;text-align:center">Ideogram is better for accurate text in logos and visuals.</p>
 </div>`;
 }
 
@@ -816,18 +815,18 @@ function buildLegalChecklistCard(country = '', industry = 'general') {
   };
   const countryItems = (countryMap[country] || countryMap.UK).map(item => `<li>${escapeHtml(item)}</li>`).join('');
   const industryItems = (industryMap[industry] || industryMap.general).map(item => `<li>${escapeHtml(item)}</li>`).join('');
-  return `<div data-nabad-card="legal" style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:16px;padding:18px;color:#fff;margin:8px 0">
+  return `<div data-nabad-card="legal" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:18px;color:#0f172a;margin:8px 0;border:1px solid rgba(37,99,235,.14)">
   <h3 style="margin:0 0 10px;font-size:17px">Legal Starter Pack</h3>
   <p style="margin:0 0 10px;font-size:13px;opacity:.88"><strong>Country:</strong> ${escCountry} · <strong>Industry:</strong> ${escIndustry}</p>
-  <div style="background:rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:10px">
-    <div style="font-size:11px;text-transform:uppercase;opacity:.7;margin-bottom:6px">Core setup checklist</div>
+  <div style="background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:12px;padding:12px;margin-bottom:10px">
+    <div style="font-size:11px;text-transform:uppercase;color:#64748b;margin-bottom:6px">Core setup checklist</div>
     <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6">${countryItems}</ul>
   </div>
-  <div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin-bottom:10px">
-    <div style="font-size:11px;text-transform:uppercase;opacity:.7;margin-bottom:6px">Industry-specific checks</div>
+  <div style="background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:12px;padding:12px;margin-bottom:10px">
+    <div style="font-size:11px;text-transform:uppercase;color:#64748b;margin-bottom:6px">Industry-specific checks</div>
     <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6">${industryItems}</ul>
   </div>
-  <p style="margin:0;font-size:12px;opacity:.78">This is strategic guidance, not legal advice. For filing or legal risk decisions, confirm with a licensed local lawyer/accountant.</p>
+  <p style="margin:0;font-size:12px;color:#64748b">This is strategic guidance, not legal advice. For filing or legal risk decisions, confirm with a licensed local lawyer/accountant.</p>
 </div>`;
 }
 function shouldGateIdeaGeneration(text = '', messages = [], userProfile = '') {
@@ -907,25 +906,25 @@ Location: ${location || 'not specified'}`;
 function buildSnapshotCard(data = {}, location = '') {
   const esc = escapeHtml;
   const quickWins = normalizeList(data.quickWins || []).slice(0, 3).map(w => `<li>${esc(w)}</li>`).join('');
-  return `<div data-nabad-card="snapshot" style="background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  return `<div data-nabad-card="snapshot" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:24px;color:#0f172a;margin:8px 0;font-family:inherit;border:1px solid rgba(37,99,235,.14)">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
     <span style="font-size:24px">📊</span>
-    <div><strong style="font-size:16px">Business Snapshot</strong>${location ? `<br><span style="font-size:11px;opacity:.7">📍 ${esc(location)}</span>` : ''}</div>
+    <div><strong style="font-size:16px">Business Snapshot</strong>${location ? `<br><span style="font-size:11px;color:#64748b">📍 ${esc(location)}</span>` : ''}</div>
   </div>
-  <div style="background:rgba(255,255,255,.08);border-radius:10px;padding:14px;margin-bottom:10px">
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:4px">Biggest Opportunity</div>
+  <div style="background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:4px">Biggest Opportunity</div>
     <div style="font-size:14px;line-height:1.5">${esc(data.biggestOpportunity || 'Analysing your opportunity...')}</div>
   </div>
   <div style="background:rgba(255,100,100,.12);border-radius:10px;padding:14px;margin-bottom:10px">
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:4px">Key Risk</div>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:4px">Key Risk</div>
     <div style="font-size:14px;line-height:1.5">${esc(data.keyRisk || 'Risk analysis in progress...')}</div>
   </div>
   <div style="background:rgba(100,255,150,.12);border-radius:10px;padding:14px;margin-bottom:10px">
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:4px">Bold Recommendation</div>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:4px">Bold Recommendation</div>
     <div style="font-size:14px;line-height:1.5">${esc(data.boldRecommendation || 'Generating recommendation...')}</div>
   </div>
-  ${quickWins ? `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:8px">Quick Wins</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8">${quickWins}</ul></div>` : ''}
-  ${data.metrics ? `<div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px"><div style="background:rgba(255,255,255,.06);border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;opacity:.6;margin-bottom:4px">NOW</div><div style="font-size:13px">${esc(data.metrics.current || '')}</div></div><div style="background:rgba(100,200,255,.12);border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;opacity:.6;margin-bottom:4px">90-DAY TARGET</div><div style="font-size:13px">${esc(data.metrics.target || '')}</div></div></div>` : ''}
+  ${quickWins ? `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:8px">Quick Wins</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8">${quickWins}</ul></div>` : ''}
+  ${data.metrics ? `<div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px"><div style="background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#64748b;margin-bottom:4px">NOW</div><div style="font-size:13px">${esc(data.metrics.current || '')}</div></div><div style="background:#eff6ff;border:1px solid rgba(37,99,235,.16);border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#64748b;margin-bottom:4px">90-DAY TARGET</div><div style="font-size:13px">${esc(data.metrics.target || '')}</div></div></div>` : ''}
 </div>`;
 }
 
@@ -979,25 +978,25 @@ function buildScoreCard(data = {}) {
         <span style="font-size:13px">${item.icon} ${esc(item.label)}</span>
         <span style="font-size:13px;font-weight:700;color:${pct>=70?'#2ecc71':pct>=50?'#f39c12':'#e74c3c'}">${pct}</span>
       </div>
-      <div style="background:rgba(255,255,255,.1);border-radius:99px;height:6px;overflow:hidden">
+      <div style="background:rgba(37,99,235,.12);border-radius:99px;height:6px;overflow:hidden">
         <div data-score="${pct}" style="height:100%;border-radius:99px;background:${pct>=70?'#2ecc71':pct>=50?'#f39c12':'#e74c3c'};width:${pct}%"></div>
       </div>
-      ${s.comment ? `<div style="font-size:11px;opacity:.65;margin-top:3px">${esc(s.comment)}</div>` : ''}
+      ${s.comment ? `<div style="font-size:11px;color:#64748b;margin-top:3px">${esc(s.comment)}</div>` : ''}
     </div>`;
   }).join('');
-  return `<div data-nabad-card="score" style="background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  return `<div data-nabad-card="score" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:24px;color:#0f172a;margin:8px 0;font-family:inherit;border:1px solid rgba(37,99,235,.14)">
   <div style="text-align:center;margin-bottom:20px">
     <div style="font-size:48px;font-weight:800;color:${scoreColor}">${overall}</div>
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;opacity:.6">Nabad Score</div>
-    ${data.ideaSummary ? `<div style="font-size:13px;opacity:.8;margin-top:6px;font-style:italic">${esc(data.ideaSummary)}</div>` : ''}
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#64748b">Nabad Score</div>
+    ${data.ideaSummary ? `<div style="font-size:13px;color:#64748b;margin-top:6px;font-style:italic">${esc(data.ideaSummary)}</div>` : ''}
   </div>
   ${bars}
-  ${data.verdict ? `<div style="background:rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-top:16px;font-size:14px;font-weight:600;text-align:center">${esc(data.verdict)}</div>` : ''}
+  ${data.verdict ? `<div style="background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:10px;padding:12px;margin-top:16px;font-size:14px;font-weight:600;text-align:center">${esc(data.verdict)}</div>` : ''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
-    ${data.topStrength ? `<div style="background:rgba(46,204,113,.12);border-radius:8px;padding:10px"><div style="font-size:10px;opacity:.6;margin-bottom:4px">💪 TOP STRENGTH</div><div style="font-size:12px">${esc(data.topStrength)}</div></div>` : ''}
-    ${data.biggestRisk ? `<div style="background:rgba(231,76,60,.12);border-radius:8px;padding:10px"><div style="font-size:10px;opacity:.6;margin-bottom:4px">⚠️ BIGGEST RISK</div><div style="font-size:12px">${esc(data.biggestRisk)}</div></div>` : ''}
+    ${data.topStrength ? `<div style="background:#ecfdf3;border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:10px"><div style="font-size:10px;color:#64748b;margin-bottom:4px">💪 TOP STRENGTH</div><div style="font-size:12px">${esc(data.topStrength)}</div></div>` : ''}
+    ${data.biggestRisk ? `<div style="background:#fff7ed;border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px"><div style="font-size:10px;color:#64748b;margin-bottom:4px">⚠️ BIGGEST RISK</div><div style="font-size:12px">${esc(data.biggestRisk)}</div></div>` : ''}
   </div>
-  ${data.recommendation ? `<div style="margin-top:12px;padding:12px;background:rgba(52,152,219,.15);border-radius:8px;border-left:3px solid #3498db"><div style="font-size:11px;opacity:.6;margin-bottom:4px">🚀 NEXT MOVE</div><div style="font-size:13px">${esc(data.recommendation)}</div></div>` : ''}
+  ${data.recommendation ? `<div style="margin-top:12px;padding:12px;background:#eff6ff;border-radius:8px;border-left:3px solid #2563eb"><div style="font-size:11px;color:#64748b;margin-bottom:4px">🚀 NEXT MOVE</div><div style="font-size:13px">${esc(data.recommendation)}</div></div>` : ''}
 </div>`;
 }
 
@@ -1033,20 +1032,20 @@ function buildPricingTableCard(data = {}) {
   const symbols = { USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SAR: 'SAR ', EGP: 'EGP ' };
   const sym = symbols[currency] || '$';
   const tierHtml = tiers.map(tier => {
-    const features = normalizeList(tier.features || []).map(f => `<tr><td style="padding:6px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.06)">✓ ${esc(f)}</td></tr>`).join('');
-    return `<div style="flex:1;min-width:200px;background:${tier.highlighted ? 'linear-gradient(135deg,#6c5ce7,#a855f7)' : 'rgba(255,255,255,.05)'};border-radius:12px;padding:20px;border:${tier.highlighted ? '2px solid #a855f7' : '1px solid rgba(255,255,255,.1)'};position:relative">
-      ${tier.highlighted ? '<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#a855f7;color:#fff;font-size:11px;font-weight:700;padding:3px 14px;border-radius:99px;white-space:nowrap">⭐ POPULAR</div>' : ''}
+    const features = normalizeList(tier.features || []).map(f => `<tr><td style="padding:6px 0;font-size:13px;border-bottom:1px solid rgba(37,99,235,.1)">✓ ${esc(f)}</td></tr>`).join('');
+    return `<div style="flex:1;min-width:200px;background:${tier.highlighted ? 'linear-gradient(180deg,#eff6ff,#e0f2fe)' : '#fff'};border-radius:12px;padding:20px;border:${tier.highlighted ? '2px solid #2563eb' : '1px solid rgba(37,99,235,.12)'};position:relative">
+      ${tier.highlighted ? '<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:3px 14px;border-radius:99px;white-space:nowrap">⭐ POPULAR</div>' : ''}
       <div style="font-size:15px;font-weight:700;margin-bottom:4px">${esc(tier.name || '')}</div>
-      <div style="margin:10px 0"><span style="font-size:28px;font-weight:800">${sym}${esc(String(tier.price || ''))}</span><span style="font-size:12px;opacity:.6">/${tier.period || 'mo'}</span></div>
-      <div style="font-size:12px;opacity:.7;margin-bottom:12px">${esc(tier.description || '')}</div>
+      <div style="margin:10px 0"><span style="font-size:28px;font-weight:800">${sym}${esc(String(tier.price || ''))}</span><span style="font-size:12px;color:#64748b">/${tier.period || 'mo'}</span></div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">${esc(tier.description || '')}</div>
       <table style="width:100%;border-collapse:collapse"><tbody>${features}</tbody></table>
-      <div style="margin-top:14px;text-align:center"><span style="display:inline-block;background:${tier.highlighted ? 'rgba(255,255,255,.25)' : 'rgba(168,85,247,.3)'};color:#fff;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600">${esc(tier.cta || 'Choose Plan')}</span></div>
+      <div style="margin-top:14px;text-align:center"><span style="display:inline-block;background:${tier.highlighted ? 'linear-gradient(135deg,#2563eb,#06b6d4)' : '#eff6ff'};color:${tier.highlighted ? '#fff' : '#1e3a8a'};padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;border:${tier.highlighted ? 'none' : '1px solid rgba(37,99,235,.2)'}">${esc(tier.cta || 'Choose Plan')}</span></div>
     </div>`;
   }).join('');
-  return `<div data-nabad-card="pricing" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  return `<div data-nabad-card="pricing" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:24px;color:#0f172a;margin:8px 0;font-family:inherit;border:1px solid rgba(37,99,235,.14)">
   <div style="text-align:center;margin-bottom:20px">
     <div style="font-size:20px;font-weight:700">${esc(data.title || 'Pricing Plans')}</div>
-    ${data.subtitle ? `<div style="font-size:13px;opacity:.7;margin-top:4px">${esc(data.subtitle)}</div>` : ''}
+    ${data.subtitle ? `<div style="font-size:13px;color:#64748b;margin-top:4px">${esc(data.subtitle)}</div>` : ''}
   </div>
   <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">${tierHtml}</div>
 </div>`;
@@ -1127,25 +1126,25 @@ function buildOfferCard(data = {}) {
   const esc = escapeHtml;
   const symbols = { USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SAR: 'SAR ', EGP: 'EGP ' };
   const sym = symbols[data.currency || 'USD'] || '$';
-  const inclusions = normalizeList(data.inclusions || []).map(i => `<li style="padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.06)">✅ ${esc(i)}</li>`).join('');
+  const inclusions = normalizeList(data.inclusions || []).map(i => `<li style="padding:5px 0;font-size:13px;border-bottom:1px solid rgba(37,99,235,.1)">✅ ${esc(i)}</li>`).join('');
   const bonuses = normalizeList(data.bonuses || []).map(b => `<li style="padding:5px 0;font-size:13px">🎁 ${esc(b)}</li>`).join('');
-  const tags = normalizeList(data.tags || []).map(t => `<span style="background:rgba(255,255,255,.12);padding:3px 10px;border-radius:99px;font-size:11px">${esc(t)}</span>`).join(' ');
-  return `<div data-nabad-card="offer" style="background:linear-gradient(135deg,#1a0a00,#2d1200,#3d1f00);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit;border:1px solid rgba(255,165,0,.25)">
+  const tags = normalizeList(data.tags || []).map(t => `<span style="background:#eff6ff;border:1px solid rgba(37,99,235,.16);padding:3px 10px;border-radius:99px;font-size:11px">${esc(t)}</span>`).join(' ');
+  return `<div data-nabad-card="offer" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:24px;color:#0f172a;margin:8px 0;font-family:inherit;border:1px solid rgba(37,99,235,.14)">
   <div style="text-align:center;margin-bottom:16px">
     ${tags ? `<div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center">${tags}</div>` : ''}
     <div style="font-size:22px;font-weight:800;line-height:1.2">${esc(data.offerName || 'Your Offer')}</div>
-    ${data.tagline ? `<div style="font-size:13px;opacity:.75;margin-top:6px;font-style:italic">${esc(data.tagline)}</div>` : ''}
-    ${data.targetClient ? `<div style="font-size:12px;margin-top:6px;padding:4px 12px;background:rgba(255,165,0,.15);border-radius:99px;display:inline-block">👤 ${esc(data.targetClient)}</div>` : ''}
+    ${data.tagline ? `<div style="font-size:13px;color:#64748b;margin-top:6px;font-style:italic">${esc(data.tagline)}</div>` : ''}
+    ${data.targetClient ? `<div style="font-size:12px;margin-top:6px;padding:4px 12px;background:#eff6ff;border:1px solid rgba(37,99,235,.16);border-radius:99px;display:inline-block">👤 ${esc(data.targetClient)}</div>` : ''}
   </div>
-  <div style="background:linear-gradient(135deg,rgba(255,165,0,.2),rgba(255,140,0,.1));border-radius:12px;padding:16px;text-align:center;margin-bottom:16px;border:1px solid rgba(255,165,0,.3)">
-    <div style="font-size:40px;font-weight:800;color:#ffa500">${sym}${esc(String(data.price || ''))}</div>
-    <div style="font-size:12px;opacity:.7">${esc(data.period || '')}${data.duration ? ` · ${esc(data.duration)}` : ''}</div>
-    ${data.transformation ? `<div style="font-size:13px;margin-top:8px;opacity:.85">🎯 ${esc(data.transformation)}</div>` : ''}
+  <div style="background:#fff;border-radius:12px;padding:16px;text-align:center;margin-bottom:16px;border:1px solid rgba(37,99,235,.14)">
+    <div style="font-size:40px;font-weight:800;color:#2563eb">${sym}${esc(String(data.price || ''))}</div>
+    <div style="font-size:12px;color:#64748b">${esc(data.period || '')}${data.duration ? ` · ${esc(data.duration)}` : ''}</div>
+    ${data.transformation ? `<div style="font-size:13px;margin-top:8px;color:#334155">🎯 ${esc(data.transformation)}</div>` : ''}
   </div>
-  ${inclusions ? `<div style="margin-bottom:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:8px">What's Included</div><ul style="margin:0;padding:0;list-style:none">${inclusions}</ul></div>` : ''}
-  ${bonuses ? `<div style="margin-bottom:12px;background:rgba(255,215,0,.08);border-radius:10px;padding:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:6px">Bonuses</div><ul style="margin:0;padding:0;list-style:none">${bonuses}</ul></div>` : ''}
-  ${data.guarantee ? `<div style="font-size:12px;opacity:.7;text-align:center;margin-top:8px">🛡️ ${esc(data.guarantee)}</div>` : ''}
-  ${data.urgency ? `<div style="margin-top:12px;background:rgba(255,0,0,.1);border-radius:8px;padding:10px;text-align:center;font-size:12px;font-weight:600;color:#ff6b6b">⚡ ${esc(data.urgency)}</div>` : ''}
+  ${inclusions ? `<div style="margin-bottom:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:8px">What's Included</div><ul style="margin:0;padding:0;list-style:none">${inclusions}</ul></div>` : ''}
+  ${bonuses ? `<div style="margin-bottom:12px;background:#ecfeff;border:1px solid rgba(6,182,212,.2);border-radius:10px;padding:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:6px">Bonuses</div><ul style="margin:0;padding:0;list-style:none">${bonuses}</ul></div>` : ''}
+  ${data.guarantee ? `<div style="font-size:12px;color:#64748b;text-align:center;margin-top:8px">🛡️ ${esc(data.guarantee)}</div>` : ''}
+  ${data.urgency ? `<div style="margin-top:12px;background:#fff7ed;border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px;text-align:center;font-size:12px;font-weight:600;color:#9a3412">⚡ ${esc(data.urgency)}</div>` : ''}
 </div>`;
 }
 
@@ -1186,14 +1185,14 @@ function buildPositioningMatrixCard(data = {}) {
     const color = quadrantColors[e.quadrant] || '#95a5a6';
     const isYou = e.name === 'You';
     return `<div style="position:absolute;left:${e.x}%;top:${100 - e.y}%;transform:translate(-50%,-50%);z-index:2">
-      <div style="width:${isYou ? 16 : 12}px;height:${isYou ? 16 : 12}px;border-radius:50%;background:${color};border:${isYou ? '3px solid #fff' : '2px solid rgba(255,255,255,.4)'};box-shadow:0 0 ${isYou ? 10 : 6}px ${color}"></div>
+      <div style="width:${isYou ? 16 : 12}px;height:${isYou ? 16 : 12}px;border-radius:50%;background:${color};border:${isYou ? '3px solid #fff' : '2px solid rgba(255,255,255,.6)'};box-shadow:0 0 ${isYou ? 10 : 6}px ${color}"></div>
       <div style="position:absolute;top:${isYou ? -22 : -20}px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:${isYou ? 12 : 11}px;font-weight:${isYou ? 700 : 500};color:${color}">${esc(e.name)}</div>
     </div>`;
   }).join('');
   const legendItems = Object.entries(quadrantColors).map(([key, color]) =>
     `<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:50%;background:${color}"></div><span style="font-size:11px;opacity:.8">${quadrantLabels[key]}</span></div>`
   ).join('');
-  return `<div data-nabad-card="matrix" style="background:linear-gradient(135deg,#0d0d1a,#1a1a2e);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  return `<div data-nabad-card="matrix" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:24px;color:#0f172a;margin:8px 0;font-family:inherit;border:1px solid rgba(37,99,235,.14)">
   <div style="text-align:center;margin-bottom:16px"><div style="font-size:18px;font-weight:700">${esc(data.title || 'Positioning Matrix')}</div></div>
   <div style="position:relative;width:100%;padding-top:100%;max-width:320px;margin:0 auto">
     <div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px">
@@ -1202,12 +1201,12 @@ function buildPositioningMatrixCard(data = {}) {
       ).join('')}
     </div>
     <div style="position:absolute;inset:0">${entityDots}</div>
-    ${data.xAxis ? `<div style="position:absolute;bottom:-20px;left:0;right:0;display:flex;justify-content:space-between;font-size:10px;opacity:.6"><span>${esc(data.xAxis.low||'')}</span><span style="font-weight:600">${esc(data.xAxis.label||'')}</span><span>${esc(data.xAxis.high||'')}</span></div>` : ''}
-    ${data.yAxis ? `<div style="position:absolute;top:0;bottom:0;left:-45px;display:flex;flex-direction:column;justify-content:space-between;font-size:10px;opacity:.6;text-align:right;width:40px"><span>${esc(data.yAxis.high||'')}</span><span style="font-weight:600;transform:rotate(-90deg)">${esc(data.yAxis.label||'')}</span><span>${esc(data.yAxis.low||'')}</span></div>` : ''}
+    ${data.xAxis ? `<div style="position:absolute;bottom:-20px;left:0;right:0;display:flex;justify-content:space-between;font-size:10px;color:#64748b"><span>${esc(data.xAxis.low||'')}</span><span style="font-weight:600">${esc(data.xAxis.label||'')}</span><span>${esc(data.xAxis.high||'')}</span></div>` : ''}
+    ${data.yAxis ? `<div style="position:absolute;top:0;bottom:0;left:-45px;display:flex;flex-direction:column;justify-content:space-between;font-size:10px;color:#64748b;text-align:right;width:40px"><span>${esc(data.yAxis.high||'')}</span><span style="font-weight:600;transform:rotate(-90deg)">${esc(data.yAxis.label||'')}</span><span>${esc(data.yAxis.low||'')}</span></div>` : ''}
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:30px">${legendItems}</div>
-  ${data.insight ? `<div style="margin-top:14px;background:rgba(255,255,255,.06);border-radius:10px;padding:12px"><div style="font-size:11px;opacity:.6;margin-bottom:4px">💡 INSIGHT</div><div style="font-size:13px">${esc(data.insight)}</div></div>` : ''}
-  ${data.recommendation ? `<div style="margin-top:10px;background:rgba(52,152,219,.12);border-radius:10px;padding:12px;border-left:3px solid #3498db"><div style="font-size:11px;opacity:.6;margin-bottom:4px">🎯 RECOMMENDATION</div><div style="font-size:13px">${esc(data.recommendation)}</div></div>` : ''}
+  ${data.insight ? `<div style="margin-top:14px;background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:10px;padding:12px"><div style="font-size:11px;color:#64748b;margin-bottom:4px">💡 INSIGHT</div><div style="font-size:13px">${esc(data.insight)}</div></div>` : ''}
+  ${data.recommendation ? `<div style="margin-top:10px;background:#eff6ff;border-radius:10px;padding:12px;border-left:3px solid #2563eb"><div style="font-size:11px;color:#64748b;margin-bottom:4px">🎯 RECOMMENDATION</div><div style="font-size:13px">${esc(data.recommendation)}</div></div>` : ''}
 </div>`;
 }
 
@@ -1262,34 +1261,38 @@ function buildActionPlanCard(data = {}) {
   const weekHtml = weeks.map((week, i) => {
     const color = weekColors[i % weekColors.length];
     const actions = Array.isArray(week.actions) ? week.actions.map(a =>
-      `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);align-items:flex-start">
-        <span style="background:${a.priority === 'high' ? 'rgba(255,100,100,.2)' : 'rgba(255,255,255,.08)'};color:${a.priority === 'high' ? '#ff6b6b' : 'rgba(255,255,255,.6)'};font-size:10px;padding:2px 6px;border-radius:4px;white-space:nowrap;margin-top:2px">${esc(a.day || '')}</span>
+      `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(37,99,235,.1);align-items:flex-start">
+        <span style="background:${a.priority === 'high' ? 'rgba(249,115,22,.16)' : 'rgba(37,99,235,.08)'};color:${a.priority === 'high' ? '#9a3412' : '#475569'};font-size:10px;padding:2px 6px;border-radius:4px;white-space:nowrap;margin-top:2px">${esc(a.day || '')}</span>
         <span style="font-size:13px;line-height:1.4">${esc(a.action || '')}</span>
       </div>`
     ).join('') : '';
-    return `<div style="background:rgba(255,255,255,.04);border-radius:12px;padding:14px;border-left:3px solid ${color}">
+    return `<div style="background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:12px;padding:14px;border-left:3px solid ${color}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <span style="font-size:20px">${esc(week.icon || '📅')}</span>
-        <div><div style="font-size:11px;opacity:.5">WEEK ${week.weekNumber}</div><div style="font-size:14px;font-weight:600;color:${color}">${esc(week.theme || '')}</div></div>
+        <div><div style="font-size:11px;color:#64748b">WEEK ${week.weekNumber}</div><div style="font-size:14px;font-weight:600;color:${color}">${esc(week.theme || '')}</div></div>
       </div>
       ${actions}
     </div>`;
   }).join('');
-  return `<div data-nabad-card="action-plan" style="background:linear-gradient(135deg,#0a0a1a,#141428);border-radius:16px;padding:24px;color:#fff;margin:8px 0;font-family:inherit">
+  return `<div data-nabad-card="action-plan" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:24px;color:#0f172a;margin:8px 0;font-family:inherit;border:1px solid rgba(37,99,235,.14)">
   <div style="text-align:center;margin-bottom:20px">
     <div style="font-size:20px;font-weight:700">${esc(data.title || '30-Day Action Plan')}</div>
-    ${data.goal ? `<div style="font-size:13px;opacity:.7;margin-top:6px">🎯 Goal: ${esc(data.goal)}</div>` : ''}
+    ${data.goal ? `<div style="font-size:13px;color:#64748b;margin-top:6px">🎯 Goal: ${esc(data.goal)}</div>` : ''}
   </div>
   <div style="display:flex;flex-direction:column;gap:10px">${weekHtml}</div>
-  ${data.successMetric ? `<div style="margin-top:16px;background:rgba(255,215,0,.08);border-radius:10px;padding:12px;border:1px solid rgba(255,215,0,.2)"><div style="font-size:11px;opacity:.6;margin-bottom:4px">🏆 SUCCESS METRIC</div><div style="font-size:13px">${esc(data.successMetric)}</div></div>` : ''}
+  ${data.successMetric ? `<div style="margin-top:16px;background:#ecfeff;border-radius:10px;padding:12px;border:1px solid rgba(6,182,212,.2)"><div style="font-size:11px;color:#64748b;margin-bottom:4px">🏆 SUCCESS METRIC</div><div style="font-size:13px">${esc(data.successMetric)}</div></div>` : ''}
 </div>`;
 }
 
 // ── HTML reply enforcer ───────────────────────────────────────────────────────
 function ensureHtmlReply(text = '') {
-  if (!text.trim()) return '<p>I hit a snag. Try rephrasing your question.</p>';
-  if (/<[a-z][\s\S]*>/i.test(text)) return text;
-  return '<p>' + text.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+  const raw = String(text || '')
+    .replace(/^\s*data-nabad-[^\n]*$/gmi, '')
+    .replace(/onerror="[^"]*"/gi, '')
+    .trim();
+  if (!raw) return '<p>I hit a snag. Try rephrasing your question.</p>';
+  if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
+  return '<p>' + raw.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
 }
 
 // ── YES-intent router helper ──────────────────────────────────────────────────
