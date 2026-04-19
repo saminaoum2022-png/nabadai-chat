@@ -26,6 +26,7 @@ export default async function handler(req, res) {
 
     let audioBuffer = null;
     let filename = 'voice.webm';
+    let preferredLanguage = '';
 
     for (const part of parts) {
       if (part.includes('name="audio"')) {
@@ -35,7 +36,14 @@ export default async function handler(req, res) {
         if (filenameMatch) filename = filenameMatch[1];
         const binaryData = part.slice(headerEnd + 4, part.lastIndexOf('\r\n'));
         audioBuffer = Buffer.from(binaryData, 'binary');
-        break;
+      }
+      if (part.includes('name="language"')) {
+        const headerEnd = part.indexOf('\r\n\r\n');
+        if (headerEnd === -1) continue;
+        const textValue = part.slice(headerEnd + 4, part.lastIndexOf('\r\n')).trim().toLowerCase();
+        if (textValue === 'en' || textValue === 'ar') {
+          preferredLanguage = textValue;
+        }
       }
     }
 
@@ -49,7 +57,14 @@ export default async function handler(req, res) {
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
       model: 'whisper-1',
-      response_format: 'text'
+      response_format: 'text',
+      ...(preferredLanguage ? { language: preferredLanguage } : {}),
+      ...(preferredLanguage === 'en'
+        ? { prompt: 'Transcribe exactly in English. Do not translate to Arabic.' }
+        : {}),
+      ...(preferredLanguage === 'ar'
+        ? { prompt: 'انسخ الكلام كما هو بالعربية فقط بدون ترجمة للإنجليزية.' }
+        : {})
     });
 
     return res.status(200).json({ text: transcription });
