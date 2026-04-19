@@ -839,8 +839,22 @@ function shouldGateIdeaGeneration(text = '', messages = [], userProfile = '') {
   const hasGoal = /\b(revenue|sales|grow|scale|launch|conversion|profit)\b/.test(contextBlob);
   return [hasAudience, hasOffer, hasGoal].filter(Boolean).length < 2;
 }
-function buildIdeaGateQuestion() {
-  return `<p>Before I generate ideas, I need one anchor so the suggestions are sharp, not random.</p><p><strong>Tell me this in one line:</strong> who exactly are you helping, what result they pay for, and your target country.</p>`;
+function buildIdeaGateQuestion(text = '', userProfile = '') {
+  const t = `${text} ${userProfile}`.toLowerCase();
+  const hasAudience = /\b(founder|owners?|restaurants?|brands?|agencies?|parents?|students?|freelancers?|b2b|b2c|customer|client)\b/.test(t);
+  const hasOffer = /\b(offer|service|product|subscription|course|agency|software|app|tool|consulting)\b/.test(t);
+  const hasGoal = /\b(revenue|sales|clients?|leads?|launch|scale|grow|profit|mrr|arr)\b/.test(t);
+
+  if (!hasAudience) {
+    return `<p>Quick anchor before I generate ideas:</p><p><strong>Who is your exact first customer?</strong></p>`;
+  }
+  if (!hasOffer) {
+    return `<p>Quick anchor before I generate ideas:</p><p><strong>What are you actually selling first?</strong></p>`;
+  }
+  if (!hasGoal) {
+    return `<p>Quick anchor before I generate ideas:</p><p><strong>What result do you want in the next 90 days?</strong></p>`;
+  }
+  return `<p>Give me one line with your customer and your 90-day goal, then I’ll generate sharp ideas.</p>`;
 }
 function hasRichBusinessContext(messages = []) {
   const userMsgs = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content).toLowerCase());
@@ -853,7 +867,7 @@ function hasRichBusinessContext(messages = []) {
   return checks.filter(Boolean).length >= 2;
 }
 function locationAlreadyAsked(messages = []) {
-  return messages.some(m => m.role === 'assistant' && /where are you based|what city|which country|your location/i.test(getMessageText(m.content)));
+  return messages.some(m => m.role === 'assistant' && /where are you based|what city|which country|your location|what market are you in/i.test(getMessageText(m.content)));
 }
 
 // ── Business Snapshot ─────────────────────────────────────────────────────────
@@ -1863,7 +1877,7 @@ export default async function handler(req, res) {
   if (shouldGateIdeaGeneration(lastUserMessage, messages, userProfile)) {
     await persistFounderMemory();
     return res.status(200).json({
-      reply: buildIdeaGateQuestion(),
+      reply: buildIdeaGateQuestion(lastUserMessage, userProfile),
       detectedPersonality: 'strategist'
     });
   }
@@ -1881,7 +1895,7 @@ export default async function handler(req, res) {
     !shouldGenerateImage(lastUserMessage, messages)
   ) {
     return res.status(200).json({
-      reply: `<p>Before I go deeper — <strong>where are you based?</strong> 📍 It'll help me give advice that's actually relevant to your market, costs, and local conditions.</p>`,
+      reply: `<p>Quick one so I can make this market-accurate: <strong>which country are you operating in?</strong></p>`,
       detectedPersonality: 'auto'
     });
   }
@@ -1926,6 +1940,12 @@ Decision OS (follow in order):
 3) Plan: give concrete next move(s) with sequencing.
 4) Risk: name the main risk and mitigation.
 5) Ask one sharp follow-up question.
+
+Conversation quality rules:
+- Never ask forced multi-part questions.
+- Ask at most one concise follow-up question at a time.
+- Do not repeat the same clarification question if already asked in recent turns.
+- Avoid template-like phrasing; sound naturally conversational and specific to context.
 
 Idea quality gate:
 - If context is missing, ask one clarifying question before giving ideas.
