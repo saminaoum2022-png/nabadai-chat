@@ -61,7 +61,8 @@
     messages:    `${CONFIG.storageNamespace}:messages`,
     personality: `${CONFIG.storageNamespace}:personality`,
     userProfile: `${CONFIG.storageNamespace}:userProfile`,
-    onboarded:   `${CONFIG.storageNamespace}:onboarded`
+    onboarded:   `${CONFIG.storageNamespace}:onboarded`,
+    memoryKey:   `${CONFIG.storageNamespace}:memoryKey`
   };
 
   const PERSONALITIES = [
@@ -213,6 +214,20 @@
     try {
       localStorage.setItem(STORAGE_KEYS.userProfile, JSON.stringify(profile));
     } catch {}
+  }
+
+  function getMemoryKey() {
+    try {
+      const existing = localStorage.getItem(STORAGE_KEYS.memoryKey);
+      if (existing) return existing;
+      const created = (window.crypto && window.crypto.randomUUID)
+        ? window.crypto.randomUUID()
+        : `nabad_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(STORAGE_KEYS.memoryKey, created);
+      return created;
+    } catch {
+      return `nabad_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
   }
 
   // ── UTILS ────────────────────────────────────────────────────
@@ -3053,6 +3068,7 @@ Time: ${hour}:00`
           ],
           personality: 'auto',
           userProfile: profile,
+          memoryKey: getMemoryKey(),
           morningBrief: true
         })
       });
@@ -3547,7 +3563,8 @@ function finishOnboarding() {
               messages: [
                 { role: 'user', content: `Summarize this advice in maximum 8 words, no punctuation at the end:\n\n${clean}` }
               ],
-              personality: 'auto'
+              personality: 'auto',
+              memoryKey: getMemoryKey()
             })
           });
           const data = await resp.json();
@@ -3716,7 +3733,8 @@ function finishOnboarding() {
         body: JSON.stringify({
           messages:    history,
           personality: state.personality,
-          userProfile: profile
+          userProfile: profile,
+          memoryKey: getMemoryKey()
         })
       });
 
@@ -3901,6 +3919,7 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
             messages: [{ role: 'user', content: situation }],
             personality: advisor.id,
             userProfile: profile,
+            memoryKey: getMemoryKey(),
             warRoom: true
           })
         });
