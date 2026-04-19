@@ -3803,7 +3803,7 @@ function finishOnboarding() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages:    history,
-          personality: state.personality,
+          personality: state.autoDetectMode ? 'auto' : state.personality,
           userProfile: profile,
           memoryKey: getMemoryKey()
         })
