@@ -64,7 +64,8 @@
     onboarded:   `${CONFIG.storageNamespace}:onboarded`,
     memoryKey:   `${CONFIG.storageNamespace}:memoryKey`,
     accountClaim:`${CONFIG.storageNamespace}:accountClaim`,
-    autoDetect:  `${CONFIG.storageNamespace}:autoDetect`
+    autoDetect:  `${CONFIG.storageNamespace}:autoDetect`,
+    ideaVault:   `${CONFIG.storageNamespace}:ideaVault`
   };
 
   const PERSONALITIES = [
@@ -270,6 +271,22 @@
     } catch {}
   }
 
+  function loadIdeaVault() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.ideaVault);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveIdeaVault(items = []) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ideaVault, JSON.stringify(items.slice(-80)));
+    } catch {}
+  }
+
   function getMemoryKey() {
     try {
       const existing = localStorage.getItem(STORAGE_KEYS.memoryKey);
@@ -346,6 +363,19 @@
     if (p.stage)            parts.push(`Stage: ${p.stage}`);
     if (p.mainGoal)         parts.push(`Main goal: ${p.mainGoal}`);
     return parts.join(' | ');
+  }
+
+  function detectPreferredVoiceLanguage() {
+    const recentUserText = state.messages
+      .filter((m) => m.role === 'user')
+      .slice(-3)
+      .map((m) => String(m.content || '').replace(/<[^>]+>/g, ' '))
+      .join(' ');
+    const hasArabic = /[\u0600-\u06FF]/.test(recentUserText);
+    const hasLatin = /[A-Za-z]/.test(recentUserText);
+    if (hasArabic && !hasLatin) return 'ar';
+    if (hasLatin && !hasArabic) return 'en';
+    return 'en';
   }
 
   function setInputPlaceholder() {
@@ -3656,10 +3686,32 @@ function finishOnboarding() {
 }
       });
 
+      // ── Save to Ideas Vault button ──
+      const vaultBtn = document.createElement('button');
+      vaultBtn.className = 'nabad-memory-btn';
+      vaultBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.77 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+      vaultBtn.title = 'Save this to Ideas Vault';
+      vaultBtn.addEventListener('click', () => {
+        if (vaultBtn.dataset.saved === 'true') return;
+        const text = String(content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 420);
+        if (!text) return;
+        const vault = loadIdeaVault();
+        vault.push({
+          text,
+          date: new Date().toLocaleDateString(),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        saveIdeaVault(vault);
+        vaultBtn.dataset.saved = 'true';
+        vaultBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        vaultBtn.title = 'Saved to Ideas Vault';
+      });
+
       const btnRow = document.createElement('div');
       btnRow.className = 'nabad-btn-row';
       btnRow.appendChild(speakerBtn);
       btnRow.appendChild(memoryBtn);
+      btnRow.appendChild(vaultBtn);
       bubble.appendChild(btnRow);
     }
 
@@ -4203,6 +4255,16 @@ function openSettingsPage() {
             </div>
             <span class="nabad-settings-row-arrow">›</span>
           </div>
+          <div class="nabad-settings-row" id="nabad-set-vault">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon">⭐</div>
+              <div>
+                <div class="nabad-settings-row-label">Ideas Vault</div>
+                <div class="nabad-settings-row-desc">Saved brainstorm snippets from replies</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
           <div class="nabad-settings-row" id="nabad-set-profile">
             <div class="nabad-settings-row-left">
               <div class="nabad-settings-row-icon">🧾</div>
@@ -4331,6 +4393,9 @@ function openSettingsPage() {
   });
   page.querySelector('#nabad-set-memory').addEventListener('click', () => {
     closeSettings(); setTimeout(() => showMemoryScreen(), 360);
+  });
+  page.querySelector('#nabad-set-vault').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => showIdeasVaultScreen(), 360);
   });
   page.querySelector('#nabad-set-profile').addEventListener('click', () => {
     closeSettings(); setTimeout(() => showProfileEditorScreen(), 360);
@@ -4463,6 +4528,10 @@ function openSettingsPage() {
             <label class="nabad-question-label">Recovery Code (for new devices)</label>
             <input class="nabad-question-input" id="nabad-restore-code" placeholder="e.g. 9A4F2C7D" value="" />
           </div>
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Restore Email (new device)</label>
+            <input class="nabad-question-input" id="nabad-restore-email" placeholder="you@company.com" value="${escapeHtml(account.email || '')}" />
+          </div>
         </div>
 
         <button class="nabad-ob-btn" id="nabad-claim-save" type="button">${account.email ? 'Update Claim' : 'Claim Account'}</button>
@@ -4527,7 +4596,7 @@ function openSettingsPage() {
 
     refs.messages.querySelector('#nabad-restore-device')
       .addEventListener('click', async () => {
-        const email = (refs.messages.querySelector('#nabad-claim-email')?.value || '').trim().toLowerCase();
+        const email = (refs.messages.querySelector('#nabad-restore-email')?.value || '').trim().toLowerCase();
         const code = (refs.messages.querySelector('#nabad-restore-code')?.value || '').trim().toUpperCase();
         if (!email) {
           alert('Enter your claimed email first.');
@@ -4581,6 +4650,46 @@ function openSettingsPage() {
           btn.textContent = 'Restore on this device';
         }
       });
+
+    scrollToBottom();
+  }
+
+  // ── IDEAS VAULT ───────────────────────────────────────────────
+  function showIdeasVaultScreen() {
+    document.getElementById('nabad-input-wrap').style.display = 'none';
+    const vault = loadIdeaVault();
+
+    refs.messages.innerHTML = `
+      <div id="nabad-onboarding">
+        <h3>⭐ Ideas Vault</h3>
+        <p>Short ideas you saved from Nabad replies.</p>
+
+        ${vault.length ? `
+          <div style="margin-bottom:14px;">
+            ${vault.slice().reverse().map((item, idx) => `
+              <div style="padding:10px 12px;margin-bottom:8px;background:#f8faff;border-radius:12px;border:1px solid rgba(37,99,235,0.1);font-size:13px;color:#0f172a;">
+                <div style="line-height:1.45">${escapeHtml(item.text || '')}</div>
+                <div style="margin-top:6px;font-size:11px;color:#64748b;">${escapeHtml(item.date || '')} ${escapeHtml(item.time || '')}</div>
+              </div>
+            `).join('')}
+          </div>
+          <button class="nabad-ob-skip" id="nabad-vault-clear" type="button">Clear vault</button>
+        ` : `<p style="color:#94a3b8;font-size:13px;text-align:center;padding:18px 0;">No saved ideas yet.<br>Tap the ⭐ button on any assistant reply.</p>`}
+
+        <button class="nabad-ob-back" id="nabad-vault-back" type="button">← Back to chat</button>
+      </div>
+    `;
+
+    refs.messages.querySelector('#nabad-vault-back')
+      .addEventListener('click', backToChat);
+
+    const clearBtn = refs.messages.querySelector('#nabad-vault-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        saveIdeaVault([]);
+        showIdeasVaultScreen();
+      });
+    }
 
     scrollToBottom();
   }
@@ -4670,7 +4779,7 @@ function openSettingsPage() {
 
   async function speakReply(text, btn) {
   if (!text) return;
-  const clean = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  const clean = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 3000);
   if (!clean) return;
 
   // Show loading state
@@ -4807,6 +4916,7 @@ function openSettingsPage() {
   try {
     const formData = new FormData();
     formData.append('audio', blob, 'voice.webm');
+    formData.append('language', detectPreferredVoiceLanguage());
 
     const resp = await fetch('/api/transcribe', { method: 'POST', body: formData });
     const data = await resp.json();
