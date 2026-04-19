@@ -57,6 +57,9 @@ function isRateLimited(ip = '') {
 
 const SHOW_IMAGE_DEBUG = false;
 const FOUNDER_MEMORY_TABLE = 'founder_memory';
+let _pdfParse = null;
+let _mammoth = null;
+let _xlsx = null;
 
 function normalizeMemoryKey(raw = '') {
   return String(raw || '')
@@ -177,6 +180,94 @@ function getMessageText(content) {
 function cleanText(val = '', maxLen = 300) {
   if (typeof val !== 'string') return '';
   return val.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
+}
+function parseDataUrl(dataUrl = '') {
+  const raw = String(dataUrl || '');
+  const match = raw.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  try {
+    return {
+      mime: (match[1] || '').toLowerCase(),
+      buffer: Buffer.from(match[2], 'base64')
+    };
+  } catch {
+    return null;
+  }
+}
+async function parseAttachmentPayload(attachment = null) {
+  if (!attachment || typeof attachment !== 'object') return null;
+  const kind = cleanText(attachment.kind || '', 20).toLowerCase();
+  const name = cleanText(attachment.name || 'attachment', 160);
+  const type = cleanText(attachment.type || '', 120).toLowerCase();
+  const text = cleanText(attachment.text || '', 12000);
+  const dataUrl = String(attachment.dataUrl || '');
+
+  if (kind === 'text' && text) {
+    return {
+      kind,
+      name,
+      type,
+      summaryText: cleanText(text, 1200),
+      parsedText: text.slice(0, 10000),
+      imageDataUrl: ''
+    };
+  }
+
+  if (kind === 'image' && dataUrl.startsWith('data:image/')) {
+    return {
+      kind,
+      name,
+      type,
+      summaryText: `User attached an image named "${name}".`,
+      parsedText: '',
+      imageDataUrl: dataUrl
+    };
+  }
+
+  if (kind !== 'document' || !dataUrl) return null;
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed || !parsed.buffer?.length) {
+    return { kind, name, type, summaryText: `User attached ${name}.`, parsedText: '', imageDataUrl: '' };
+  }
+
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const mime = parsed.mime || type;
+  let parsedText = '';
+
+  try {
+    if (ext === 'pdf' || mime.includes('pdf')) {
+      if (!_pdfParse) _pdfParse = (await import('pdf-parse')).default;
+      const out = await _pdfParse(parsed.buffer);
+      parsedText = cleanText(out?.text || '', 12000);
+    } else if (ext === 'docx' || mime.includes('wordprocessingml')) {
+      if (!_mammoth) _mammoth = (await import('mammoth')).default;
+      const out = await _mammoth.extractRawText({ buffer: parsed.buffer });
+      parsedText = cleanText(out?.value || '', 12000);
+    } else if (ext === 'xlsx' || ext === 'xls' || mime.includes('spreadsheetml') || mime.includes('excel')) {
+      if (!_xlsx) _xlsx = await import('xlsx');
+      const wb = _xlsx.read(parsed.buffer, { type: 'buffer' });
+      const sheetNames = wb?.SheetNames || [];
+      parsedText = sheetNames.slice(0, 4).map((sheet) => {
+        const ws = wb.Sheets[sheet];
+        const csv = _xlsx.utils.sheet_to_csv(ws || {}, { blankrows: false });
+        return `Sheet: ${sheet}\n${cleanText(csv, 2500)}`;
+      }).join('\n\n');
+      parsedText = cleanText(parsedText, 12000);
+    }
+  } catch (err) {
+    console.error('[ATTACHMENT PARSE ERROR]', err?.message);
+  }
+
+  return {
+    kind,
+    name,
+    type,
+    summaryText: parsedText
+      ? `User attached ${name}. Key extracted text is available below.`
+      : `User attached ${name}, but text extraction was limited.`,
+    parsedText: parsedText || '',
+    imageDataUrl: ''
+  };
 }
 function isValidEmail(value = '') {
   const v = String(value || '').trim().toLowerCase();
@@ -1513,6 +1604,14 @@ export default async function handler(req, res) {
   const restoreCode = normalizeRecoveryCode(body?.restoreCode || '');
   const saveInsight = body?.saveInsight === true;
   const insightText = cleanText(body?.insightText || '', 420);
+  const replyTo = body?.replyTo && typeof body.replyTo === 'object'
+    ? {
+        id: cleanText(body.replyTo.id || '', 60),
+        role: body.replyTo.role === 'assistant' ? 'assistant' : 'user',
+        snippet: cleanText(body.replyTo.snippet || '', 240)
+      }
+    : null;
+  const attachment = body?.attachment && typeof body.attachment === 'object' ? body.attachment : null;
 
   if (saveInsight) {
     if (!memoryKey) return res.status(400).json({ error: 'Missing memoryKey for saving insight.' });
@@ -1619,8 +1718,12 @@ export default async function handler(req, res) {
 
   const lastUserMsg = messages.filter(m => m.role === 'user').pop();
   if (!lastUserMsg) return res.status(400).json({ error: 'No user message found' });
-  const lastUserMessage = cleanText(getMessageText(lastUserMsg.content), 1200);
+  let lastUserMessage = cleanText(getMessageText(lastUserMsg.content), 1200);
   if (!lastUserMessage) return res.status(400).json({ error: 'Empty message' });
+  const parsedAttachment = await parseAttachmentPayload(attachment);
+  if (parsedAttachment?.summaryText) {
+    lastUserMessage = cleanText(`${lastUserMessage}\n${parsedAttachment.summaryText}`, 1700);
+  }
   const userLanguage = detectPrimaryLanguage(lastUserMessage);
 
   const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|scared|worried|anxious|frustrated|tired|burnout|give up|hopeless|stressed)\b/i.test(lastUserMessage);
@@ -1635,7 +1738,7 @@ export default async function handler(req, res) {
   const profileHasLocation = userProfile
     ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
     : false;
-  const fullConversationText = `${messages.map(m => getMessageText(m.content)).join(' ')} ${lastUserMessage}`;
+  const fullConversationText = `${messages.map(m => getMessageText(m.content)).join(' ')} ${lastUserMessage} ${parsedAttachment?.summaryText || ''}`;
 
   const persistFounderMemory = async (detectedInfo = null) => {
     if (!memoryKey) return;
@@ -2021,6 +2124,12 @@ Language/style:
 - Season: ${seasonalContext}
 - Quarter: Q${quarter}
 Use this awareness subtly — adjust your tone, urgency, and advice to match where the user actually is in their day, week, and business year. Never say "I notice it's morning" — just let it shape how you respond.`.trim();
+  const replyContext = replyTo?.snippet
+    ? `Reply context: The user is replying to a previous ${replyTo.role} message: "${replyTo.snippet}". Keep continuity and answer directly in that thread.`
+    : '';
+  const attachmentContext = parsedAttachment?.parsedText
+    ? `Attachment extracted text (truncated):\n${parsedAttachment.parsedText.slice(0, 9000)}`
+    : '';
 
   const systemPromptParts = [
     `You are NabadAI — not an assistant, not a chatbot, but a rare mind that sits at the intersection of business strategy, human psychology, and real-world execution. You have seen ideas become empires and watched promising businesses collapse from a single blind spot. You think in systems, patterns, and connections that most people miss.
@@ -2043,13 +2152,39 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     memoryContext,
     locationContext,
     websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
+    replyContext,
+    attachmentContext,
     toneInstruction
   ].filter(Boolean).join('\n');
 
   try {
+    const attachmentUserMessage = parsedAttachment
+      ? (
+        parsedAttachment.imageDataUrl
+          ? {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `${lastUserMessage}\nAnalyze the attached image and tie your feedback to this business context.`
+                },
+                {
+                  type: 'image_url',
+                  image_url: { url: parsedAttachment.imageDataUrl }
+                }
+              ]
+            }
+          : {
+              role: 'user',
+              content: `${lastUserMessage}\n${parsedAttachment.parsedText ? `Attached document content:\n${parsedAttachment.parsedText.slice(0, 9000)}` : `Attachment metadata: ${parsedAttachment.name}`}`
+            }
+      )
+      : null;
+
     const chatMessages = [
       { role: 'system', content: systemPromptParts },
-      ...messages.filter(m => m.role !== 'system')
+      ...messages.filter(m => m.role !== 'system'),
+      ...(attachmentUserMessage ? [attachmentUserMessage] : [])
     ];
     const temperature = personalityConfig.temperature || businessMode.temperature || 0.82;
     const maxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
@@ -2090,4 +2225,4 @@ console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
   }
 }
 
-export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
+export const config = { api: { bodyParser: { sizeLimit: '6mb' } } };
