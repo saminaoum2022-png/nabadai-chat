@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { createHash, randomBytes } from 'crypto';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -180,6 +181,16 @@ function cleanText(val = '', maxLen = 300) {
 function isValidEmail(value = '') {
   const v = String(value || '').trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+}
+function normalizeRecoveryCode(value = '') {
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+}
+function generateRecoveryCode() {
+  return randomBytes(4).toString('hex').toUpperCase();
+}
+function recoveryCodeHash(code = '') {
+  const pepper = process.env.NABAD_RECOVERY_PEPPER || process.env.OPENAI_API_KEY || 'nabad';
+  return createHash('sha256').update(`${normalizeRecoveryCode(code)}:${pepper}`).digest('hex');
 }
 function sanitizePromptText(text = '') {
   return text.replace(/[<>{}|\\^`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 900);
@@ -1389,43 +1400,67 @@ User message: "${userMessage}"`
 }
 
 // ── Personality Classifier ────────────────────────────────────────────────────
-async function classifyPersonality(userMessage = '', currentPersonality = 'auto', openaiClient) {
+async function classifyPersonality(userMessage = '', currentPersonality = 'auto', recentMessages = [], openaiClient) {
+  const fallback = { id: 'auto', confidence: 0.35, reason: 'fallback' };
   try {
+    const recent = recentMessages
+      .filter(m => m?.role === 'user')
+      .slice(-2)
+      .map(m => cleanText(getMessageText(m.content), 220))
+      .filter(Boolean)
+      .join(' || ');
+
     const resp = await openaiClient.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0,
-      max_tokens: 10,
+      max_tokens: 80,
       messages: [
         {
           role: 'system',
-          content: `You are a classifier. Reply with ONLY one word — the personality that best matches the user's message.
-
-Choose from: strategist, growth, branding, offer, creative, straight_talk, auto
+          content: `Classify the user's intent for personality routing.
+Return ONLY strict JSON:
+{"personality":"strategist|growth|branding|offer|creative|straight_talk|auto","confidence":0.0-1.0,"reason":"short"}
 
 Rules:
-- strategist → user is talking about competitive positioning, market strategy, long-term direction, pivoting, how to beat competitors
-- growth → user is talking about sales, revenue growth, getting more clients, marketing, conversion, funnels
-- branding → user is talking about brand identity, naming, logo, messaging, perception, how they look or sound
-- offer → user is talking about pricing, packaging, products, services, deals, monetization
-- creative → user wants something invented, reimagined, unconventional, bold ideas, something different
-- straight_talk → user is stuck, frustrated, venting, or asking for a direct opinion with no fluff
-- auto → message is vague, casual, emotional, or does not clearly fit any of the above
+- Use "auto" when mixed, vague, emotional, greeting, or not strong enough.
+- Do NOT switch on one keyword alone.
+- Confidence must represent switching confidence, not topic confidence.
+- Set confidence >= 0.85 only if intent is explicit and specific.
+- If uncertain, choose auto with <= 0.45 confidence.
+
+Personality definitions:
+- strategist: strategy, positioning, market choices, pivots, long-term decisions
+- growth: leads, marketing, sales pipeline, conversion, traction
+- branding: brand identity, naming, messaging, perception
+- offer: pricing, packaging, value proposition, monetization mechanics
+- creative: unconventional concepts, novel campaign/product angles
+- straight_talk: direct reality-check asked by user, strong frustration requiring blunt mode
 
 Current mode: ${currentPersonality}
-IMPORTANT: Only switch away from current mode if the new signal is CLEAR and STRONG.
-If the message is casual, greeting, vague, or emotional — return: auto
-
-User message: "${userMessage}"
-
-Reply with one word only:`
+Recent user context: "${recent || 'none'}"
+Current user message: "${cleanText(userMessage, 500)}"`
         }
       ]
     });
-    const raw = resp.choices?.[0]?.message?.content?.trim().toLowerCase();
+
+    const raw = resp.choices?.[0]?.message?.content?.trim() || '';
+    const parsed = tryParseJsonBlock(raw) || {};
     const valid = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'];
-    return valid.includes(raw) ? raw : 'auto';
+    const id = valid.includes(parsed.personality) ? parsed.personality : 'auto';
+    let confidence = Number(parsed.confidence);
+    if (!Number.isFinite(confidence)) confidence = id === 'auto' ? 0.35 : 0.55;
+    confidence = Math.max(0, Math.min(1, confidence));
+    const reason = cleanText(parsed.reason || 'model', 60) || 'model';
+
+    const msg = cleanText(userMessage, 220).toLowerCase();
+    const shortMessage = msg.split(/\s+/).filter(Boolean).length <= 4;
+    const emotional = /\b(stuck|lost|confused|overwhelmed|scared|worried|anxious|frustrated|tired|burnout|hopeless)\b/i.test(msg);
+    if (shortMessage && id !== 'auto') confidence = Math.min(confidence, 0.52);
+    if (emotional && id !== 'straight_talk') confidence = Math.min(confidence, 0.42);
+
+    return { id, confidence, reason };
   } catch {
-    return 'auto';
+    return fallback;
   }
 }
 
@@ -1446,11 +1481,14 @@ export default async function handler(req, res) {
   const storedFounderMemory = await loadFounderMemory(memoryKey);
   const claimEmail = cleanText(body?.claimEmail || '', 180).toLowerCase();
   const claimName = cleanText(body?.claimName || '', 120);
+  const restoreEmail = cleanText(body?.restoreEmail || '', 180).toLowerCase();
+  const restoreCode = normalizeRecoveryCode(body?.restoreCode || '');
 
   if (claimEmail || claimName) {
     if (!memoryKey) return res.status(400).json({ error: 'Missing memoryKey for account claim.' });
     if (!claimEmail) return res.status(400).json({ error: 'Email is required to claim account.' });
     if (!isValidEmail(claimEmail)) return res.status(400).json({ error: 'Please provide a valid email address.' });
+    const recoveryCode = generateRecoveryCode();
 
     const merged = mergeFounderMemory(storedFounderMemory || {}, {
       userProfile: cleanText(body?.userProfile || '', 700),
@@ -1462,6 +1500,7 @@ export default async function handler(req, res) {
         : {}),
       email: claimEmail,
       name: claimName || (storedFounderMemory?.account?.name || ''),
+      recoveryCodeHash: recoveryCodeHash(recoveryCode),
       claimedAt: new Date().toISOString()
     };
 
@@ -1469,8 +1508,59 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       claimed: true,
+      recoveryCode,
       reply: `Account claimed as ${claimEmail}.`
     });
+  }
+
+  if (restoreEmail || restoreCode) {
+    if (!restoreEmail || !restoreCode) {
+      return res.status(400).json({ error: 'Email and recovery code are required for restore.' });
+    }
+    if (!isValidEmail(restoreEmail)) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+    if (!supabase) {
+      return res.status(500).json({ error: 'Memory storage is not configured yet.' });
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from(FOUNDER_MEMORY_TABLE)
+        .select('memory_key,memory,updated_at')
+        .contains('memory', { account: { email: restoreEmail } })
+        .order('updated_at', { ascending: false })
+        .limit(12);
+
+      if (error) {
+        console.error('[MEMORY RESTORE ERROR]', error.message);
+        return res.status(500).json({ error: 'Could not restore memory right now.' });
+      }
+
+      const expectedHash = recoveryCodeHash(restoreCode);
+      const match = (data || []).find((row) => {
+        const hash = row?.memory?.account?.recoveryCodeHash || '';
+        return hash && hash === expectedHash;
+      });
+
+      if (!match) {
+        return res.status(401).json({ error: 'Invalid email or recovery code.' });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        restored: true,
+        memoryKey: match.memory_key,
+        memory: match.memory || {},
+        account: {
+          email: restoreEmail,
+          name: cleanText(match?.memory?.account?.name || '', 100)
+        }
+      });
+    } catch (err) {
+      console.error('[MEMORY RESTORE ERROR]', err?.message);
+      return res.status(500).json({ error: 'Could not restore memory right now.' });
+    }
   }
 
   const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
