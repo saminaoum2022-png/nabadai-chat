@@ -771,7 +771,8 @@ function showPersonalityPill(id) {
       .nabad-settings-row-icon svg,
       .nabad-path-icon svg,
       .nabad-speaker-btn svg,
-      .nabad-memory-btn svg {
+      .nabad-memory-btn svg,
+      .nabad-copy-btn svg {
         stroke: #2563eb !important;
         color: #2563eb !important;
       }
@@ -932,19 +933,15 @@ function showPersonalityPill(id) {
         width: 18px;
         height: 18px;
         border-radius: 999px;
-        font-size: 11px;
-        font-weight: 900;
+        background: linear-gradient(135deg, #2563eb, #06b6d4);
+        color: #fff;
         margin-bottom: 6px;
       }
 
-      .nabad-msg.user .nabad-reply-indicator {
-        background: rgba(255,255,255,0.2);
-        color: #fff;
-      }
-
-      .nabad-msg.bot .nabad-reply-indicator {
-        background: #eff6ff;
-        color: #2563eb;
+      .nabad-reply-indicator svg {
+        width: 11px;
+        height: 11px;
+        stroke: #fff !important;
       }
 
       .nabad-swipe-armed {
@@ -2858,6 +2855,26 @@ function showPersonalityPill(id) {
         background: rgba(34,197,94,0.08);
       }
 
+      .nabad-copy-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 8px;
+        padding: 4px 10px;
+        border: 1px solid rgba(37,99,235,0.15);
+        border-radius: 20px;
+        background: rgba(37,99,235,0.05);
+        color: #2563eb;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        gap: 5px;
+      }
+      .nabad-copy-btn:hover {
+        background: rgba(37,99,235,0.12);
+        border-color: rgba(37,99,235,0.3);
+      }
+
       .nabad-bubble button[data-nabad-action] {
         font-family: inherit;
       }
@@ -4139,23 +4156,7 @@ function finishOnboarding() {
     let swipeDx = 0;
     let swiping = false;
     let swipeArmed = false;
-    let pressTimer = null;
-
-    const onLongPress = () => setReplyTarget(target);
-    const clearPress = () => {
-      if (pressTimer) {
-        clearTimeout(pressTimer);
-        pressTimer = null;
-      }
-    };
-
-    bubble.addEventListener('mousedown', (e) => {
-      if (e.target && e.target.closest && e.target.closest('button,a,img,input,textarea')) return;
-      clearPress();
-      pressTimer = setTimeout(onLongPress, 420);
-    });
-    bubble.addEventListener('mouseup', clearPress);
-    bubble.addEventListener('mouseleave', clearPress);
+    let axisLock = '';
 
     bubble.addEventListener('touchstart', (e) => {
       const targetEl = e.target;
@@ -4167,9 +4168,8 @@ function finishOnboarding() {
       swipeDx = 0;
       swiping = false;
       swipeArmed = false;
+      axisLock = '';
       bubble.style.transition = '';
-      clearPress();
-      pressTimer = setTimeout(onLongPress, 420);
     }, { passive: true });
 
     bubble.addEventListener('touchmove', (e) => {
@@ -4177,12 +4177,15 @@ function finishOnboarding() {
       if (!t) return;
       const dx = t.clientX - touchStartX;
       const dy = t.clientY - touchStartY;
-      if (Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx)) {
-        clearPress();
+      if (!axisLock) {
+        if (Math.abs(dx) < 7 && Math.abs(dy) < 7) return;
+        axisLock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+      if (axisLock === 'y') {
         return;
       }
+      e.preventDefault();
       if (Math.abs(dx) < 8) return;
-      clearPress();
       swiping = true;
       swipeDx = dx;
       const max = 64;
@@ -4190,10 +4193,9 @@ function finishOnboarding() {
       bubble.style.transform = `translateX(${damped}px)`;
       bubble.classList.toggle('nabad-swipe-armed', Math.abs(damped) >= 34);
       swipeArmed = Math.abs(damped) >= 34;
-    }, { passive: true });
+    }, { passive: false });
 
     bubble.addEventListener('touchend', (e) => {
-      clearPress();
       if (swiping) {
         bubble.style.transition = 'transform 180ms ease, box-shadow 180ms ease';
         bubble.style.transform = 'translateX(0px)';
@@ -4205,15 +4207,10 @@ function finishOnboarding() {
         setTimeout(() => { bubble.style.transition = ''; }, 200);
         swiping = false;
         swipeArmed = false;
+        axisLock = '';
         return;
       }
-      const t = e.changedTouches?.[0];
-      if (!t) return;
-      const dx = t.clientX - touchStartX;
-      const dy = t.clientY - touchStartY;
-      if (Math.abs(dx) > 48 && Math.abs(dy) < 34) {
-        setReplyTarget(target);
-      }
+      axisLock = '';
     }, { passive: true });
   }
 
@@ -4231,7 +4228,7 @@ function finishOnboarding() {
     bubble.className = 'nabad-bubble';
 
     const replyQuoteHtml = replyTo
-      ? `<span class="nabad-reply-indicator" aria-hidden="true">↩</span><div class="nabad-reply-quote"><span class="label">${escapeHtml(buildReplyLabel(replyTo.role || 'assistant'))}</span><span class="snippet">${escapeHtml(replyTo.snippet || '')}</span></div>`
+      ? `<span class="nabad-reply-indicator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M20 19v-2a5 5 0 0 0-5-5H4"/></svg></span><div class="nabad-reply-quote"><span class="label">${escapeHtml(buildReplyLabel(replyTo.role || 'assistant'))}</span><span class="snippet">${escapeHtml(replyTo.snippet || '')}</span></div>`
       : '';
 
     if (isUser) {
@@ -4275,6 +4272,36 @@ function finishOnboarding() {
         }
       });
 
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'nabad-copy-btn';
+      copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      copyBtn.title = 'Copy message';
+      copyBtn.addEventListener('click', async () => {
+        const rawText = toPlainText(content).slice(0, 6000);
+        if (!rawText) return;
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(rawText);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = rawText;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+          }
+          copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+          copyBtn.title = 'Copied';
+          setTimeout(() => {
+            copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+            copyBtn.title = 'Copy message';
+          }, 1200);
+        } catch {}
+      });
+
       // ── Save to memory button ──
       const memoryBtn = document.createElement('button');
       memoryBtn.className = 'nabad-memory-btn';
@@ -4315,6 +4342,7 @@ function finishOnboarding() {
       const btnRow = document.createElement('div');
       btnRow.className = 'nabad-btn-row';
       btnRow.appendChild(speakerBtn);
+      btnRow.appendChild(copyBtn);
       btnRow.appendChild(memoryBtn);
       bubble.appendChild(btnRow);
     }
