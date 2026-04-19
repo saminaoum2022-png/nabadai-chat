@@ -2725,7 +2725,7 @@ function showPersonalityPill(id) {
         }
         scrollToBottom();
         if (refs.input) refs.input.focus();
-      }, 40);
+      }, 400);
     } else {
       releaseScrollLock();
     }
