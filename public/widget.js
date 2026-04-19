@@ -71,7 +71,8 @@
     onboarded:   `${CONFIG.storageNamespace}:onboarded`,
     memoryKey:   `${CONFIG.storageNamespace}:memoryKey`,
     accountClaim:`${CONFIG.storageNamespace}:accountClaim`,
-    autoDetect:  `${CONFIG.storageNamespace}:autoDetect`
+    autoDetect:  `${CONFIG.storageNamespace}:autoDetect`,
+    dailyFocusDate: `${CONFIG.storageNamespace}:dailyFocusDate`
   };
 
   const PERSONALITIES = [
@@ -98,19 +99,19 @@
   const ONBOARDING_PATHS = [
     {
       id: 'existing',
-      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
+      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
       title: 'I have a business',
       desc: 'Help me grow, fix problems, and scale it'
     },
     {
       id: 'idea',
-      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`,
+      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`,
       title: 'I have an idea',
       desc: 'Help me validate and build it from scratch'
     },
     {
       id: 'figuring',
-      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
+      icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
       title: "I'm still figuring it out",
       desc: 'Help me find the right direction for me'
     }
@@ -162,16 +163,19 @@
     onboardingPath: null,
     onboardingAnswers: {},
     briefShown: false,
+    dailyFocusDate: loadDailyFocusDate(),
     voiceMode: false,
     pushSubscription: null,
     personalityBuffer: null,
     personalityCount: 0,
-    personalityScore: 0
+    personalityScore: 0,
+    pendingAttachment: null
   };
 
   const refs = {
     root: null, launcher: null, panel: null,
     messages: null, input: null, send: null,
+    attach: null, fileInput: null, attachmentChip: null,
     badge: null, typing: null,
     lightbox: null, lightboxImg: null,
     lightboxSave: null, lightboxOpen: null, lightboxClose: null
@@ -299,6 +303,28 @@
     } catch {
       return `nabad_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     }
+  }
+
+  function getTodayKey() {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  }
+
+  function loadDailyFocusDate() {
+    try { return localStorage.getItem(STORAGE_KEYS.dailyFocusDate) || ''; }
+    catch { return ''; }
+  }
+
+  function saveDailyFocusDate(value = '') {
+    try {
+      if (!value) {
+        localStorage.removeItem(STORAGE_KEYS.dailyFocusDate);
+        return;
+      }
+      localStorage.setItem(STORAGE_KEYS.dailyFocusDate, value);
+    } catch {}
   }
 
   // ── UTILS ────────────────────────────────────────────────────
@@ -674,6 +700,18 @@ function showPersonalityPill(id) {
       }
 
       .nabad-icon-btn:hover { background: #fff; }
+
+      .nabad-icon-btn svg,
+      #nabad-attach svg,
+      #nabad-mic svg,
+      #nabad-settings-back svg,
+      .nabad-settings-row-icon svg,
+      .nabad-path-icon svg,
+      .nabad-speaker-btn svg,
+      .nabad-memory-btn svg {
+        stroke: #2563eb !important;
+        color: #2563eb !important;
+      }
 
       #nabad-selected-personality {
         display: none;
@@ -1183,6 +1221,25 @@ function showPersonalityPill(id) {
         overflow: visible;
       }
 
+      #nabad-attach {
+        width: 44px;
+        height: 44px;
+        border: none;
+        border-radius: 16px;
+        cursor: pointer;
+        background: rgba(37,99,235,0.08);
+        color: #2563eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: all 0.2s ease;
+      }
+
+      #nabad-attach:hover {
+        background: rgba(37,99,235,0.14);
+      }
+
       #nabad-input {
         flex: 1;
         resize: none;
@@ -1230,8 +1287,10 @@ function showPersonalityPill(id) {
       }
 
       #nabad-send:active,
+      #nabad-attach:active,
       #nabad-mic:active,
       #nabad-send.nabad-press,
+      #nabad-attach.nabad-press,
       #nabad-mic.nabad-press {
         transform: translateY(1px) scale(0.96);
       }
@@ -1553,8 +1612,8 @@ function showPersonalityPill(id) {
       }
 
       .nabad-bubble [data-nabad-card="offer"] {
-        background: linear-gradient(180deg, #fffbf0 0%, #ffffff 100%);
-        border: 1px solid rgba(234,179,8,0.22);
+        background: linear-gradient(180deg, #f7faff 0%, #ffffff 100%);
+        border: 1px solid rgba(37,99,235,0.14);
         border-radius: 18px;
         padding: 18px 16px;
         margin: -4px 0;
@@ -1574,7 +1633,7 @@ function showPersonalityPill(id) {
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.8px;
-        color: #92400e;
+        color: #1d4ed8;
         margin-bottom: 6px;
       }
 
@@ -1611,9 +1670,9 @@ function showPersonalityPill(id) {
       }
 
       .nabad-offer-tag.warning {
-        background: rgba(234,179,8,0.10);
-        color: #92400e;
-        border-color: rgba(234,179,8,0.22);
+        background: rgba(37,99,235,0.08);
+        color: #1e40af;
+        border-color: rgba(37,99,235,0.16);
       }
 
       .nabad-offer-divider {
@@ -1623,8 +1682,8 @@ function showPersonalityPill(id) {
       }
 
       .nabad-bubble [data-nabad-card="matrix"] {
-        background: linear-gradient(180deg, #fdf4ff 0%, #ffffff 100%);
-        border: 1px solid rgba(139,92,246,0.15);
+        background: linear-gradient(180deg, #f7faff 0%, #ffffff 100%);
+        border: 1px solid rgba(37,99,235,0.14);
         border-radius: 18px;
         padding: 18px 16px;
         margin: -4px 0;
@@ -1702,19 +1761,19 @@ function showPersonalityPill(id) {
       }
 
       .nabad-matrix-recommendation {
-        background: rgba(139,92,246,0.06);
-        border: 1px solid rgba(139,92,246,0.14);
+        background: rgba(37,99,235,0.06);
+        border: 1px solid rgba(37,99,235,0.14);
         border-radius: 12px;
         padding: 10px 12px;
         font-size: 13px;
-        color: #4c1d95;
+        color: #1e3a8a;
         line-height: 1.5;
         margin-top: 12px;
       }
 
       .nabad-bubble [data-nabad-card="action-plan"] {
-        background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
-        border: 1px solid rgba(34,197,94,0.15);
+        background: linear-gradient(180deg, #f7faff 0%, #ffffff 100%);
+        border: 1px solid rgba(37,99,235,0.14);
         border-radius: 18px;
         padding: 18px 16px;
         margin: -4px 0;
@@ -1878,6 +1937,7 @@ function showPersonalityPill(id) {
           padding: 11px 13px;
         }
         #nabad-send,
+        #nabad-attach,
         #nabad-mic {
           width: 42px;
           height: 42px;
@@ -2409,6 +2469,40 @@ function showPersonalityPill(id) {
         color: #fff;
         animation: nabadMicPulse 1s ease-in-out infinite;
       }
+
+      #nabad-attachment-chip {
+        margin-top: 8px;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 1px solid rgba(37,99,235,0.18);
+        background: #f8fbff;
+        border-radius: 12px;
+        padding: 8px 10px;
+      }
+
+      #nabad-attachment-chip.show {
+        display: flex;
+      }
+
+      #nabad-attachment-chip .nabad-attachment-label {
+        font-size: 12px;
+        color: #1e3a8a;
+        font-weight: 700;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #nabad-attachment-chip .nabad-attachment-clear {
+        border: none;
+        background: transparent;
+        color: #2563eb;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
       @keyframes nabadMicPulse {
         0%, 100% { box-shadow: 0 0 0 0px rgba(239,68,68,0.4); }
         50%       { box-shadow: 0 0 0 8px rgba(239,68,68,0.0); }
@@ -2563,6 +2657,48 @@ function showPersonalityPill(id) {
       .nabad-bubble button[data-nabad-action] {
         font-family: inherit;
       }
+
+      .nabad-image-choice-card {
+        background: linear-gradient(180deg, #f7faff 0%, #eef6ff 100%);
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 16px;
+        padding: 14px;
+        margin: 8px 0;
+        color: #0f172a;
+      }
+
+      .nabad-image-choice-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .nabad-image-choice-col {
+        background: #fff;
+        border: 1px solid rgba(37,99,235,0.12);
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .nabad-image-choice-col strong {
+        color: #1e3a8a;
+      }
+
+      .nabad-bubble button[data-nabad-action] {
+        border: 1px solid rgba(37,99,235,0.2) !important;
+        background: #fff !important;
+        color: #1e3a8a !important;
+        border-radius: 10px !important;
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+      }
+
+      .nabad-bubble button[data-nabad-action="image-premium"] {
+        background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
+        border-color: transparent !important;
+        color: #fff !important;
+      }
       
       /* ── Settings Page ── */
 #nabad-settings-page {
@@ -2685,7 +2821,7 @@ function showPersonalityPill(id) {
 }
 
 .nabad-settings-row-icon.red {
-  background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
 }
 
 .nabad-settings-row-label {
@@ -2901,6 +3037,11 @@ function showPersonalityPill(id) {
 
         <div id="nabad-input-wrap">
           <div id="nabad-input-row">
+            <button id="nabad-attach" type="button" aria-label="Attach file">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.44 11.05l-8.49 8.49a5 5 0 0 1-7.07-7.07l8.49-8.49a3.5 3.5 0 0 1 4.95 4.95L9.76 18.5a2 2 0 0 1-2.83-2.83l8.13-8.13"/>
+              </svg>
+            </button>
             <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
             <button id="nabad-mic" type="button" aria-label="Voice note">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2917,6 +3058,8 @@ function showPersonalityPill(id) {
               </svg>
             </button>
           </div>
+          <input id="nabad-file-input" type="file" hidden accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx" />
+          <div id="nabad-attachment-chip" aria-live="polite"></div>
         </div>
       </div>
 
@@ -2942,6 +3085,9 @@ function showPersonalityPill(id) {
     refs.messages      = root.querySelector('#nabad-messages');
     refs.input         = root.querySelector('#nabad-input');
     refs.send          = root.querySelector('#nabad-send');
+    refs.attach        = root.querySelector('#nabad-attach');
+    refs.fileInput     = root.querySelector('#nabad-file-input');
+    refs.attachmentChip = root.querySelector('#nabad-attachment-chip');
     refs.badge         = root.querySelector('#nabad-selected-personality');
     refs.typing        = root.querySelector('#nabad-typing');
     refs.lightbox      = root.querySelector('#nabad-lightbox');
@@ -2963,6 +3109,13 @@ function showPersonalityPill(id) {
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
     bindTapFeedback(root.querySelector('#nabad-send'));
+    if (refs.attach) {
+      bindTapFeedback(refs.attach);
+      refs.attach.addEventListener('click', () => refs.fileInput?.click());
+    }
+    if (refs.fileInput) {
+      refs.fileInput.addEventListener('change', handleAttachmentSelected);
+    }
 
     const mic = root.querySelector('#nabad-mic');
     if (mic) {
@@ -3114,18 +3267,21 @@ function showPersonalityPill(id) {
   }
 
   function shouldShowMorningBrief() {
-    return !state.briefShown;
+    if (state.messages.length) return false;
+    return state.dailyFocusDate !== getTodayKey();
   }
 
   async function showMorningBrief() {
     state.briefShown = true;
+    state.dailyFocusDate = getTodayKey();
+    saveDailyFocusDate(state.dailyFocusDate);
 
     refs.messages.innerHTML = `
       <div id="nabad-morning-brief">
         <div class="nabad-brief-hero">
           <div class="nabad-brief-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-          <div class="nabad-brief-title">☀️ Good morning</div>
-          <div class="nabad-brief-subtitle">Getting your brief ready...</div>
+          <div class="nabad-brief-title">☀️ Daily Focus</div>
+          <div class="nabad-brief-subtitle">Building today’s focus brief...</div>
         </div>
         <div class="nabad-brief-loading">
           <span class="nabad-dots"><span></span><span></span><span></span></span>
@@ -3156,7 +3312,7 @@ function showPersonalityPill(id) {
           messages: [
             {
               role: 'user',
-              content: `Generate a morning brief for this founder. Return ONLY valid JSON, no markdown, no explanation:
+              content: `Generate a daily focus brief for this founder. Return ONLY valid JSON, no markdown, no explanation:
 {
   "greeting": "personal one-line greeting using their name or business if known",
   "focus": "their single most important focus for today based on their profile and last conversation — 2 sentences max",
@@ -3192,7 +3348,7 @@ Time: ${hour}:00`
         <div id="nabad-morning-brief">
           <div class="nabad-brief-hero">
             <div class="nabad-brief-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-            <div class="nabad-brief-title">☀️ Morning Brief</div>
+            <div class="nabad-brief-title">☀️ Daily Focus</div>
             <div class="nabad-brief-greeting">${escapeHtml(brief?.greeting || "Good morning — here's your focus for today.")}</div>
           </div>
 
@@ -3615,6 +3771,90 @@ function finishOnboarding() {
       .replace(/\n/g, '<br>');
   }
 
+  function normalizeAssistantContent(content = '') {
+    return String(content || '')
+      .replace(/^\s*data-nabad-[^\n]*$/gmi, '')
+      .replace(/onerror="[^"]*"/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  function formatSize(bytes = 0) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '';
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  }
+
+  function clearPendingAttachment() {
+    state.pendingAttachment = null;
+    if (refs.attachmentChip) {
+      refs.attachmentChip.classList.remove('show');
+      refs.attachmentChip.innerHTML = '';
+    }
+    if (refs.fileInput) refs.fileInput.value = '';
+  }
+
+  function renderAttachmentChip() {
+    if (!refs.attachmentChip) return;
+    const file = state.pendingAttachment;
+    if (!file) {
+      refs.attachmentChip.classList.remove('show');
+      refs.attachmentChip.innerHTML = '';
+      return;
+    }
+    refs.attachmentChip.innerHTML = `
+      <span class="nabad-attachment-label">Attached: ${escapeHtml(file.name)} ${file.sizeLabel ? `(${escapeHtml(file.sizeLabel)})` : ''}</span>
+      <button type="button" class="nabad-attachment-clear">Remove</button>
+    `;
+    refs.attachmentChip.classList.add('show');
+    refs.attachmentChip.querySelector('.nabad-attachment-clear')?.addEventListener('click', clearPendingAttachment);
+  }
+
+  async function handleAttachmentSelected(e) {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+
+    const maxBytes = 850 * 1024;
+    if (file.size > maxBytes) {
+      renderMessage('assistant', '<p>⚠️ Keep files under 850KB for fast analysis. Please upload a smaller file.</p>');
+      clearPendingAttachment();
+      return;
+    }
+
+    const entry = {
+      name: file.name || 'attachment',
+      type: file.type || '',
+      size: file.size || 0,
+      sizeLabel: formatSize(file.size || 0)
+    };
+
+    try {
+      if (/^image\//i.test(file.type)) {
+        entry.kind = 'image';
+        entry.dataUrl = await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(String(fr.result || ''));
+          fr.onerror = reject;
+          fr.readAsDataURL(file);
+        });
+      } else if (/text|json|csv|markdown|md/i.test(file.type) || /\.(txt|md|json|csv)$/i.test(file.name || '')) {
+        entry.kind = 'text';
+        const raw = await file.text();
+        entry.text = cleanText(raw, 4200);
+      } else {
+        entry.kind = 'document';
+      }
+    } catch {
+      renderMessage('assistant', '<p>⚠️ Could not read that file. Please try another one.</p>');
+      clearPendingAttachment();
+      return;
+    }
+
+    state.pendingAttachment = entry;
+    renderAttachmentChip();
+  }
+
   // ── RENDER MESSAGE ────────────────────────────────────────────
   function renderMessage(role, content, persist = true) {
     document.getElementById('nabad-input-wrap').style.display = 'flex';
@@ -3629,7 +3869,7 @@ function finishOnboarding() {
       bubble.innerHTML = `<p>${escapeHtml(String(content || '')).replace(/\n/g, '<br>')}</p>`;
     } else {
       bubble.innerHTML = sanitizeHtml(
-        markdownToHtml(String(content || '<p>Sorry — I could not generate a response.</p>'))
+        markdownToHtml(normalizeAssistantContent(String(content || '<p>Sorry — I could not generate a response.</p>')))
       );
       bubble.classList.add('nabad-reply-pop');
       bubble.addEventListener('animationend', () => {
@@ -3687,7 +3927,7 @@ function finishOnboarding() {
           insights.push({ text: clean, date: new Date().toLocaleDateString() });
           localStorage.setItem('nabad_insights', JSON.stringify(insights.slice(-40)));
 
-          memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+          memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
           memoryBtn.dataset.saved = 'true';
           memoryBtn.title = 'Saved to memory!';
 
@@ -3831,15 +4071,21 @@ function finishOnboarding() {
   async function sendMessage() {
     if (state.sending) return;
     const text = (refs.input.value || '').trim();
-    if (!text) return;
+    const attachment = state.pendingAttachment;
+    if (!text && !attachment) return;
 
     refs.input.value = '';
     refs.input.style.height = 'auto';
     _lastScrollHeight = 0;
+    clearPendingAttachment();
     state.sending = true;
     refs.send.disabled = true;
 
-    renderMessage('user', text);
+    const userPreview = [text];
+    if (attachment) {
+      userPreview.push(`[Attached ${attachment.kind || 'file'}: ${attachment.name}]`);
+    }
+    renderMessage('user', userPreview.filter(Boolean).join('\n'));
 
     // Logo "thinking" animation
     const logo = document.getElementById('nabad-logo');
@@ -3854,12 +4100,32 @@ function finishOnboarding() {
     try {
       const profile  = buildProfileSummary();
       const history  = state.messages.slice(-50).map(m => ({ role: m.role, content: m.content }));
+      let contentForApi = text;
+
+      if (attachment) {
+        const attachmentPrompt =
+          `${text ? `${text}\n\n` : ''}A file was attached by the user (${attachment.name}). ` +
+          `Analyze it deeply. If this attachment is unrelated to the current business context, say that clearly and briefly.`;
+
+        if (attachment.kind === 'image' && attachment.dataUrl) {
+          contentForApi = [
+            { type: 'text', text: attachmentPrompt },
+            { type: 'image_url', image_url: { url: attachment.dataUrl } }
+          ];
+        } else if (attachment.kind === 'text' && attachment.text) {
+          contentForApi = `${attachmentPrompt}\n\nAttachment text:\n${attachment.text}`;
+        } else {
+          contentForApi = `${attachmentPrompt}\n\nAttachment metadata: type=${attachment.type || 'unknown'}, size=${attachment.sizeLabel || 'unknown'}.`;
+        }
+      }
+
+      const outboundMessages = [...history, { role: 'user', content: contentForApi }];
 
       const resp = await fetch(CONFIG.apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages:    history,
+          messages:    outboundMessages,
           personality: state.autoDetectMode ? 'auto' : state.personality,
           userProfile: profile,
           memoryKey: getMemoryKey()
@@ -4760,7 +5026,10 @@ function openSettingsPage() {
         <span></span><span></span><span></span><span></span><span></span>
       </div> Stop`;
 
-    currentAudio.play();
+    const playPromise = currentAudio.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      await playPromise;
+    }
 
     currentAudio.onended = () => {
       URL.revokeObjectURL(url);
@@ -4777,6 +5046,9 @@ function openSettingsPage() {
 
   } catch (err) {
     console.error('[NABAD] TTS error:', err);
+    if (String(err?.message || '').toLowerCase().includes('play')) {
+      renderMessage('assistant', '<p>🔊 Tap the speaker again to allow audio playback in this browser tab.</p>');
+    }
     btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
     btn.classList.remove('playing');
   }
