@@ -62,7 +62,8 @@
     personality: `${CONFIG.storageNamespace}:personality`,
     userProfile: `${CONFIG.storageNamespace}:userProfile`,
     onboarded:   `${CONFIG.storageNamespace}:onboarded`,
-    memoryKey:   `${CONFIG.storageNamespace}:memoryKey`
+    memoryKey:   `${CONFIG.storageNamespace}:memoryKey`,
+    accountClaim:`${CONFIG.storageNamespace}:accountClaim`
   };
 
   const PERSONALITIES = [
@@ -138,6 +139,7 @@
     personalityChosen: !!loadPersonality(),
     onboarded: loadOnboarded(),
     userProfile: loadUserProfile(),
+    claimedAccount: loadAccountClaim(),
     onboardingPath: null,
     onboardingAnswers: {},
     briefShown: false,
@@ -216,6 +218,38 @@
     } catch {}
   }
 
+  function loadAccountClaim() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.accountClaim);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (!parsed || typeof parsed !== 'object') return null;
+      const email = cleanText(parsed.email || '', 180);
+      const name = cleanText(parsed.name || '', 100);
+      if (!email) return null;
+      return {
+        email: email.toLowerCase(),
+        name,
+        claimedAt: cleanText(parsed.claimedAt || '', 64)
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function saveAccountClaim(claim = null) {
+    try {
+      if (!claim || !claim.email) {
+        localStorage.removeItem(STORAGE_KEYS.accountClaim);
+        return;
+      }
+      localStorage.setItem(STORAGE_KEYS.accountClaim, JSON.stringify({
+        email: String(claim.email).toLowerCase(),
+        name: cleanText(claim.name || '', 100),
+        claimedAt: cleanText(claim.claimedAt || new Date().toISOString(), 64)
+      }));
+    } catch {}
+  }
+
   function getMemoryKey() {
     try {
       const existing = localStorage.getItem(STORAGE_KEYS.memoryKey);
@@ -287,6 +321,10 @@
     if (p.problems)         parts.push(`Problems noticed: ${p.problems}`);
     if (p.preference)       parts.push(`Preference: ${p.preference}`);
     if (p.timeCommitment)   parts.push(`Time available: ${p.timeCommitment}`);
+    if (p.country)          parts.push(`Country: ${p.country}`);
+    if (p.industry)         parts.push(`Industry: ${p.industry}`);
+    if (p.stage)            parts.push(`Stage: ${p.stage}`);
+    if (p.mainGoal)         parts.push(`Main goal: ${p.mainGoal}`);
     return parts.join(' | ');
   }
 
@@ -4110,6 +4148,30 @@ function openSettingsPage() {
             </div>
             <span class="nabad-settings-row-arrow">›</span>
           </div>
+          <div class="nabad-settings-row" id="nabad-set-profile">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon">🧾</div>
+              <div>
+                <div class="nabad-settings-row-label">Business Profile</div>
+                <div class="nabad-settings-row-desc">Edit country, industry, stage, and main goal</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
+          <div class="nabad-settings-row" id="nabad-set-account">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon">🔐</div>
+              <div>
+                <div class="nabad-settings-row-label">Account</div>
+                <div class="nabad-settings-row-desc">${
+                  state.claimedAccount?.email
+                    ? `Claimed as ${escapeHtml(state.claimedAccount.email)}`
+                    : 'Claim your memory with email'
+                }</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
           <div class="nabad-settings-row" id="nabad-set-warroom">
             <div class="nabad-settings-row-left">
               <div class="nabad-settings-row-icon">⚔️</div>
@@ -4204,6 +4266,12 @@ function openSettingsPage() {
   page.querySelector('#nabad-set-memory').addEventListener('click', () => {
     closeSettings(); setTimeout(() => showMemoryScreen(), 360);
   });
+  page.querySelector('#nabad-set-profile').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => showProfileEditorScreen(), 360);
+  });
+  page.querySelector('#nabad-set-account').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => showAccountClaimScreen(), 360);
+  });
   page.querySelector('#nabad-set-warroom').addEventListener('click', () => {
     closeSettings(); setTimeout(() => openWarRoom(''), 360);
   });
@@ -4220,6 +4288,7 @@ function openSettingsPage() {
         state.personalityChosen = false;
         state.onboarded         = false;
         state.userProfile       = {};
+        state.claimedAccount    = null;
         state.briefShown        = false;
         state.personalityBuffer = null;
         state.personalityCount  = 0;
@@ -4234,11 +4303,160 @@ function openSettingsPage() {
   });
 }
 
+  // ── PROFILE SCREEN ────────────────────────────────────────────
+  function showProfileEditorScreen() {
+    document.getElementById('nabad-input-wrap').style.display = 'none';
+    const profile = state.userProfile || {};
+
+    refs.messages.innerHTML = `
+      <div id="nabad-onboarding">
+        <h3>🧾 Business Profile</h3>
+        <p>Keep this updated so Nabad gives sharper plans, legal guidance, and market context.</p>
+
+        <div class="nabad-questions-form">
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Business / Project Name</label>
+            <input class="nabad-question-input" id="nabad-profile-business" placeholder="e.g. NabadAi Studio" value="${escapeHtml(profile.businessName || '')}" />
+          </div>
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Country</label>
+            <input class="nabad-question-input" id="nabad-profile-country" placeholder="e.g. UAE, Saudi Arabia, USA" value="${escapeHtml(profile.country || '')}" />
+          </div>
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Industry</label>
+            <input class="nabad-question-input" id="nabad-profile-industry" placeholder="e.g. Marketing agency, SaaS, eCommerce" value="${escapeHtml(profile.industry || '')}" />
+          </div>
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Stage</label>
+            <input class="nabad-question-input" id="nabad-profile-stage" placeholder="e.g. Idea, early revenue, scaling" value="${escapeHtml(profile.stage || '')}" />
+          </div>
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Main Goal (next 90 days)</label>
+            <input class="nabad-question-input" id="nabad-profile-goal" placeholder="e.g. Reach $10k MRR / Launch MVP / Expand to KSA" value="${escapeHtml(profile.mainGoal || '')}" />
+          </div>
+        </div>
+
+        <button class="nabad-ob-btn" id="nabad-profile-save" type="button">Save Profile</button>
+        <button class="nabad-ob-back" id="nabad-profile-back" type="button">← Back to chat</button>
+      </div>
+    `;
+
+    refs.messages.querySelector('#nabad-profile-back')
+      .addEventListener('click', backToChat);
+
+    refs.messages.querySelector('#nabad-profile-save')
+      .addEventListener('click', () => {
+        const nextProfile = {
+          ...state.userProfile,
+          businessName: (refs.messages.querySelector('#nabad-profile-business')?.value || '').trim(),
+          country:      (refs.messages.querySelector('#nabad-profile-country')?.value || '').trim(),
+          industry:     (refs.messages.querySelector('#nabad-profile-industry')?.value || '').trim(),
+          stage:        (refs.messages.querySelector('#nabad-profile-stage')?.value || '').trim(),
+          mainGoal:     (refs.messages.querySelector('#nabad-profile-goal')?.value || '').trim()
+        };
+
+        Object.keys(nextProfile).forEach((k) => {
+          if (typeof nextProfile[k] === 'string' && !nextProfile[k].trim()) delete nextProfile[k];
+        });
+
+        state.userProfile = nextProfile;
+        saveUserProfile(state.userProfile);
+        renderMessage('assistant', '<p>✅ Profile updated. I will use this context in every answer.</p>');
+        backToChat();
+      });
+
+    scrollToBottom();
+  }
+
+  // ── ACCOUNT CLAIM SCREEN ─────────────────────────────────────
+  function showAccountClaimScreen() {
+    document.getElementById('nabad-input-wrap').style.display = 'none';
+    const account = state.claimedAccount || {};
+    const claimedText = account.email
+      ? `<p style="margin-top:0;color:#0f766e;font-size:13px;background:#ecfeff;border:1px solid rgba(6,182,212,0.25);padding:10px 12px;border-radius:12px;">Currently claimed as <strong>${escapeHtml(account.email)}</strong>.</p>`
+      : '';
+
+    refs.messages.innerHTML = `
+      <div id="nabad-onboarding">
+        <h3>🔐 Claim Your Account</h3>
+        <p>Link this memory to your email so you can keep your business context safely tied to you.</p>
+        ${claimedText}
+
+        <div class="nabad-questions-form">
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Your Name (optional)</label>
+            <input class="nabad-question-input" id="nabad-claim-name" placeholder="e.g. Samy" value="${escapeHtml(account.name || '')}" />
+          </div>
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Email</label>
+            <input class="nabad-question-input" id="nabad-claim-email" placeholder="you@company.com" value="${escapeHtml(account.email || '')}" />
+          </div>
+        </div>
+
+        <button class="nabad-ob-btn" id="nabad-claim-save" type="button">${account.email ? 'Update Claim' : 'Claim Account'}</button>
+        <button class="nabad-ob-back" id="nabad-claim-back" type="button">← Back to chat</button>
+      </div>
+    `;
+
+    refs.messages.querySelector('#nabad-claim-back')
+      .addEventListener('click', backToChat);
+
+    refs.messages.querySelector('#nabad-claim-save')
+      .addEventListener('click', async () => {
+        const name = (refs.messages.querySelector('#nabad-claim-name')?.value || '').trim();
+        const email = (refs.messages.querySelector('#nabad-claim-email')?.value || '').trim().toLowerCase();
+        if (!email) {
+          alert('Please enter your email.');
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+          alert('Please enter a valid email.');
+          return;
+        }
+
+        const btn = refs.messages.querySelector('#nabad-claim-save');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+          const resp = await fetch(CONFIG.apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              claimName: name,
+              claimEmail: email,
+              memoryKey: getMemoryKey(),
+              userProfile: buildProfileSummary()
+            })
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+
+          state.claimedAccount = {
+            email,
+            name,
+            claimedAt: new Date().toISOString()
+          };
+          saveAccountClaim(state.claimedAccount);
+
+          renderMessage('assistant', `<p>✅ Account claimed as <strong>${escapeHtml(email)}</strong>. Your memory is now linked.</p>`);
+          backToChat();
+        } catch (err) {
+          alert(err?.message || 'Could not save claim right now. Please try again.');
+          btn.disabled = false;
+          btn.textContent = account.email ? 'Update Claim' : 'Claim Account';
+        }
+      });
+
+    scrollToBottom();
+  }
+
   // ── MEMORY SCREEN ─────────────────────────────────────────────
   function showMemoryScreen() {
     document.getElementById('nabad-input-wrap').style.display = 'none';
     const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
     const profile  = state.userProfile || {};
+    const account  = state.claimedAccount || null;
 
     refs.messages.innerHTML = `
       <div id="nabad-onboarding">
@@ -4256,6 +4474,15 @@ function openSettingsPage() {
                   ${escapeHtml(String(v))}
                 </div>
               `).join('')}
+          </div>
+        ` : ''}
+
+        ${account?.email ? `
+          <div style="margin-bottom:16px;">
+            <div class="nabad-brief-card-label" style="margin-bottom:8px;">🔐 Account Claim</div>
+            <div style="padding:8px 12px;background:#ecfeff;border-radius:10px;border:1px solid rgba(6,182,212,0.22);font-size:13px;color:#0f766e;">
+              Linked email: <strong>${escapeHtml(account.email)}</strong>${account.name ? ` (${escapeHtml(account.name)})` : ''}
+            </div>
           </div>
         ` : ''}
 
