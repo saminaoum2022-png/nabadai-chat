@@ -2873,7 +2873,7 @@ function showPersonalityPill(id) {
           </div>
           <div id="nabad-header-actions">
             <button class="nabad-icon-btn" id="nabad-new-chat" type="button" title="Settings">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.5"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .16 1.7 1.7 0 0 0-.99 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-.99-1.55A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.16-1 1.7 1.7 0 0 0-1.55-.99H2.8a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.44 8a1.7 1.7 0 0 0 .16-1A1.7 1.7 0 0 0 4.26 5.1l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.16 1.7 1.7 0 0 0 .99-1.55V2.8a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 .99 1.55A1.7 1.7 0 0 0 17 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c0 .35.06.69.16 1 .26.6.85.99 1.51.99h.13a2 2 0 1 1 0 4h-.13c-.66 0-1.25.39-1.51.99-.1.31-.16.65-.16 1z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="11" cy="17" r="1.8"/></svg>
             </button>
             <button class="nabad-icon-btn nabad-desktop-only" id="nabad-close" type="button" title="Close">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
@@ -3601,11 +3601,10 @@ function finishOnboarding() {
     return wrap;
   }
 
-  function removePlaceholder(placeholder) {
+  function clearPlaceholderTimer(placeholder) {
     if (!placeholder) return;
     const id = placeholder.dataset.intervalId;
     if (id) clearInterval(Number(id));
-    placeholder.remove();
   }
 
   function markdownToHtml(text) {
@@ -3740,7 +3739,7 @@ function finishOnboarding() {
         realImg.alt   = prompt || 'Generated image';
         realImg.title = 'Click to enlarge';
         realImg.addEventListener('click', () => openImageLightbox(src));
-        removePlaceholder(placeholder);
+        clearPlaceholderTimer(placeholder);
         placeholder.replaceWith(realImg);
         scrollToBottom();
       };
@@ -3748,14 +3747,14 @@ function finishOnboarding() {
         const errMsg = document.createElement('p');
         errMsg.style.cssText = 'color:#ef4444;font-size:13px;margin:6px 0;';
         errMsg.textContent = '⚠️ Image could not be loaded.';
-        removePlaceholder(placeholder);
+        clearPlaceholderTimer(placeholder);
         placeholder.replaceWith(errMsg);
       };
       realImg.src = src;
     });
 
     // Regular images — add lightbox click
-    bubble.querySelectorAll('img:not([data-nabad-source])').forEach(img => {
+    bubble.querySelectorAll('img:not(.nabad-gen-image)').forEach(img => {
       img.style.cursor = 'zoom-in';
       img.addEventListener('click', () => openImageLightbox(img.src));
     });
@@ -3927,11 +3926,11 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
             state.personalityScore = confidence;
           }
 
-          const threshold = state.personality === 'auto' ? 1.05 : 1.35;
-          const canStrongSwitch = confidence >= 0.86 && userMsgCount >= 1;
+          const threshold = state.personality === 'auto' ? 0.72 : 0.95;
+          const canStrongSwitch = confidence >= 0.74 && userMsgCount >= 1;
           const canStickySwitch =
-            userMsgCount >= 2 &&
-            state.personalityCount >= 2 &&
+            userMsgCount >= 1 &&
+            state.personalityCount >= 1 &&
             state.personalityScore >= threshold;
 
           if ((canStrongSwitch || canStickySwitch) && detected !== state.personality) {
