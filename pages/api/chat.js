@@ -1021,9 +1021,10 @@ function buildSnapshotCard(data = {}, location = '') {
 
 // ── Nabad Score ───────────────────────────────────────────────────────────────
 function isIdeaScoringRequest(text = '') {
-  return /\b(score|rate|evaluate|assess|rank|grade|analyse|analyze)\b.{0,40}\b(idea|concept|business|startup|this|it)\b/i.test(text)
-    || /\b(how (good|strong|viable|solid) is)\b.{0,30}\b(idea|concept|business|this)\b/i.test(text)
-    || /\bnabad score\b/i.test(text);
+  const t = String(text || '').toLowerCase();
+  return /\b(nabad score|score card|scorecard)\b/.test(t)
+    || /\b(score|rate|rating|rank|grade)\b.{0,40}\b(idea|concept|business|startup)\b/.test(t)
+    || /\b(give me|show me|create|build)\b.{0,40}\b(score|rating|score card|scorecard)\b/.test(t);
 }
 async function generateNabadScore(messages = [], openaiClient) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
