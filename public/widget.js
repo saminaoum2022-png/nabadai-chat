@@ -34,8 +34,7 @@
     ],
     ALLOWED_ATTR: [
       'href','src','alt','target','rel','class','style',
-      'data-nabad-card','data-nabad-brief','data-nabad-source',
-      'data-nabad-model',
+      'data-nabad-card','data-nabad-brief',
       'data-score','data-quadrant','data-nabad-action'
     ]
   };
@@ -3726,10 +3725,10 @@ function finishOnboarding() {
     });
 
     // Image placeholders
-    bubble.querySelectorAll('img[data-nabad-source]').forEach(img => {
-      const src    = img.getAttribute('data-nabad-source') || img.src;
-      const model  = img.getAttribute('data-nabad-model')  || 'pollinations';
+    bubble.querySelectorAll('img.nabad-gen-image').forEach(img => {
+      const src = img.src || '';
       const prompt = img.alt || '';
+      if (!src) return;
 
       const placeholder = createImagePlaceholder();
       img.replaceWith(placeholder);
