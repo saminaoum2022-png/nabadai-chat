@@ -182,6 +182,14 @@ function isValidEmail(value = '') {
   const v = String(value || '').trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
 }
+function detectPrimaryLanguage(text = '') {
+  const sample = String(text || '');
+  const arabicCount = (sample.match(/[\u0600-\u06FF]/g) || []).length;
+  const latinCount = (sample.match(/[A-Za-z]/g) || []).length;
+  if (arabicCount > latinCount * 1.2) return 'ar';
+  if (latinCount > arabicCount * 1.2) return 'en';
+  return 'en';
+}
 function normalizeRecoveryCode(value = '') {
   return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
 }
@@ -285,12 +293,16 @@ function isImageQualityComplaint(text = '') {
   return /\b(fix\s*(the\s*)?text|text\s*(is\s*)?(wrong|broken|off|bad|blurry)|wrong\s*text|fix\s*(the\s*)?spelling|spelling\s*(is\s*)?wrong)\b/i.test(text)
     || /\b(bad\s*(quality|image|photo|result)|not\s*good|looks\s*(bad|terrible|wrong|off)|better\s*quality|higher\s*quality|sharper|cleaner)\b/i.test(text)
     || /\b(upgrade\s*(the\s*)?image|use\s*(ideogram|premium|better\s*(model|ai|generator))|switch\s*to\s*(ideogram|premium))\b/i.test(text)
-    || /\b(change\s*(the\s*)?(font|typography|text\s*style)|different\s*font|new\s*font)\b/i.test(text)
+    || /\b(change\s*(the\s*)?(font|typography|text\s*style)|different\s*font|new\s*font|better\s*text|text\s*generation)\b/i.test(text)
     || /\b(didn['']?t|didnt|dont|don['']?t)\s*like\s*(the\s*)?(text|font|logo|image|result|design)\b/i.test(text);
 }
 
 function isPremiumImageConfirmation(text = '') {
-  return /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium)\b/i.test(text);
+  return /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium|better\s*text|text\s*generation|fix\s*text)\b/i.test(text);
+}
+
+function isDirectPremiumTextRequest(text = '') {
+  return /\b(better\s*text|fix\s*text|text\s*generation|spelling|exact\s*text|correct\s*text)\b/i.test(text);
 }
 
 function buildPremiumUpgradeOffer(lastPrompt = '') {
@@ -329,7 +341,9 @@ function buildPremiumImageReply(imageUrl = '', prompt = '', imageType = 'image')
   return `<p><strong>${label}</strong> <span style="font-size:11px;opacity:.6;background:rgba(168,85,247,.2);padding:2px 8px;border-radius:99px;color:#a855f7">✨ Premium</span></p>
 <div class="nabad-image-wrap">
   <img src="${imageUrl}" alt="${escapeHtml(prompt.slice(0, 100))}" class="nabad-gen-image" loading="lazy"
-    onerror="this.parentElement.innerHTML='<p style=color:#e74c3c>Image failed to load — try again.</p>'" />
+    data-nabad-source="${escapeHtml(imageUrl)}"
+    data-nabad-model="ideogram"
+    data-nabad-prompt="${escapeHtml(prompt.slice(0, 240))}" />
   ${shortCaption ? `<p class="nabad-image-caption">✨ ${escapeHtml(shortCaption)}</p>` : ''}
 </div>`;
 }
@@ -431,7 +445,9 @@ function buildPollinationsImageHtml(imageUrl = '', altText = '', caption = '') {
   const shortCaption = caption.length > 60 ? caption.slice(0, 57) + '...' : caption;
   return `<div class="nabad-image-wrap">
     <img src="${imageUrl}" alt="${escapeHtml(altText.slice(0, 100))}" class="nabad-gen-image" loading="lazy"
-      onerror="this.parentElement.innerHTML='<p style=color:#e74c3c>Image generation failed — try again.</p>'" />
+      data-nabad-source="${escapeHtml(imageUrl)}"
+      data-nabad-model="pollinations"
+      data-nabad-prompt="${escapeHtml(altText.slice(0, 240))}" />
     ${shortCaption ? `<p class="nabad-image-caption">✨ ${escapeHtml(shortCaption)}</p>` : ''}
   </div>`;
 }
@@ -1573,6 +1589,7 @@ export default async function handler(req, res) {
   if (!lastUserMsg) return res.status(400).json({ error: 'No user message found' });
   const lastUserMessage = cleanText(getMessageText(lastUserMsg.content), 1200);
   if (!lastUserMessage) return res.status(400).json({ error: 'Empty message' });
+  const userLanguage = detectPrimaryLanguage(lastUserMessage);
 
   const isEmotional = /\b(stuck|lost|confused|don't know|dont know|overwhelmed|scared|worried|anxious|frustrated|tired|burnout|give up|hopeless|stressed)\b/i.test(lastUserMessage);
   const selectedPersonality = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'].includes(body?.personality)
@@ -1651,7 +1668,7 @@ export default async function handler(req, res) {
 
   // ── Premium image via yes ──
   const upgradeVeryRecent = upgradeCardRecentlyShown(messages, 2);
-  const explicitPremiumIntent = /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium)\b/i.test(lastUserMessage);
+  const explicitPremiumIntent = /\b(use\s*(ideogram|premium|better)|yes\s*(ideogram|premium|upgrade|better)|switch\s*to\s*(ideogram|premium)|upgrade\s*image|yes\s*upgrade|go\s*premium|use\s*premium|better\s*text|text\s*generation|fix\s*text)\b/i.test(lastUserMessage);
 
   if (
     (explicitPremiumIntent || (YES_PATTERN.test(lastUserMessage.trim()) && upgradeVeryRecent)) &&
@@ -1668,6 +1685,24 @@ export default async function handler(req, res) {
       return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[IDEOGRAM ERROR]', err?.message);
+      return res.status(200).json({
+        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`,
+        detectedPersonality: 'auto'
+      });
+    }
+  }
+
+  // ── Direct premium for text-fix image requests ──
+  if (isDirectPremiumTextRequest(lastUserMessage) && conversationRecentlyHadImage(messages)) {
+    try {
+      const lastMeta = extractLastImageMeta(messages);
+      const basePrompt = lastMeta?.prompt || lastUserMessage;
+      const prompt = enrichImagePrompt(basePrompt, detectImageType(basePrompt));
+      const ideogramUrl = await generateWithIdeogram(prompt);
+      const imageType = detectImageType(prompt);
+      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
+    } catch (err) {
+      console.error('[DIRECT PREMIUM ERROR]', err?.message);
       return res.status(200).json({
         reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`,
         detectedPersonality: 'auto'
@@ -1888,7 +1923,8 @@ End-to-end scope:
 - Never pretend to be a licensed lawyer. State that legal output is strategic guidance and recommend local licensed validation for filing/risk decisions.
 
 Language/style:
-- Match user language (Arabic/English) naturally.
+- Always reply in the same language as the user's latest message.
+- Do not auto-switch language unless the user explicitly asks.
 - Keep answers concise, sharp, and human.
 - No markdown. HTML only.
 - Use <p> for normal replies.
@@ -1959,6 +1995,9 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
 
 
     timingIntelligence,
+    userLanguage === 'ar'
+      ? 'Language lock: Respond in Arabic only unless the user explicitly asks for another language.'
+      : 'Language lock: Respond in English only unless the user explicitly asks for another language.',
     (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
     userProfile ? `Founder profile (collected during onboarding — treat this as things you already know about them, reference naturally in conversation without repeating it back verbatim, and build on it rather than asking again):\n${userProfile}` : '',
