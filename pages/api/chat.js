@@ -1987,10 +1987,11 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     const rawReply = completion.choices?.[0]?.message?.content || '';
 
     // ── Run all three classifiers in parallel ──────────────────
-    const [detectedInfo, suggestWarRoom, detectedPersonality] = await Promise.all([
+    const [detectedInfo, suggestWarRoom, personalitySignal] = await Promise.all([
       detectMeaningfulInfo(lastUserMessage, openai).catch(() => null),
       detectWarRoom(lastUserMessage, messages, userProfile || '', openai).catch(() => false),
-      classifyPersonality(lastUserMessage, 'auto', openai).catch(() => 'auto')
+      classifyPersonality(lastUserMessage, selectedPersonality, messages, openai)
+        .catch(() => ({ id: 'auto', confidence: 0.35, reason: 'fallback' }))
     ]);
 
 console.log('[NABAD DEBUG] detectedInfo:', JSON.stringify(detectedInfo));
@@ -2001,7 +2002,9 @@ console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
       reply: ensureHtmlReply(rawReply),
       detectedInfo,
       suggestWarRoom,
-      detectedPersonality
+      detectedPersonality: personalitySignal?.id || 'auto',
+      detectedPersonalityConfidence: Number(personalitySignal?.confidence ?? 0.35),
+      detectedPersonalityReason: personalitySignal?.reason || ''
     });
 
   } catch (err) {
