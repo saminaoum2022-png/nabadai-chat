@@ -1,6 +1,12 @@
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 
 const ALLOWED_ORIGINS = [
   'https://nabadai.com',
@@ -49,6 +55,114 @@ function isRateLimited(ip = '') {
 }
 
 const SHOW_IMAGE_DEBUG = false;
+const FOUNDER_MEMORY_TABLE = 'founder_memory';
+
+function normalizeMemoryKey(raw = '') {
+  return String(raw || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9:_\-\.]/g, '')
+    .slice(0, 120);
+}
+
+function inferStageFromText(text = '') {
+  const t = text.toLowerCase();
+  if (/\b(idea|pre-launch|prelaunch|still figuring|validation)\b/.test(t)) return 'idea';
+  if (/\b(just started|new business|first clients|first sales|early stage)\b/.test(t)) return 'early';
+  if (/\b(growing|scale|scaling|expanding|team)\b/.test(t)) return 'growing';
+  if (/\b(established|mature|multi-?country|enterprise)\b/.test(t)) return 'scaling';
+  return '';
+}
+
+function inferBottleneckFromText(text = '') {
+  const t = text.toLowerCase();
+  if (/\b(no clients|not enough clients|lead|traffic|acquisition)\b/.test(t)) return 'acquisition';
+  if (/\b(conversion|closing|sales|offer not converting)\b/.test(t)) return 'conversion';
+  if (/\b(cash flow|profit|margin|pricing)\b/.test(t)) return 'unit_economics';
+  if (/\b(team|hiring|operations|delivery)\b/.test(t)) return 'operations';
+  if (/\b(positioning|brand|messaging|differentiation)\b/.test(t)) return 'positioning';
+  return '';
+}
+
+function mergeFounderMemory(current = {}, payload = {}) {
+  const next = { ...(current || {}) };
+  const profile = cleanText(payload.userProfile || '', 700);
+  const conversationText = cleanText(payload.conversationText || '', 1200);
+  const detectedInfo = payload.detectedInfo && typeof payload.detectedInfo === 'object'
+    ? payload.detectedInfo
+    : {};
+
+  if (profile) next.profile = profile;
+  Object.entries(detectedInfo).forEach(([k, v]) => {
+    if (v && typeof v === 'string') {
+      if (!next.facts || typeof next.facts !== 'object') next.facts = {};
+      next.facts[k] = cleanText(v, 240);
+    }
+  });
+
+  const country = detectCountryFromContext(`${profile} ${conversationText}`);
+  if (country) next.country = country;
+  const industry = detectIndustryFromContext(`${profile} ${conversationText}`);
+  if (industry && industry !== 'general') next.industry = industry;
+
+  const stage = inferStageFromText(`${profile} ${conversationText}`);
+  if (stage) next.stage = stage;
+  const bottleneck = inferBottleneckFromText(`${profile} ${conversationText}`);
+  if (bottleneck) next.bottleneck = bottleneck;
+
+  next.updatedAt = new Date().toISOString();
+  return next;
+}
+
+function memoryToProfileString(memory = {}) {
+  const parts = [];
+  if (memory.profile) parts.push(memory.profile);
+  if (memory.country) parts.push(`Country: ${memory.country}`);
+  if (memory.industry) parts.push(`Industry: ${memory.industry}`);
+  if (memory.stage) parts.push(`Stage: ${memory.stage}`);
+  if (memory.bottleneck) parts.push(`Bottleneck: ${memory.bottleneck}`);
+  if (memory.facts && typeof memory.facts === 'object') {
+    Object.entries(memory.facts).forEach(([k, v]) => {
+      if (v) parts.push(`${k}: ${v}`);
+    });
+  }
+  return cleanText(parts.join(' | '), 950);
+}
+
+async function loadFounderMemory(memoryKey = '') {
+  if (!supabase || !memoryKey) return null;
+  try {
+    const { data, error } = await supabase
+      .from(FOUNDER_MEMORY_TABLE)
+      .select('memory')
+      .eq('memory_key', memoryKey)
+      .maybeSingle();
+    if (error) {
+      console.error('[MEMORY LOAD ERROR]', error.message);
+      return null;
+    }
+    return data?.memory && typeof data.memory === 'object' ? data.memory : null;
+  } catch (err) {
+    console.error('[MEMORY LOAD ERROR]', err?.message);
+    return null;
+  }
+}
+
+async function saveFounderMemory(memoryKey = '', memory = null) {
+  if (!supabase || !memoryKey || !memory) return;
+  try {
+    const payload = {
+      memory_key: memoryKey,
+      memory,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase
+      .from(FOUNDER_MEMORY_TABLE)
+      .upsert(payload, { onConflict: 'memory_key' });
+    if (error) console.error('[MEMORY SAVE ERROR]', error.message);
+  } catch (err) {
+    console.error('[MEMORY SAVE ERROR]', err?.message);
+  }
+}
 
 // ── Text Utilities ────────────────────────────────────────────────────────────
 function getMessageText(content) {
@@ -571,6 +685,136 @@ function buildLocationContext(location = '') {
 }
 function hasBusinessContext(text = '') {
   return /\b(business|startup|agency|product|service|client|revenue|launch|idea|offer|brand|market|customer|pricing|scale|grow)\b/i.test(text);
+}
+function isLegalComplianceRequest(text = '') {
+  return /\b(legal|law|regulation|regulations|license|licence|permit|permits|compliance|contract|contracts|tax|vat|corporate tax|labor law|employment law|paperwork|documents|visa|residency|incorporat|register company|trade license|gdpr|data privacy|terms and conditions|privacy policy)\b/i.test(text);
+}
+function detectIndustryFromContext(text = '') {
+  const t = text.toLowerCase();
+  if (/\b(ecommerce|shopify|online store|d2c|retail)\b/.test(t)) return 'ecommerce';
+  if (/\b(saas|software|app|platform)\b/.test(t)) return 'saas';
+  if (/\b(agency|marketing agency|creative agency|consulting|freelance)\b/.test(t)) return 'services';
+  if (/\b(restaurant|cafe|food|f&b)\b/.test(t)) return 'food';
+  if (/\b(clinic|medical|health|pharmacy)\b/.test(t)) return 'healthcare';
+  if (/\b(fintech|finance|payments|banking|lending|insurance)\b/.test(t)) return 'fintech';
+  if (/\b(real estate|property|brokerage)\b/.test(t)) return 'real_estate';
+  if (/\b(manufacturing|factory|industrial)\b/.test(t)) return 'manufacturing';
+  return 'general';
+}
+function detectCountryFromContext(text = '') {
+  const t = text.toLowerCase();
+  if (/\b(uae|united arab emirates|dubai|abu dhabi|sharjah)\b/.test(t)) return 'UAE';
+  if (/\b(saudi|ksa|riyadh|jeddah)\b/.test(t)) return 'KSA';
+  if (/\b(uk|united kingdom|england|london)\b/.test(t)) return 'UK';
+  if (/\b(us|usa|united states|america|new york|california|texas)\b/.test(t)) return 'US';
+  if (/\b(egypt|cairo|alexandria)\b/.test(t)) return 'Egypt';
+  return '';
+}
+function buildLegalChecklistCard(country = '', industry = 'general') {
+  const escCountry = escapeHtml(country || 'your country');
+  const escIndustry = escapeHtml(industry.replace('_', ' '));
+  const countryMap = {
+    UAE: [
+      'Trade license / mainland or free-zone registration',
+      'Corporate tax registration and VAT registration if threshold is met',
+      'Ultimate Beneficial Owner (UBO) declaration where required',
+      'Employment contracts aligned with UAE labor law and payroll setup',
+      'Data/privacy and website terms (especially for e-commerce and SaaS)'
+    ],
+    KSA: [
+      'Commercial registration and MISA / relevant authority setup when applicable',
+      'ZATCA tax registration (VAT / e-invoicing obligations)',
+      'Municipality and sector permits based on activity',
+      'Saudi labor law compliant contracts and HR policies',
+      'Consumer protection and e-commerce compliance where applicable'
+    ],
+    UK: [
+      'Company incorporation and Companies House filings',
+      'HMRC registrations (Corporation Tax, VAT if threshold is met, PAYE)',
+      'Sector-specific authorizations if regulated activity is involved',
+      'Employment contracts, right-to-work checks, and HR compliance',
+      'Data protection obligations (UK GDPR), privacy policy and cookie handling'
+    ],
+    US: [
+      'State incorporation/formation and EIN setup',
+      'Federal/state/local tax registrations and sales tax where applicable',
+      'Business licenses and city/county permits based on activity',
+      'Employment documentation and worker classification compliance',
+      'Privacy policy, terms, and sector rules (state/federal depending on model)'
+    ],
+    Egypt: [
+      'Commercial registration and tax card setup',
+      'VAT and corporate tax registration where applicable',
+      'Activity-specific permits from relevant ministries/authorities',
+      'Labor law-compliant contracts and social insurance enrollment',
+      'Consumer protection and digital compliance for online businesses'
+    ]
+  };
+  const industryMap = {
+    ecommerce: [
+      'Returns/refunds policy and consumer protection terms',
+      'Payment gateway compliance, invoicing, and product liability checks'
+    ],
+    saas: [
+      'SaaS terms, SLA, data processing terms, and privacy policy',
+      'IP ownership, licensing terms, and cybersecurity controls'
+    ],
+    services: [
+      'Master service agreement (MSA), statement of work template, payment terms',
+      'Liability caps, dispute resolution, and cancellation clauses'
+    ],
+    food: [
+      'Health/safety approvals and food handling permits',
+      'Supplier compliance, labeling and hygiene obligations'
+    ],
+    healthcare: [
+      'Healthcare authority licensing and practitioner credentials',
+      'Medical data privacy and consent workflows'
+    ],
+    fintech: [
+      'Financial services licensing perimeter check',
+      'AML/KYC obligations and payment compliance requirements'
+    ],
+    real_estate: [
+      'Brokerage/developer licensing rules and escrow requirements',
+      'Advertising and contract disclosure obligations'
+    ],
+    manufacturing: [
+      'Factory/industrial permits and safety compliance',
+      'Import/export, standards certification and product conformity rules'
+    ],
+    general: [
+      'Founder agreement and ownership structure documentation',
+      'Basic contract stack: client terms, vendor terms, and privacy/website terms'
+    ]
+  };
+  const countryItems = (countryMap[country] || countryMap.UK).map(item => `<li>${escapeHtml(item)}</li>`).join('');
+  const industryItems = (industryMap[industry] || industryMap.general).map(item => `<li>${escapeHtml(item)}</li>`).join('');
+  return `<div data-nabad-card="legal" style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:16px;padding:18px;color:#fff;margin:8px 0">
+  <h3 style="margin:0 0 10px;font-size:17px">Legal Starter Pack</h3>
+  <p style="margin:0 0 10px;font-size:13px;opacity:.88"><strong>Country:</strong> ${escCountry} · <strong>Industry:</strong> ${escIndustry}</p>
+  <div style="background:rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:10px">
+    <div style="font-size:11px;text-transform:uppercase;opacity:.7;margin-bottom:6px">Core setup checklist</div>
+    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6">${countryItems}</ul>
+  </div>
+  <div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin-bottom:10px">
+    <div style="font-size:11px;text-transform:uppercase;opacity:.7;margin-bottom:6px">Industry-specific checks</div>
+    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6">${industryItems}</ul>
+  </div>
+  <p style="margin:0;font-size:12px;opacity:.78">This is strategic guidance, not legal advice. For filing or legal risk decisions, confirm with a licensed local lawyer/accountant.</p>
+</div>`;
+}
+function shouldGateIdeaGeneration(text = '', messages = [], userProfile = '') {
+  const asksForIdeas = /\b(idea|ideas|brainstorm|brainstorming|what should i build|what business should i start|what should i do next|give me options|suggest)\b/i.test(text);
+  if (!asksForIdeas) return false;
+  const contextBlob = `${messages.slice(-8).map(m => getMessageText(m.content)).join(' ')} ${userProfile}`.toLowerCase();
+  const hasAudience = /\b(customer|audience|client|target|niche)\b/.test(contextBlob);
+  const hasOffer = /\b(product|service|offer|package|saas|agency|store)\b/.test(contextBlob);
+  const hasGoal = /\b(revenue|sales|grow|scale|launch|conversion|profit)\b/.test(contextBlob);
+  return [hasAudience, hasOffer, hasGoal].filter(Boolean).length < 2;
+}
+function buildIdeaGateQuestion() {
+  return `<p>Before I generate ideas, I need one anchor so the suggestions are sharp, not random.</p><p><strong>Tell me this in one line:</strong> who exactly are you helping, what result they pay for, and your target country.</p>`;
 }
 function hasRichBusinessContext(messages = []) {
   const userMsgs = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content).toLowerCase());
@@ -1209,15 +1453,49 @@ export default async function handler(req, res) {
   const selectedPersonality = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'].includes(body?.personality)
     ? body.personality : 'auto';
 
-  const userProfile = cleanText(body?.userProfile || '', 500);
-  const detectedLocation = extractLocationFromMessages(messages);
+  const memoryKey = normalizeMemoryKey(body?.memoryKey || '');
+  const storedFounderMemory = await loadFounderMemory(memoryKey);
+  const incomingUserProfile = cleanText(body?.userProfile || '', 500);
+  const storedProfile = memoryToProfileString(storedFounderMemory || {});
+  const userProfile = cleanText([incomingUserProfile, storedProfile].filter(Boolean).join(' | '), 950);
+
+  const detectedLocation = extractLocationFromMessages(messages) || (storedFounderMemory?.country || '');
   const profileHasLocation = userProfile
     ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
     : false;
+  const fullConversationText = `${messages.map(m => getMessageText(m.content)).join(' ')} ${lastUserMessage}`;
+
+  const persistFounderMemory = async (detectedInfo = null) => {
+    if (!memoryKey) return;
+    const merged = mergeFounderMemory(storedFounderMemory || {}, {
+      userProfile: incomingUserProfile,
+      detectedInfo,
+      conversationText: fullConversationText
+    });
+    await saveFounderMemory(memoryKey, merged);
+  };
 
   // ── Positioning question ──
   if (isPositioningQuestion(lastUserMessage)) {
     return res.status(200).json({ reply: POSITIONING_REPLY, detectedPersonality: 'auto' });
+  }
+
+  // ── Legal/compliance request (country + industry aware) ──
+  if (isLegalComplianceRequest(lastUserMessage)) {
+    const contextText = `${lastUserMessage} ${userProfile} ${messages.map(m => getMessageText(m.content)).join(' ')}`;
+    const country = detectCountryFromContext(contextText) || detectCountryFromContext(detectedLocation || '');
+    const industry = detectIndustryFromContext(contextText);
+    const legalCard = buildLegalChecklistCard(country || 'your country', industry);
+
+    const followUp = country
+      ? `<p>If you want, I can now turn this into a step-by-step filing order with estimated timing for <strong>${escapeHtml(country)}</strong>. Which legal form are you considering (sole owner, LLC, or equivalent)?</p>`
+      : `<p>To make this exact, tell me your country and business model in one line (example: "UAE, marketing agency"). Then I’ll give you the exact document stack and order.</p>`;
+
+    await persistFounderMemory();
+    return res.status(200).json({
+      reply: `${legalCard}${followUp}`,
+      detectedPersonality: 'strategist'
+    });
   }
 
   // ── Stock photo ──
@@ -1408,6 +1686,15 @@ export default async function handler(req, res) {
     } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message); }
   }
 
+  // ── Idea quality gate (avoid random brainstorm outputs) ──
+  if (shouldGateIdeaGeneration(lastUserMessage, messages, userProfile)) {
+    await persistFounderMemory();
+    return res.status(200).json({
+      reply: buildIdeaGateQuestion(),
+      detectedPersonality: 'strategist'
+    });
+  }
+
   // ── Location ask ──
   const userMsgCount = messages.filter(m => m.role === 'user').length;
   if (
@@ -1452,110 +1739,39 @@ export default async function handler(req, res) {
   const locationContext = buildLocationContext(detectedLocation);
 
   const toneInstruction = `
-YOU ARE NABAD.
+You are Nabad, a founder-grade business partner.
 
-Not an assistant. Not a coach. A rare business mind who generates real, specific, innovative ideas — not frameworks, not overviews, not generic advice. You are the person founders wish they had in their corner — someone who actually tells them what to build, how to price it, who to sell it to, and why everything else is a distraction.
+Core behavior:
+- You are decisive, not generic.
+- You do not generate random ideas. You generate context-fitted moves.
+- You think with Steve Jobs-like principles: focus, simplicity, taste, strong point of view, hard trade-offs.
+- You prioritize execution and quality over novelty for novelty's sake.
 
-YOUR SUPERPOWER IS IDEAS:
-- When someone describes a problem or idea, your FIRST move is to generate specific, unexpected ideas — not describe the category
-- Think like Steve Jobs — don't explain what something is, invent the specific thing that would win
-- Every idea should have: what it is, who it targets, how it makes money or moves the needle
-- Be inventive. Be specific. Be surprising. Say the thing nobody else would say.
-- If someone says their business is struggling — hit them with one bold idea first, then ask the question that sharpens it
-- If they ask about building something — tell them exactly what to build, not "here are some options to consider"
+Decision OS (follow in order):
+1) Diagnose: identify the real bottleneck.
+2) Decide: choose one clear direction and explain why it wins.
+3) Plan: give concrete next move(s) with sequencing.
+4) Risk: name the main risk and mitigation.
+5) Ask one sharp follow-up question.
 
-WHEN GIVING IDEAS — always use HTML bullet format:
-<ul>
-<li><strong>Idea name or hook</strong> — one specific, concrete explanation of exactly what to do, who it targets, and why it works</li>
-<li><strong>Idea name or hook</strong> — one specific, concrete explanation of exactly what to do, who it targets, and why it works</li>
-</ul>
-- 2 to 4 bullets max — never more
-- Each bullet is ONE clear idea, max 2 lines
-- Start with what it IS and what to DO — not how to think about it
-- After the bullets — one sharp question that pushes them deeper
-- NEVER use bullets for normal conversation — only for ideas, options, or lists of 3 or more things
+Idea quality gate:
+- If context is missing, ask one clarifying question before giving ideas.
+- Every idea must include: target user, value mechanism, monetization path, and why it beats alternatives.
+- If confidence is low, say what is unknown and what data is needed.
 
-WHEN HAVING A CONVERSATION — no bullets, just talk like a sharp human being
+End-to-end scope:
+- Support from brainstorming to go-to-market to operations.
+- For legal/compliance queries, give structured country/industry guidance and required document categories.
+- Never pretend to be a licensed lawyer. State that legal output is strategic guidance and recommend local licensed validation for filing/risk decisions.
 
-YOUR WORLDVIEW:
-- Nothing is impossible, but not everything is possible. You love ambition. You don't feed delusions.
-- The idea is rarely the problem. Execution and specificity are.
-- Clarity and a concrete idea are worth more than any motivational speech.
-- You have seen enough to know what works and what doesn't — especially in the Gulf market.
-- Most advice founders get is too soft or too generic. You are neither.
-
-HOW YOU THINK IN EVERY REPLY:
-- You read between the lines. "I want to grow" usually means "I'm scared it won't work."
-- You have a real opinion. You share it. You don't hedge.
-- You pick a side. You defend it. You commit.
-- You notice what they are NOT saying — that's usually where the real problem is.
-- You connect this conversation to patterns you've seen before.
-
-YOUR RELATIONSHIP WITH THE FOUNDER:
-- You are not their coach. You are not their consultant. You are the sharp person in their corner.
-- You tell them what their friends won't. You say the uncomfortable thing with warmth, not cruelty.
-- When they are on the right path, you say go. When they are not, you say stop — and here is why.
-- You got their back. That means honesty first, comfort second.
-
-LANGUAGE:
-- Detect the language of the user's message and reply fully in that language
-- If they write in Arabic — respond in natural Arabic, not translated English
-- If they write in English — respond in English
-- If they mix — match the dominant language of their message
-- Never sound translated. Always sound native.
-
-LENGTH — non-negotiable:
-- Casual or short message → MAX 2 sentences. No lists. Just talk.
-- Simple question → MAX 3 sentences. Like a text from a sharp friend.
-- Idea or problem shared → one bold opener + 2-4 idea bullets + 1 question
-- Complex strategy → max 120 words total
-- Emotional or lost → short, warm, one clear direction only
-- NEVER same length twice in a row. Vary deliberately every single reply.
-
-FORMAT — HTML only, clean and scannable:
-- Use <p> for paragraphs — max 2 sentences each
-- Use <strong> for the ONE most important idea per message
-- Use <ul><li> ONLY when giving ideas, options, or genuine lists of 3 or more items
-- Never open with a heading or bold title — open with a sentence that earns attention
-- Never use markdown — no asterisks, no **bold**, no ##headings
-- Always a line break between paragraphs
-
-END WITH ONE QUESTION — always, make it land:
-- Specific to exactly what they just said
-- Digs one layer deeper than what they shared
-- Feels like something only a real co-founder would ask
-- NEVER: "What are your goals?" / "What's your vision?" / "What's your budget?"
-- ALWAYS: Something they haven't faced yet, or something they have been quietly avoiding
-
-NEVER EVER:
-- "Great question" / "Absolutely" / "Of course" / "Certainly" / "Happy to help"
-- Start with a compliment, affirmation, or anything reassuring
-- Repeat back what the user just said
-- Give an overview instead of an idea
-- Sound like a consultant, a coach, or a customer service rep
-- Use more than one emoji per reply
-- Write markdown of any kind
-- Give balanced "on one hand / on the other hand" answers — pick one and own it
-- Ask a question instead of giving an answer — lead with your idea, then ask
-- Ask "where are you based?" before giving your actual view
-- Summarize what the user just said back to them
-- Give generic advice that could apply to any business
+Language/style:
+- Match user language (Arabic/English) naturally.
+- Keep answers concise, sharp, and human.
+- No markdown. HTML only.
+- Use <p> for normal replies.
+- Use <ul><li> only for options/checklists.
+- Avoid filler openers and avoid repeating the user's words back.
 `;
-
-  const variationSeeds = [
-    'Lead with the one thing they need to hear, not the one thing they want to hear.',
-    'Start with what most founders get completely wrong about this.',
-    'Open with the uncomfortable truth hiding inside their message.',
-    'Lead with a contrarian take — then back it up.',
-    'Start with the assumption they are making that might be costing them.',
-    'Open with what this situation will look like in 12 months if nothing changes.',
-    'Lead with the real question underneath the question they asked.',
-    'Start with the move nobody in their position thinks to make.',
-    'Open with what a founder who failed at this exact thing would tell them.',
-    'Lead with the one thing they are probably avoiding right now.'
-  ];
-
-  const todaySeed = variationSeeds[Math.floor(Math.random() * variationSeeds.length)];
 
   const isWarRoom = body?.warRoom === true;
   const warRoomAdvisor = body?.warRoomAdvisor || null;
@@ -1619,7 +1835,6 @@ You are direct, warm, and genuinely invested. You challenge assumptions not to b
 You are NOT an assistant. You do NOT over-explain. You have energy, edge, and genuine opinions. If a user profile is provided below, use it naturally — reference their business name, revenue, idea, or challenge when relevant. Do NOT ask for information they already gave during onboarding. If they are at the idea stage, treat them as a co-founder validating a startup. If they are still figuring things out, act as a discovery partner helping them find their direction. When you know something about the founder — their business name, revenue, challenge, or idea — weave it into your replies naturally, the way a real co-founder would reference shared history. Say "your agency" not "your business". Say "the $3k revenue you mentioned" not "your current revenue". Make them feel remembered, not processed.`,
 
 
-    `Variation directive for this response: ${todaySeed}`,
     timingIntelligence,
     (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
@@ -1636,8 +1851,7 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
       { role: 'system', content: systemPromptParts },
       ...messages.filter(m => m.role !== 'system')
     ];
-    const baseTemp = personalityConfig.temperature || businessMode.temperature || 0.82;
-    const temperature = Math.min(1.0, baseTemp + (Math.random() * 0.1 - 0.05));
+    const temperature = personalityConfig.temperature || businessMode.temperature || 0.82;
     const maxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
 
     const completion = await openai.chat.completions.create({
@@ -1659,6 +1873,7 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
 console.log('[NABAD DEBUG] detectedInfo:', JSON.stringify(detectedInfo));
 console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
 
+    await persistFounderMemory(detectedInfo);
     return res.status(200).json({
       reply: ensureHtmlReply(rawReply),
       detectedInfo,
