@@ -397,11 +397,19 @@ function showPersonalityPill(id) {
     const style = document.createElement('style');
     style.id = 'nabad-widget-styles';
     style.textContent = `
+      :root {
+        --nabad-font-display: "Sora", "Manrope", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --nabad-font-body: "Manrope", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --nabad-panel-bg: #f5f9ff;
+        --nabad-panel-border: rgba(37,99,235,0.12);
+        --nabad-primary-text: #071427;
+        --nabad-muted-text: #485e7a;
+      }
+
       #nabad-widget-root,
       #nabad-widget-root * {
         box-sizing: border-box;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system,
-          BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: var(--nabad-font-body);
       }
 
       #nabad-widget-root {
@@ -462,10 +470,10 @@ function showPersonalityPill(id) {
         bottom: 80px;
         width: min(420px, calc(100vw - 24px));
         height: min(760px, calc(100vh - 110px));
-        background: #F7F9FC;
-        border: 1px solid rgba(37,99,235,0.10);
+        background: var(--nabad-panel-bg);
+        border: 1px solid var(--nabad-panel-border);
         border-radius: 24px;
-        box-shadow: 0 24px 80px rgba(15,23,42,0.18);
+        box-shadow: 0 24px 80px rgba(9,20,40,0.2);
         overflow: hidden;
         display: none;
         flex-direction: column;
@@ -479,7 +487,7 @@ function showPersonalityPill(id) {
         align-items: center;
         justify-content: space-between;
         padding: 14px 16px;
-        background: #F7F9FC;
+        background: var(--nabad-panel-bg);
         border-bottom: 1px solid rgba(37,99,235,0.08);
       }
 
@@ -519,14 +527,15 @@ function showPersonalityPill(id) {
       #nabad-title-wrap { min-width: 0; }
 
       #nabad-title {
-        color: #0f172a;
+        color: var(--nabad-primary-text);
+        font-family: var(--nabad-font-display);
         font-size: 18px;
         font-weight: 800;
         line-height: 1.1;
       }
 
       #nabad-subtitle {
-        color: #475569;
+        color: var(--nabad-muted-text);
         font-size: 12px;
         margin-top: 2px;
       }
@@ -644,6 +653,15 @@ function showPersonalityPill(id) {
         border-bottom-left-radius: 6px;
         box-shadow: 0 10px 28px rgba(15,23,42,0.06);
         transition: border-color 0.6s ease;
+      }
+
+      .nabad-msg.bot .nabad-bubble.nabad-reply-pop {
+        animation: nabadReplyPop 0.28s ease-out both;
+      }
+
+      @keyframes nabadReplyPop {
+        0% { transform: translateY(6px) scale(0.985); opacity: 0.78; }
+        100% { transform: translateY(0) scale(1); opacity: 1; }
       }
 
       .nabad-bubble h3,
@@ -932,6 +950,74 @@ function showPersonalityPill(id) {
         line-height: 1.45;
       }
 
+      #nabad-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100%;
+        background: linear-gradient(180deg, #f7fbff 0%, #f2f8ff 100%);
+        padding: 24px 16px 28px;
+      }
+
+      #nabad-intro-title {
+        font-size: 26px;
+        font-weight: 900;
+        color: #0f172a;
+        text-align: center;
+        letter-spacing: -0.5px;
+        margin-bottom: 8px;
+        line-height: 1.25;
+        font-family: var(--nabad-font-display);
+      }
+
+      #nabad-intro-subtitle {
+        font-size: 13px;
+        color: #64748b;
+        text-align: center;
+        max-width: 320px;
+        line-height: 1.6;
+        margin-bottom: 26px;
+      }
+
+      #nabad-intro-feature-list {
+        width: 100%;
+        max-width: 340px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 24px;
+      }
+
+      .nabad-intro-feature {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #fff;
+        border: 1px solid rgba(15,23,42,0.06);
+        border-radius: 14px;
+        padding: 12px 14px;
+        box-shadow: 0 3px 12px rgba(15,23,42,0.05);
+      }
+
+      .nabad-intro-feature-title {
+        font-size: 13px;
+        font-weight: 800;
+        color: #0f172a;
+      }
+
+      .nabad-intro-feature-sub {
+        font-size: 11px;
+        color: #64748b;
+        margin-top: 1px;
+      }
+
+      #nabad-intro-footnote {
+        margin-top: 12px;
+        font-size: 11px;
+        color: #94a3b8;
+        text-align: center;
+      }
+
       #nabad-typing {
         display: none;
         padding: 0 14px 10px;
@@ -951,6 +1037,12 @@ function showPersonalityPill(id) {
         color: #475569;
         font-size: 13px;
         font-weight: 700;
+      }
+
+      #nabad-typing-label {
+        font-size: 12px;
+        color: #64748b;
+        letter-spacing: 0.01em;
       }
 
       .nabad-dots { display: inline-flex; gap: 4px; }
@@ -1032,6 +1124,13 @@ function showPersonalityPill(id) {
       #nabad-send:hover {
         transform: translateY(-1px);
         box-shadow: 0 10px 24px rgba(37,99,235,0.16), 0 0 16px rgba(6,182,212,0.10);
+      }
+
+      #nabad-send:active,
+      #nabad-mic:active,
+      #nabad-send.nabad-press,
+      #nabad-mic.nabad-press {
+        transform: translateY(1px) scale(0.96);
       }
 
       #nabad-send:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -1619,21 +1718,24 @@ function showPersonalityPill(id) {
           box-shadow: none;
           border: none;
           overflow: hidden;
+          background: linear-gradient(180deg, #f6faff 0%, #f4f9ff 100%);
         }
 
         #nabad-header {
-          padding-top: max(14px, env(safe-area-inset-top));
+          padding: max(12px, env(safe-area-inset-top)) 12px 10px;
+          border-bottom-color: rgba(37,99,235,0.12);
         }
 
         #nabad-messages {
           flex: 1;
           min-height: 0;
-          padding-bottom: 18px;
+          padding: 10px 10px 16px;
           -webkit-overflow-scrolling: touch;
         }
 
         #nabad-input-wrap {
-          padding-bottom: max(14px, env(safe-area-inset-bottom));
+          padding: 10px 10px max(12px, env(safe-area-inset-bottom));
+          border-top-color: rgba(15,23,42,0.08);
         }
 
         #nabad-launcher {
@@ -1644,7 +1746,117 @@ function showPersonalityPill(id) {
           height: 60px;
         }
 
-        .nabad-bubble { max-width: 92%; }
+        #nabad-title { font-size: 17px; }
+        #nabad-subtitle { font-size: 11px; }
+        #nabad-logo {
+          width: 38px;
+          height: 38px;
+        }
+        .nabad-icon-btn {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+        }
+
+        .nabad-msg { margin-bottom: 10px; }
+        .nabad-bubble {
+          max-width: 95%;
+          padding: 12px 13px;
+          font-size: 14px;
+          line-height: 1.5;
+          border-radius: 16px;
+        }
+
+        #nabad-input-row { gap: 8px; }
+        #nabad-input {
+          min-height: 46px;
+          font-size: 15px;
+          border-radius: 14px;
+          padding: 11px 13px;
+        }
+        #nabad-send,
+        #nabad-mic {
+          width: 42px;
+          height: 42px;
+          border-radius: 14px;
+        }
+
+        #nabad-onboarding {
+          padding: 6px 0 12px;
+        }
+        #nabad-onboarding h3 {
+          font-size: 19px;
+          margin-bottom: 6px;
+        }
+        #nabad-onboarding p {
+          font-size: 13px;
+          margin-bottom: 12px;
+        }
+        .nabad-path-card,
+        .nabad-personality-card {
+          border-radius: 16px;
+          padding: 13px;
+        }
+        .nabad-path-icon {
+          width: 42px;
+          height: 42px;
+          border-radius: 12px;
+        }
+        .nabad-path-title {
+          font-size: 14px;
+        }
+        .nabad-path-desc,
+        .nabad-personality-desc {
+          font-size: 12px;
+          line-height: 1.4;
+        }
+
+        #nabad-intro {
+          padding: max(16px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+        }
+        #nabad-intro-logo-wrap {
+          width: 74px !important;
+          height: 74px !important;
+          margin-bottom: 20px !important;
+        }
+        #nabad-intro-logo-img {
+          width: 74px !important;
+          height: 74px !important;
+        }
+        #nabad-intro-title {
+          font-size: 23px;
+          margin-bottom: 6px;
+        }
+        #nabad-intro-subtitle {
+          margin-bottom: 18px;
+          font-size: 12px;
+          line-height: 1.55;
+          max-width: 300px;
+        }
+        #nabad-intro-feature-list {
+          margin-bottom: 18px;
+          gap: 8px;
+        }
+        .nabad-intro-feature {
+          padding: 10px 12px;
+          border-radius: 12px;
+        }
+        .nabad-intro-feature-title {
+          font-size: 12px;
+        }
+        .nabad-intro-feature-sub {
+          font-size: 10px;
+        }
+        #nabad-intro-start {
+          max-width: 340px !important;
+          padding: 14px !important;
+          border-radius: 14px !important;
+          font-size: 15px !important;
+        }
+        #nabad-intro-footnote {
+          margin-top: 10px;
+          font-size: 10px;
+        }
 
         .nabad-bubble [data-nabad-card="snapshot"],
         .nabad-bubble [data-nabad-card="score"],
@@ -2557,6 +2769,7 @@ function showPersonalityPill(id) {
         <div id="nabad-typing">
           <div class="inner">
             <span class="nabad-dots"><span></span><span></span><span></span></span>
+            <span id="nabad-typing-label">Nabad is thinking...</span>
           </div>
         </div>
 
@@ -2632,9 +2845,11 @@ function showPersonalityPill(id) {
     root.querySelector('#nabad-new-chat').addEventListener('click', openSettingsPage);
     root.querySelector('#nabad-close').addEventListener('click', () => toggleWidget(false));
     root.querySelector('#nabad-send').addEventListener('click', sendMessage);
+    bindTapFeedback(root.querySelector('#nabad-send'));
 
     const mic = root.querySelector('#nabad-mic');
     if (mic) {
+      bindTapFeedback(mic);
       mic.addEventListener('click', () => {
         if (mediaRecorder && mediaRecorder.state === 'recording') {
           stopVoiceRecording();
@@ -2684,6 +2899,18 @@ function showPersonalityPill(id) {
     window.addEventListener('beforeunload', releaseScrollLock);
   }
 
+  function bindTapFeedback(el) {
+    if (!el) return;
+    const press = () => el.classList.add('nabad-press');
+    const release = () => el.classList.remove('nabad-press');
+    el.addEventListener('mousedown', press);
+    el.addEventListener('mouseup', release);
+    el.addEventListener('mouseleave', release);
+    el.addEventListener('touchstart', press, { passive: true });
+    el.addEventListener('touchend', release, { passive: true });
+    el.addEventListener('touchcancel', release, { passive: true });
+  }
+
   let _lastScrollHeight = 0;
   function autoGrowTextarea() {
     if (!refs.input) return;
@@ -2728,6 +2955,32 @@ function showPersonalityPill(id) {
       }, 400);
     } else {
       releaseScrollLock();
+    }
+  }
+
+  function setActivePersonality(id = 'auto', { announce = false } = {}) {
+    const allowed = new Set([
+      'strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'
+    ]);
+    const nextId = allowed.has(id) ? id : 'auto';
+    const prevId = state.personality;
+
+    state.personality = nextId;
+    state.personalityChosen = true;
+    state.onboarded = true;
+    state.personalityBuffer = null;
+    state.personalityCount = 0;
+
+    savePersonality(nextId);
+    saveOnboarded(true);
+    updatePersonalityBadge();
+    setInputPlaceholder();
+    applyPersonalityColor(nextId, announce && prevId !== nextId);
+
+    if (!state.messages.length && refs.messages) {
+      refs.messages.innerHTML = '';
+      renderMessage('assistant', getPersonalityGreeting(nextId), false);
+      scrollToBottom();
     }
   }
 
@@ -2907,35 +3160,35 @@ function renderOnboardingIntro() {
   document.head.appendChild(pulseStyle);
 
   refs.messages.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;min-height:100%;background:#F7F9FC;">
+    <div id="nabad-intro">
 
       <div id="nabad-intro-logo-wrap" style="position:relative;width:82px;height:82px;margin-bottom:28px;display:flex;align-items:center;justify-content:center;">
         <img id="nabad-intro-logo-img" src="/logo.png" alt="Nabad" style="width:82px;height:82px;border-radius:50%;object-fit:cover;position:relative;z-index:1;transition:transform 0.1s ease-out;"/>
       </div>
 
-      <div style="font-size:26px;font-weight:900;color:#0f172a;text-align:center;letter-spacing:-0.5px;margin-bottom:8px;line-height:1.25;">Your business,<br/>finally has a co-founder.</div>
-      <div style="font-size:13px;color:#64748b;text-align:center;max-width:260px;line-height:1.6;margin-bottom:32px;">Nabad thinks, adapts, and learns — built for people serious about building something real.</div>
+      <div id="nabad-intro-title">Your business,<br/>finally has a co-founder.</div>
+      <div id="nabad-intro-subtitle">Nabad thinks, adapts, and learns — built for people serious about building something real.</div>
 
-      <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;margin-bottom:32px;">
-        <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+      <div id="nabad-intro-feature-list">
+        <div class="nabad-intro-feature">
           <span style="font-size:20px;">🧠</span>
           <div>
-            <div style="font-size:13px;font-weight:700;color:#0f172a;">Adapts to your business mode</div>
-            <div style="font-size:11px;color:#64748b;">Strategy, growth, branding & more</div>
+            <div class="nabad-intro-feature-title">Adapts to your business mode</div>
+            <div class="nabad-intro-feature-sub">Strategy, growth, branding & more</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+        <div class="nabad-intro-feature">
           <span style="font-size:20px;">🎙️</span>
           <div>
-            <div style="font-size:13px;font-weight:700;color:#0f172a;">Talk, don't type</div>
-            <div style="font-size:11px;color:#64748b;">Voice-first, hands-free business thinking</div>
+            <div class="nabad-intro-feature-title">Talk, don't type</div>
+            <div class="nabad-intro-feature-sub">Voice-first, hands-free business thinking</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+        <div class="nabad-intro-feature">
           <span style="font-size:20px;">⚡</span>
           <div>
-            <div style="font-size:13px;font-weight:700;color:#0f172a;">Instant answers, real actions</div>
-            <div style="font-size:11px;color:#64748b;">Not just chat — a thinking partner</div>
+            <div class="nabad-intro-feature-title">Instant answers, real actions</div>
+            <div class="nabad-intro-feature-sub">Not just chat — a thinking partner</div>
           </div>
         </div>
       </div>
@@ -2943,7 +3196,7 @@ function renderOnboardingIntro() {
       <button id="nabad-intro-start" style="width:100%;max-width:320px;padding:16px;background:linear-gradient(135deg,#2563eb,#06b6d4);color:#fff;font-size:16px;font-weight:800;border:none;border-radius:16px;cursor:pointer;box-shadow:0 8px 28px rgba(37,99,235,0.25);transition:transform 0.15s,box-shadow 0.15s;">
         Let's build something →
       </button>
-      <div style="margin-top:14px;font-size:11px;color:#94a3b8;text-align:center;">No credit card · No setup · Just start</div>
+      <div id="nabad-intro-footnote">No credit card · No setup · Just start</div>
     </div>
   `;
 
@@ -3248,6 +3501,10 @@ function finishOnboarding() {
       bubble.innerHTML = sanitizeHtml(
         markdownToHtml(String(content || '<p>Sorry — I could not generate a response.</p>'))
       );
+      bubble.classList.add('nabad-reply-pop');
+      bubble.addEventListener('animationend', () => {
+        bubble.classList.remove('nabad-reply-pop');
+      }, { once: true });
     }
 
     msg.appendChild(bubble);
@@ -3409,7 +3666,20 @@ function finishOnboarding() {
   // ── SHOW TYPING ───────────────────────────────────────────────
   function showTyping(on) {
     refs.typing.classList.toggle('show', on);
-    if (on) scrollToBottom();
+    const typingLabel = document.getElementById('nabad-typing-label');
+    if (typingLabelTimer) {
+      clearInterval(typingLabelTimer);
+      typingLabelTimer = null;
+    }
+    if (typingLabel) typingLabel.textContent = TYPING_LABELS[0];
+    if (on) {
+      scrollToBottom();
+      let idx = 0;
+      typingLabelTimer = setInterval(() => {
+        idx = (idx + 1) % TYPING_LABELS.length;
+        if (typingLabel) typingLabel.textContent = TYPING_LABELS[idx];
+      }, 1400);
+    }
   }
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
@@ -4010,6 +4280,13 @@ function openSettingsPage() {
   let audioChunks   = [];
   let voiceTimer    = null;
   let voiceSeconds  = 0;
+  let typingLabelTimer = null;
+
+  const TYPING_LABELS = [
+    'Nabad is thinking...',
+    'Connecting ideas...',
+    'Sharpening your next move...'
+  ];
 
   async function speakReply(text, btn) {
   if (!text) return;
@@ -4163,7 +4440,7 @@ function openSettingsPage() {
       autoGrowTextarea();
       refs.input.focus();
       // sendMessage() will handle restoring send button in its finally block
-      setTimeout(() => sendMessage(), 300);
+      setTimeout(() => sendMessage(), 160);
     } else {
       // No transcript — restore mic manually
       if (micBtn) {
@@ -4316,6 +4593,18 @@ function setSendState(stateLabel) {
     injectStyles();
     buildShell();
     bindLauncherClick();
+
+    // Public API used by landing and embeds.
+    window.__NABAD_OPEN_WIDGET__ = () => toggleWidget(true);
+    window.__NABAD_SET_PERSONALITY__ = (id) => setActivePersonality(String(id || 'auto'));
+    window.__NABAD_OPEN_WITH_PERSONALITY__ = (id) => {
+      setActivePersonality(String(id || 'auto'), { announce: true });
+      toggleWidget(true);
+    };
+
+    if (window.__NABAD_PENDING_PERSONALITY__) {
+      setActivePersonality(String(window.__NABAD_PENDING_PERSONALITY__), { announce: true });
+    }
   });
 
 })();
