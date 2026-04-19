@@ -169,13 +169,14 @@
     personalityBuffer: null,
     personalityCount: 0,
     personalityScore: 0,
-    pendingAttachment: null
+    pendingAttachment: null,
+    replyTo: null
   };
 
   const refs = {
     root: null, launcher: null, panel: null,
     messages: null, input: null, send: null,
-    attach: null, fileInput: null, attachmentChip: null,
+    attach: null, fileInput: null, attachmentChip: null, replyBar: null,
     badge: null, typing: null,
     lightbox: null, lightboxImg: null,
     lightboxSave: null, lightboxOpen: null, lightboxClose: null
@@ -189,11 +190,20 @@
       const raw    = localStorage.getItem(STORAGE_KEYS.messages);
       const parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed)
-        ? parsed.filter(
-            m => m &&
-              (m.role === 'user' || m.role === 'assistant') &&
-              typeof m.content === 'string'
-          )
+        ? parsed
+            .filter(m => m && (m.role === 'user' || m.role === 'assistant'))
+            .map((m) => ({
+              id: cleanText(m.id || '', 48) || `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              role: m.role,
+              content: typeof m.content === 'string' ? m.content : cleanText(String(m.content || ''), 6000),
+              replyTo: m.replyTo && typeof m.replyTo === 'object'
+                ? {
+                    id: cleanText(m.replyTo.id || '', 48),
+                    role: m.replyTo.role === 'assistant' ? 'assistant' : 'user',
+                    snippet: cleanText(m.replyTo.snippet || '', 220)
+                  }
+                : null
+            }))
         : [];
     } catch { return []; }
   }
@@ -342,6 +352,59 @@
       PERSONALITIES.find(p => p.id === state.personality) ||
       PERSONALITIES[PERSONALITIES.length - 1]
     );
+  }
+
+  function makeMessageId() {
+    return `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  function toPlainText(value = '') {
+    return String(value || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function buildReplyLabel(role = 'assistant') {
+    return role === 'assistant' ? 'Replying to Nabad' : 'Replying to your message';
+  }
+
+  function renderReplyBar() {
+    if (!refs.replyBar) return;
+    const target = state.replyTo;
+    if (!target) {
+      refs.replyBar.classList.remove('show');
+      refs.replyBar.innerHTML = '';
+      return;
+    }
+    refs.replyBar.innerHTML = `
+      <div class="reply-meta">
+        <div class="reply-label">${escapeHtml(buildReplyLabel(target.role))}</div>
+        <div class="reply-snippet">${escapeHtml(target.snippet || '')}</div>
+      </div>
+      <button type="button" class="reply-cancel" aria-label="Cancel reply">✕</button>
+    `;
+    refs.replyBar.classList.add('show');
+    refs.replyBar.querySelector('.reply-cancel')?.addEventListener('click', clearReplyTarget);
+  }
+
+  function clearReplyTarget() {
+    state.replyTo = null;
+    renderReplyBar();
+  }
+
+  function setReplyTarget(target = null) {
+    if (!target || !target.id) {
+      clearReplyTarget();
+      return;
+    }
+    state.replyTo = {
+      id: cleanText(target.id || '', 48),
+      role: target.role === 'assistant' ? 'assistant' : 'user',
+      snippet: cleanText(target.snippet || '', 220)
+    };
+    renderReplyBar();
+    refs.input?.focus();
   }
 
   function getPersonalityGreeting(id = 'auto') {
@@ -755,6 +818,7 @@ function showPersonalityPill(id) {
       .nabad-msg {
         display: flex;
         margin-bottom: 12px;
+        position: relative;
       }
 
       .nabad-msg.user  { justify-content: flex-end; }
@@ -783,6 +847,108 @@ function showPersonalityPill(id) {
         color: #fff;
         border-bottom-right-radius: 6px;
         box-shadow: 0 14px 34px rgba(37,99,235,0.16);
+      }
+
+      .nabad-user-attachment {
+        margin-top: 8px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.28);
+        background: rgba(255,255,255,0.14);
+        overflow: hidden;
+      }
+
+      .nabad-user-attachment img {
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none;
+        max-height: 180px;
+        object-fit: cover;
+      }
+
+      .nabad-user-attachment-file {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 11px;
+      }
+
+      .nabad-user-attachment-file svg {
+        flex-shrink: 0;
+        stroke: #fff !important;
+      }
+
+      .nabad-user-attachment-file .meta {
+        min-width: 0;
+      }
+
+      .nabad-user-attachment-file .name {
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .nabad-user-attachment-file .sub {
+        font-size: 11px;
+        color: rgba(255,255,255,0.82);
+      }
+
+      .nabad-reply-quote {
+        margin-bottom: 8px;
+        padding: 7px 9px;
+        border-radius: 10px;
+        border-left: 3px solid rgba(255,255,255,0.85);
+        background: rgba(255,255,255,0.14);
+      }
+
+      .nabad-msg.bot .nabad-reply-quote {
+        border-left-color: #2563eb;
+        background: #eff6ff;
+      }
+
+      .nabad-reply-quote .label {
+        display: block;
+        font-size: 10px;
+        font-weight: 800;
+        opacity: 0.9;
+        margin-bottom: 2px;
+      }
+
+      .nabad-reply-quote .snippet {
+        display: block;
+        font-size: 12px;
+        line-height: 1.35;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .nabad-reply-indicator {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 900;
+        margin-bottom: 6px;
+      }
+
+      .nabad-msg.user .nabad-reply-indicator {
+        background: rgba(255,255,255,0.2);
+        color: #fff;
+      }
+
+      .nabad-msg.bot .nabad-reply-indicator {
+        background: #eff6ff;
+        color: #2563eb;
+      }
+
+      .nabad-swipe-armed {
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.18), 0 14px 34px rgba(37,99,235,0.12) !important;
       }
 
       .nabad-msg.bot .nabad-bubble {
@@ -1211,6 +1377,44 @@ function showPersonalityPill(id) {
         background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
         width: 100%;
         overflow: visible;
+      }
+
+      #nabad-reply-bar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+        border: 1px solid rgba(37,99,235,0.18);
+        background: #eef6ff;
+        border-radius: 12px;
+        padding: 8px 10px;
+      }
+
+      #nabad-reply-bar.show {
+        display: flex;
+      }
+
+      #nabad-reply-bar .reply-meta { min-width: 0; }
+      #nabad-reply-bar .reply-label {
+        font-size: 11px;
+        font-weight: 800;
+        color: #1e3a8a;
+      }
+      #nabad-reply-bar .reply-snippet {
+        font-size: 12px;
+        color: #475569;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #nabad-reply-bar .reply-cancel {
+        border: none;
+        background: transparent;
+        color: #2563eb;
+        cursor: pointer;
+        font-weight: 800;
+        font-size: 14px;
       }
 
       #nabad-input-row {
@@ -2699,6 +2903,14 @@ function showPersonalityPill(id) {
         border-color: transparent !important;
         color: #fff !important;
       }
+
+      .nabad-quick-choices {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        margin-top: 8px;
+      }
       
       /* ── Settings Page ── */
 #nabad-settings-page {
@@ -3036,6 +3248,7 @@ function showPersonalityPill(id) {
         </div>
 
         <div id="nabad-input-wrap">
+          <div id="nabad-reply-bar" aria-live="polite"></div>
           <div id="nabad-input-row">
             <button id="nabad-attach" type="button" aria-label="Attach file">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
@@ -3088,6 +3301,7 @@ function showPersonalityPill(id) {
     refs.attach        = root.querySelector('#nabad-attach');
     refs.fileInput     = root.querySelector('#nabad-file-input');
     refs.attachmentChip = root.querySelector('#nabad-attachment-chip');
+    refs.replyBar      = root.querySelector('#nabad-reply-bar');
     refs.badge         = root.querySelector('#nabad-selected-personality');
     refs.typing        = root.querySelector('#nabad-typing');
     refs.lightbox      = root.querySelector('#nabad-lightbox');
@@ -3098,6 +3312,7 @@ function showPersonalityPill(id) {
 
     bindEvents(root);
     updatePersonalityBadge();
+    renderReplyBar();
     setInputPlaceholder();
     applyPersonalityColor(state.personality, false);
     renderInitialState();
@@ -3411,7 +3626,7 @@ if (!state.onboarded && !state.messages.length) {
       renderMessage('assistant', getPersonalityGreeting(state.personality), false);
       return;
     }
-    state.messages.forEach(m => renderMessage(m.role, m.content, false));
+    state.messages.forEach(m => renderMessage(m.role, m.content, false, m));
     scrollToBottom();
   }
 
@@ -3541,11 +3756,36 @@ function renderOnboardingIntro() {
       document.getElementById('nabad-intro-pulse-style')?.remove();
       refs.messages.style.background = '';
       document.getElementById('nabad-header').style.display = 'flex';
-      renderOnboardingScreen1();
+      startChatFromIntro();
     });
   }
 
   scrollToBottom();
+}
+
+function startChatFromIntro() {
+  state.personality       = 'auto';
+  state.autoDetectMode    = true;
+  state.personalityChosen = true;
+  state.onboarded         = true;
+  state.personalityBuffer = null;
+  state.personalityCount  = 0;
+  state.personalityScore  = 0;
+  savePersonality('auto');
+  saveAutoDetect(true);
+  saveOnboarded();
+  updatePersonalityBadge();
+  setInputPlaceholder();
+  applyPersonalityColor('auto', false);
+  document.getElementById('nabad-input-wrap').style.display = 'flex';
+  refs.messages.innerHTML = '';
+  renderMessage('assistant', `<p>Tell me what you want to build, or tap one:</p>
+    <div class="nabad-quick-choices">
+      <button data-nabad-action="onboard-business">I have a business</button>
+      <button data-nabad-action="onboard-idea">I have an idea</button>
+      <button data-nabad-action="onboard-figuring">I’m figuring it out</button>
+    </div>`, false);
+  setTimeout(() => { refs.input.focus(); scrollToBottom(); }, 50);
 }
 
   function renderOnboardingScreen1() {
@@ -3786,6 +4026,25 @@ function finishOnboarding() {
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   }
 
+  function renderUserAttachmentHtml(attachment = null) {
+    if (!attachment) return '';
+    if (attachment.kind === 'image' && attachment.dataUrl) {
+      return `<div class="nabad-user-attachment"><img src="${attachment.dataUrl}" alt="${escapeHtml(attachment.name || 'attachment')}" /></div>`;
+    }
+    return `<div class="nabad-user-attachment">
+      <div class="nabad-user-attachment-file">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <div class="meta">
+          <div class="name">${escapeHtml(attachment.name || 'Attachment')}</div>
+          <div class="sub">${escapeHtml(attachment.sizeLabel || '')}${attachment.type ? ` · ${escapeHtml(attachment.type)}` : ''}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
   function clearPendingAttachment() {
     state.pendingAttachment = null;
     if (refs.attachmentChip) {
@@ -3815,9 +4074,9 @@ function finishOnboarding() {
     const file = e?.target?.files?.[0];
     if (!file) return;
 
-    const maxBytes = 850 * 1024;
+    const maxBytes = 2 * 1024 * 1024;
     if (file.size > maxBytes) {
-      renderMessage('assistant', '<p>⚠️ Keep files under 850KB for fast analysis. Please upload a smaller file.</p>');
+      renderMessage('assistant', '<p>⚠️ Keep files under 2MB for fast analysis. Please upload a smaller file.</p>');
       clearPendingAttachment();
       return;
     }
@@ -3844,6 +4103,12 @@ function finishOnboarding() {
         entry.text = cleanText(raw, 4200);
       } else {
         entry.kind = 'document';
+        entry.dataUrl = await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(String(fr.result || ''));
+          fr.onerror = reject;
+          fr.readAsDataURL(file);
+        });
       }
     } catch {
       renderMessage('assistant', '<p>⚠️ Could not read that file. Please try another one.</p>');
@@ -3855,21 +4120,131 @@ function finishOnboarding() {
     renderAttachmentChip();
   }
 
+  function extractReplyFromContent(content = null, fallback = null) {
+    if (content && typeof content === 'object' && !Array.isArray(content) && content.replyTo) {
+      return content.replyTo;
+    }
+    if (fallback && typeof fallback === 'object' && fallback.replyTo) {
+      return fallback.replyTo;
+    }
+    return null;
+  }
+
+  function bindReplyGesture(msgEl, bubble, role, content, id) {
+    const snippet = cleanText(toPlainText(content), 180);
+    if (!snippet) return;
+    const target = { id, role, snippet };
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let swipeDx = 0;
+    let swiping = false;
+    let swipeArmed = false;
+    let pressTimer = null;
+
+    const onLongPress = () => setReplyTarget(target);
+    const clearPress = () => {
+      if (pressTimer) {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+    };
+
+    bubble.addEventListener('mousedown', (e) => {
+      if (e.target && e.target.closest && e.target.closest('button,a,img,input,textarea')) return;
+      clearPress();
+      pressTimer = setTimeout(onLongPress, 420);
+    });
+    bubble.addEventListener('mouseup', clearPress);
+    bubble.addEventListener('mouseleave', clearPress);
+
+    bubble.addEventListener('touchstart', (e) => {
+      const targetEl = e.target;
+      if (targetEl && targetEl.closest && targetEl.closest('button,a,img,input,textarea')) return;
+      const t = e.touches?.[0];
+      if (!t) return;
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+      swipeDx = 0;
+      swiping = false;
+      swipeArmed = false;
+      bubble.style.transition = '';
+      clearPress();
+      pressTimer = setTimeout(onLongPress, 420);
+    }, { passive: true });
+
+    bubble.addEventListener('touchmove', (e) => {
+      const t = e.touches?.[0];
+      if (!t) return;
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+      if (Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx)) {
+        clearPress();
+        return;
+      }
+      if (Math.abs(dx) < 8) return;
+      clearPress();
+      swiping = true;
+      swipeDx = dx;
+      const max = 64;
+      const damped = Math.max(-max, Math.min(max, dx * 0.55));
+      bubble.style.transform = `translateX(${damped}px)`;
+      bubble.classList.toggle('nabad-swipe-armed', Math.abs(damped) >= 34);
+      swipeArmed = Math.abs(damped) >= 34;
+    }, { passive: true });
+
+    bubble.addEventListener('touchend', (e) => {
+      clearPress();
+      if (swiping) {
+        bubble.style.transition = 'transform 180ms ease, box-shadow 180ms ease';
+        bubble.style.transform = 'translateX(0px)';
+        bubble.classList.remove('nabad-swipe-armed');
+        if (swipeArmed || Math.abs(swipeDx) > 52) {
+          setReplyTarget(target);
+          if (navigator.vibrate) navigator.vibrate(8);
+        }
+        setTimeout(() => { bubble.style.transition = ''; }, 200);
+        swiping = false;
+        swipeArmed = false;
+        return;
+      }
+      const t = e.changedTouches?.[0];
+      if (!t) return;
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+      if (Math.abs(dx) > 48 && Math.abs(dy) < 34) {
+        setReplyTarget(target);
+      }
+    }, { passive: true });
+  }
+
   // ── RENDER MESSAGE ────────────────────────────────────────────
-  function renderMessage(role, content, persist = true) {
+  function renderMessage(role, content, persist = true, meta = null) {
     document.getElementById('nabad-input-wrap').style.display = 'flex';
     const isUser = role === 'user';
+    const messageId = cleanText((meta && meta.id) || '', 48) || makeMessageId();
+    const replyTo = extractReplyFromContent(content, meta);
     const msg    = document.createElement('div');
     msg.className = `nabad-msg ${isUser ? 'user' : 'bot'}`;
+    msg.dataset.msgId = messageId;
 
     const bubble = document.createElement('div');
     bubble.className = 'nabad-bubble';
 
+    const replyQuoteHtml = replyTo
+      ? `<span class="nabad-reply-indicator" aria-hidden="true">↩</span><div class="nabad-reply-quote"><span class="label">${escapeHtml(buildReplyLabel(replyTo.role || 'assistant'))}</span><span class="snippet">${escapeHtml(replyTo.snippet || '')}</span></div>`
+      : '';
+
     if (isUser) {
-      bubble.innerHTML = `<p>${escapeHtml(String(content || '')).replace(/\n/g, '<br>')}</p>`;
+      if (content && typeof content === 'object' && !Array.isArray(content)) {
+        const userText = escapeHtml(String(content.text || '')).replace(/\n/g, '<br>');
+        const attachmentHtml = renderUserAttachmentHtml(content.attachment || null);
+        bubble.innerHTML = `${replyQuoteHtml}${userText ? `<p>${userText}</p>` : ''}${attachmentHtml}`;
+      } else {
+        bubble.innerHTML = `${replyQuoteHtml}<p>${escapeHtml(String(content || '')).replace(/\n/g, '<br>')}</p>`;
+      }
     } else {
       bubble.innerHTML = sanitizeHtml(
-        markdownToHtml(normalizeAssistantContent(String(content || '<p>Sorry — I could not generate a response.</p>')))
+        `${replyQuoteHtml}${markdownToHtml(normalizeAssistantContent(String(content || '<p>Sorry — I could not generate a response.</p>')))}`
       );
       bubble.classList.add('nabad-reply-pop');
       bubble.addEventListener('animationend', () => {
@@ -3879,6 +4254,7 @@ function finishOnboarding() {
 
     msg.appendChild(bubble);
     refs.messages.appendChild(msg);
+    bindReplyGesture(msg, bubble, role, content && typeof content === 'object' ? content.text || '' : content, messageId);
 
     if (!isUser) {
       processAssistantBubble(bubble);
@@ -3944,7 +4320,14 @@ function finishOnboarding() {
     }
 
     if (persist) {
-      state.messages.push({ role, content });
+      if (isUser && content && typeof content === 'object' && !Array.isArray(content)) {
+        const persisted = [String(content.text || '').trim(), content.attachment ? `[Attached ${content.attachment.kind || 'file'}: ${content.attachment.name || 'attachment'}]` : '']
+          .filter(Boolean)
+          .join('\n');
+        state.messages.push({ id: messageId, role, content: persisted, replyTo: replyTo || null });
+      } else {
+        state.messages.push({ id: messageId, role, content, replyTo: replyTo || null });
+      }
       saveMessages();
     }
 
@@ -4014,6 +4397,17 @@ function finishOnboarding() {
           refs.input.value = 'use premium';
         } else if (action === 'image-free') {
           refs.input.value = 'regenerate image';
+        } else if (action === 'onboard-business' || action === 'onboard-idea' || action === 'onboard-figuring') {
+          const path = action.replace('onboard-', '');
+          state.userProfile = { ...state.userProfile, path };
+          saveUserProfile(state.userProfile);
+          const prompts = {
+            business: 'Perfect. Tell me your business in one line and your biggest challenge right now.',
+            idea: 'Great. Tell me your idea in one sentence and who would pay for it first.',
+            figuring: 'Nice. Tell me your skills and what kind of business you want to build.'
+          };
+          renderMessage('assistant', `<p>${prompts[path] || prompts.business}</p>`);
+          return;
         } else {
           return;
         }
@@ -4072,20 +4466,18 @@ function finishOnboarding() {
     if (state.sending) return;
     const text = (refs.input.value || '').trim();
     const attachment = state.pendingAttachment;
+    const replyTo = state.replyTo;
     if (!text && !attachment) return;
 
     refs.input.value = '';
     refs.input.style.height = 'auto';
     _lastScrollHeight = 0;
     clearPendingAttachment();
+    clearReplyTarget();
     state.sending = true;
     refs.send.disabled = true;
 
-    const userPreview = [text];
-    if (attachment) {
-      userPreview.push(`[Attached ${attachment.kind || 'file'}: ${attachment.name}]`);
-    }
-    renderMessage('user', userPreview.filter(Boolean).join('\n'));
+    renderMessage('user', { text, attachment, replyTo });
 
     // Logo "thinking" animation
     const logo = document.getElementById('nabad-logo');
@@ -4119,7 +4511,19 @@ function finishOnboarding() {
         }
       }
 
-      const outboundMessages = [...history, { role: 'user', content: contentForApi }];
+      const outboundMessages = attachment
+        ? [...history.slice(0, -1), { role: 'user', content: contentForApi }]
+        : history;
+      const attachmentPayload = attachment
+        ? {
+            kind: attachment.kind || 'document',
+            name: cleanText(attachment.name || 'attachment', 140),
+            type: cleanText(attachment.type || '', 120),
+            sizeLabel: cleanText(attachment.sizeLabel || '', 24),
+            dataUrl: attachment.kind === 'image' || attachment.kind === 'document' ? String(attachment.dataUrl || '') : '',
+            text: attachment.kind === 'text' ? String(attachment.text || '') : ''
+          }
+        : null;
 
       const resp = await fetch(CONFIG.apiUrl, {
         method: 'POST',
@@ -4128,7 +4532,9 @@ function finishOnboarding() {
           messages:    outboundMessages,
           personality: state.autoDetectMode ? 'auto' : state.personality,
           userProfile: profile,
-          memoryKey: getMemoryKey()
+          memoryKey: getMemoryKey(),
+          attachment: attachmentPayload,
+          replyTo: replyTo || null
         })
       });
 
@@ -4355,13 +4761,14 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   // ── BACK TO CHAT ─────────────────────────────────────────────
   function backToChat() {
     state.warRoom = false;
+    clearReplyTarget();
     document.getElementById('nabad-input-wrap').style.display = 'flex';
     refs.messages.innerHTML = '';
     updatePersonalityBadge();
     if (!state.messages.length) {
       renderMessage('assistant', getPersonalityGreeting(state.personality), false);
     } else {
-      state.messages.slice(-50).forEach(m => renderMessage(m.role, m.content, false));
+      state.messages.slice(-50).forEach(m => renderMessage(m.role, m.content, false, m));
     }
     scrollToBottom();
     refs.input.focus();
@@ -4373,6 +4780,7 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
       state.messages      = [];
       state.briefShown    = false;
       state.warRoom       = false;
+      clearReplyTarget();
       saveMessages();
       refs.messages.innerHTML = '';
       document.getElementById('nabad-input-wrap').style.display = 'flex';
