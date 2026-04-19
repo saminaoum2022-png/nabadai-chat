@@ -63,7 +63,8 @@
     userProfile: `${CONFIG.storageNamespace}:userProfile`,
     onboarded:   `${CONFIG.storageNamespace}:onboarded`,
     memoryKey:   `${CONFIG.storageNamespace}:memoryKey`,
-    accountClaim:`${CONFIG.storageNamespace}:accountClaim`
+    accountClaim:`${CONFIG.storageNamespace}:accountClaim`,
+    autoDetect:  `${CONFIG.storageNamespace}:autoDetect`
   };
 
   const PERSONALITIES = [
@@ -137,6 +138,7 @@
     messages: loadMessages(),
     personality: loadPersonality() || 'auto',
     personalityChosen: !!loadPersonality(),
+    autoDetectMode: loadAutoDetect(),
     onboarded: loadOnboarded(),
     userProfile: loadUserProfile(),
     claimedAccount: loadAccountClaim(),
@@ -146,7 +148,8 @@
     voiceMode: false,
     pushSubscription: null,
     personalityBuffer: null,
-    personalityCount: 0
+    personalityCount: 0,
+    personalityScore: 0
   };
 
   const refs = {
@@ -188,11 +191,28 @@
     catch { return ''; }
   }
 
+  function loadAutoDetect() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.autoDetect);
+      if (raw === 'true') return true;
+      if (raw === 'false') return false;
+      const saved = loadPersonality();
+      return !saved || saved === 'auto';
+    } catch {
+      return true;
+    }
+  }
+
   function savePersonality(value) {
     try {
       if (!value) { localStorage.removeItem(STORAGE_KEYS.personality); return; }
       localStorage.setItem(STORAGE_KEYS.personality, value);
     } catch {}
+  }
+
+  function saveAutoDetect(value = true) {
+    try { localStorage.setItem(STORAGE_KEYS.autoDetect, String(Boolean(value))); }
+    catch {}
   }
 
   function loadOnboarded() {
@@ -3019,12 +3039,15 @@ function showPersonalityPill(id) {
     const prevId = state.personality;
 
     state.personality = nextId;
+    state.autoDetectMode = nextId === 'auto';
     state.personalityChosen = true;
     state.onboarded = true;
     state.personalityBuffer = null;
     state.personalityCount = 0;
+    state.personalityScore = 0;
 
     savePersonality(nextId);
+    saveAutoDetect(state.autoDetectMode);
     saveOnboarded(true);
     updatePersonalityBadge();
     setInputPlaceholder();
@@ -3425,9 +3448,14 @@ function renderOnboardingIntro() {
 
 function finishOnboarding() {
   state.personality       = 'auto';
+  state.autoDetectMode    = true;
   state.personalityChosen = true;
   state.onboarded         = true;
+  state.personalityBuffer = null;
+  state.personalityCount  = 0;
+  state.personalityScore  = 0;
   savePersonality('auto');
+  saveAutoDetect(true);
   saveOnboarded();
   updatePersonalityBadge();
   setInputPlaceholder();
@@ -3464,9 +3492,14 @@ function finishOnboarding() {
     refs.messages.querySelectorAll('.nabad-personality-card').forEach(btn => {
       btn.addEventListener('click', () => {
         state.personality       = btn.getAttribute('data-personality') || 'auto';
+        state.autoDetectMode    = state.personality === 'auto';
         state.personalityChosen = true;
         state.onboarded         = true;
+        state.personalityBuffer = null;
+        state.personalityCount  = 0;
+        state.personalityScore  = 0;
         savePersonality(state.personality);
+        saveAutoDetect(state.autoDetectMode);
         saveOnboarded();
         updatePersonalityBadge();
         setInputPlaceholder();
@@ -3815,25 +3848,44 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
         showWarRoomSuggestion(data.suggestWarRoom);
       }
 
-      // ── [PC-1] Handle detectedPersonality (2-message rule) ──
-      if (data.detectedPersonality && data.detectedPersonality !== 'auto') {
-        const detected = data.detectedPersonality;
-        if (detected === state.personalityBuffer) {
-          state.personalityCount += 1;
-        } else {
-          state.personalityBuffer = detected;
-          state.personalityCount  = 1;
-        }
+      // ── Smarter personality switching (confidence + stickiness) ──
+      if (state.autoDetectMode) {
+        const detected = String(data.detectedPersonality || 'auto');
+        const confidence = Math.max(
+          0,
+          Math.min(1, Number(data.detectedPersonalityConfidence ?? (detected === 'auto' ? 0.35 : 0.55)))
+        );
+        const userMsgCount = state.messages.filter((m) => m.role === 'user').length;
 
-        if (state.personalityCount >= 2 && detected !== state.personality) {
-          const prevPersonality = state.personality;
-          state.personality      = detected;
-          state.personalityCount = 0;
-          state.personalityBuffer = null;
-          savePersonality(state.personality);
-          setInputPlaceholder();
-          updatePersonalityBadge();
-          applyPersonalityColor(detected, true);
+        if (detected === 'auto' || confidence < 0.45) {
+          state.personalityScore = Math.max(0, state.personalityScore - 0.3);
+        } else {
+          if (detected === state.personalityBuffer) {
+            state.personalityCount += 1;
+            state.personalityScore += confidence;
+          } else {
+            state.personalityBuffer = detected;
+            state.personalityCount = 1;
+            state.personalityScore = confidence;
+          }
+
+          const threshold = state.personality === 'auto' ? 1.05 : 1.35;
+          const canStrongSwitch = confidence >= 0.86 && userMsgCount >= 1;
+          const canStickySwitch =
+            userMsgCount >= 2 &&
+            state.personalityCount >= 2 &&
+            state.personalityScore >= threshold;
+
+          if ((canStrongSwitch || canStickySwitch) && detected !== state.personality) {
+            const prevPersonality = state.personality;
+            state.personality = detected;
+            state.personalityCount = 0;
+            state.personalityBuffer = null;
+            state.personalityScore = 0;
+            setInputPlaceholder();
+            updatePersonalityBadge();
+            applyPersonalityColor(detected, prevPersonality !== detected);
+          }
         }
       }
 
@@ -4038,10 +4090,13 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
         const newId = btn.getAttribute('data-personality') || 'auto';
         const prev  = state.personality;
         state.personality       = newId;
+        state.autoDetectMode    = newId === 'auto';
         state.personalityChosen = true;
         state.personalityBuffer = null;
         state.personalityCount  = 0;
+        state.personalityScore  = 0;
         savePersonality(newId);
+        saveAutoDetect(state.autoDetectMode);
         updatePersonalityBadge();
         setInputPlaceholder();
         applyPersonalityColor(newId, prev !== newId);
@@ -4069,7 +4124,7 @@ function openSettingsPage() {
     return;
   }
 
-  const isAutoDetect = state.personality === 'auto';
+  const isAutoDetect = state.autoDetectMode;
 
   const page = document.createElement('div');
   page.id = 'nabad-settings-page';
@@ -4228,13 +4283,21 @@ function openSettingsPage() {
     const isAuto = autoToggle.checked;
     if (isAuto) {
       personalityGrid.classList.remove('visible');
+      state.autoDetectMode    = true;
       state.personality       = 'auto';
       state.personalityBuffer = null;
       state.personalityCount  = 0;
+      state.personalityScore  = 0;
       savePersonality('auto');
+      saveAutoDetect(true);
       setInputPlaceholder();
       applyPersonalityColor('auto', false);
     } else {
+      state.autoDetectMode = false;
+      saveAutoDetect(false);
+      if (state.personality === 'auto') {
+        state.personality = 'strategist';
+      }
       personalityGrid.classList.add('visible');
     }
   });
@@ -4249,10 +4312,13 @@ function openSettingsPage() {
 
       const prev = state.personality;
       state.personality       = newId;
+      state.autoDetectMode    = false;
       state.personalityChosen = true;
       state.personalityBuffer = null;
       state.personalityCount  = 0;
+      state.personalityScore  = 0;
       savePersonality(newId);
+      saveAutoDetect(false);
       setInputPlaceholder();
       updatePersonalityBadge();
       applyPersonalityColor(newId, prev !== newId);
@@ -4285,6 +4351,7 @@ function openSettingsPage() {
         localStorage.removeItem('nabad_insights');
         state.messages          = [];
         state.personality       = 'auto';
+        state.autoDetectMode    = true;
         state.personalityChosen = false;
         state.onboarded         = false;
         state.userProfile       = {};
@@ -4292,6 +4359,7 @@ function openSettingsPage() {
         state.briefShown        = false;
         state.personalityBuffer = null;
         state.personalityCount  = 0;
+        state.personalityScore  = 0;
         refs.messages.innerHTML = '';
         document.getElementById('nabad-input-wrap').style.display = 'flex';
         updatePersonalityBadge();
@@ -4391,9 +4459,14 @@ function openSettingsPage() {
             <label class="nabad-question-label">Email</label>
             <input class="nabad-question-input" id="nabad-claim-email" placeholder="you@company.com" value="${escapeHtml(account.email || '')}" />
           </div>
+          <div class="nabad-question-field">
+            <label class="nabad-question-label">Recovery Code (for new devices)</label>
+            <input class="nabad-question-input" id="nabad-restore-code" placeholder="e.g. 9A4F2C7D" value="" />
+          </div>
         </div>
 
         <button class="nabad-ob-btn" id="nabad-claim-save" type="button">${account.email ? 'Update Claim' : 'Claim Account'}</button>
+        <button class="nabad-ob-back" id="nabad-restore-device" type="button">Restore on this device</button>
         <button class="nabad-ob-back" id="nabad-claim-back" type="button">← Back to chat</button>
       </div>
     `;
@@ -4438,13 +4511,74 @@ function openSettingsPage() {
             claimedAt: new Date().toISOString()
           };
           saveAccountClaim(state.claimedAccount);
+          const recoveryCode = String(data?.recoveryCode || '');
 
+          if (recoveryCode) {
+            alert(`Your recovery code is: ${recoveryCode}\n\nSave this code. You will need email + this code to restore Nabad on another device.`);
+          }
           renderMessage('assistant', `<p>✅ Account claimed as <strong>${escapeHtml(email)}</strong>. Your memory is now linked.</p>`);
           backToChat();
         } catch (err) {
           alert(err?.message || 'Could not save claim right now. Please try again.');
           btn.disabled = false;
           btn.textContent = account.email ? 'Update Claim' : 'Claim Account';
+        }
+      });
+
+    refs.messages.querySelector('#nabad-restore-device')
+      .addEventListener('click', async () => {
+        const email = (refs.messages.querySelector('#nabad-claim-email')?.value || '').trim().toLowerCase();
+        const code = (refs.messages.querySelector('#nabad-restore-code')?.value || '').trim().toUpperCase();
+        if (!email) {
+          alert('Enter your claimed email first.');
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+          alert('Please enter a valid email.');
+          return;
+        }
+        if (!code) {
+          alert('Enter your recovery code.');
+          return;
+        }
+
+        const btn = refs.messages.querySelector('#nabad-restore-device');
+        btn.disabled = true;
+        btn.textContent = 'Restoring...';
+
+        try {
+          const resp = await fetch(CONFIG.apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              restoreEmail: email,
+              restoreCode: code
+            })
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+
+          if (data?.memoryKey) {
+            localStorage.setItem(STORAGE_KEYS.memoryKey, data.memoryKey);
+          }
+          state.claimedAccount = {
+            email,
+            name: cleanText(data?.account?.name || account.name || '', 100),
+            claimedAt: new Date().toISOString()
+          };
+          saveAccountClaim(state.claimedAccount);
+
+          if (data?.memory?.country) state.userProfile.country = data.memory.country;
+          if (data?.memory?.industry) state.userProfile.industry = data.memory.industry;
+          if (data?.memory?.stage) state.userProfile.stage = data.memory.stage;
+          saveUserProfile(state.userProfile);
+
+          renderMessage('assistant', '<p>✅ Memory restored on this device. Nabad remembers your context now.</p>');
+          backToChat();
+        } catch (err) {
+          alert(err?.message || 'Could not restore memory. Check email/code and try again.');
+          btn.disabled = false;
+          btn.textContent = 'Restore on this device';
         }
       });
 
