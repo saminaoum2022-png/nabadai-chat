@@ -177,6 +177,10 @@ function cleanText(val = '', maxLen = 300) {
   if (typeof val !== 'string') return '';
   return val.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
 }
+function isValidEmail(value = '') {
+  const v = String(value || '').trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+}
 function sanitizePromptText(text = '') {
   return text.replace(/[<>{}|\\^`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 900);
 }
@@ -1438,6 +1442,37 @@ export default async function handler(req, res) {
   try { body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body; }
   catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
 
+  const memoryKey = normalizeMemoryKey(body?.memoryKey || '');
+  const storedFounderMemory = await loadFounderMemory(memoryKey);
+  const claimEmail = cleanText(body?.claimEmail || '', 180).toLowerCase();
+  const claimName = cleanText(body?.claimName || '', 120);
+
+  if (claimEmail || claimName) {
+    if (!memoryKey) return res.status(400).json({ error: 'Missing memoryKey for account claim.' });
+    if (!claimEmail) return res.status(400).json({ error: 'Email is required to claim account.' });
+    if (!isValidEmail(claimEmail)) return res.status(400).json({ error: 'Please provide a valid email address.' });
+
+    const merged = mergeFounderMemory(storedFounderMemory || {}, {
+      userProfile: cleanText(body?.userProfile || '', 700),
+      conversationText: ''
+    });
+    merged.account = {
+      ...(storedFounderMemory?.account && typeof storedFounderMemory.account === 'object'
+        ? storedFounderMemory.account
+        : {}),
+      email: claimEmail,
+      name: claimName || (storedFounderMemory?.account?.name || ''),
+      claimedAt: new Date().toISOString()
+    };
+
+    await saveFounderMemory(memoryKey, merged);
+    return res.status(200).json({
+      ok: true,
+      claimed: true,
+      reply: `Account claimed as ${claimEmail}.`
+    });
+  }
+
   const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
   const messages = rawMessages.slice(-50).map(m => ({
     role: ['user', 'assistant', 'system'].includes(m.role) ? m.role : 'user',
@@ -1453,8 +1488,6 @@ export default async function handler(req, res) {
   const selectedPersonality = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'].includes(body?.personality)
     ? body.personality : 'auto';
 
-  const memoryKey = normalizeMemoryKey(body?.memoryKey || '');
-  const storedFounderMemory = await loadFounderMemory(memoryKey);
   const incomingUserProfile = cleanText(body?.userProfile || '', 500);
   const storedProfile = memoryToProfileString(storedFounderMemory || {});
   const userProfile = cleanText([incomingUserProfile, storedProfile].filter(Boolean).join(' | '), 950);
