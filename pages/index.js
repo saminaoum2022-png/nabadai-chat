@@ -18,12 +18,12 @@ import { useEffect, useState } from 'react';
 
 // [FIX-8] Single source of truth for personality labels
 const PERSONALITIES = [
-  'Strategist',
-  'Growth Expert',
-  'Brand Builder',
-  'Offer Architect',
-  'Creative Challenger',
-  'Straight Talk',
+  { id: 'strategist', label: 'Strategist' },
+  { id: 'growth', label: 'Growth Expert' },
+  { id: 'branding', label: 'Brand Builder' },
+  { id: 'offer', label: 'Offer Architect' },
+  { id: 'creative', label: 'Creative Challenger' },
+  { id: 'straight_talk', label: 'Straight Talk' },
 ];
 
 const FEATURE_POINTS = [
@@ -103,7 +103,11 @@ export default function Home() {
   }, []);
 
   // [FIX-2] Manual open for desktop chips and CTA button
-  const handleOpenWidget = () => {
+  const handleOpenWidget = (personalityId = 'auto') => {
+    window.__NABAD_PENDING_PERSONALITY__ = personalityId;
+    if (window.__NABAD_SET_PERSONALITY__) {
+      window.__NABAD_SET_PERSONALITY__(personalityId);
+    }
     if (window.__NABAD_OPEN_WIDGET__) {
       window.__NABAD_OPEN_WIDGET__();
       return;
@@ -136,6 +140,9 @@ export default function Home() {
         <meta name="twitter:title" content="NabadAi — Business AI" />
         <meta name="twitter:description" content="Your business-focused AI assistant." />
         <meta name="twitter:image" content="https://nabadai.com/og-image.png" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
       </Head>
 
       <Script id="nabad-widget-config" strategy="beforeInteractive">
@@ -202,17 +209,17 @@ export default function Home() {
                   {PERSONALITIES.map(item => (
                     <button
                       type="button"
-                      key={item}
+                      key={item.id}
                       className="nabad-chip"
-                      aria-label={`Open Nabad as ${item}`}
-                      onClick={handleOpenWidget}
+                      aria-label={`Open Nabad as ${item.label}`}
+                      onClick={() => handleOpenWidget(item.id)}
                     >
-                      {item}
+                      {item.label}
                     </button>
                   ))}
                 </div>
 
-                <button type="button" className="nabad-cta" onClick={handleOpenWidget}>
+                <button type="button" className="nabad-cta" onClick={() => handleOpenWidget('auto')}>
                   Open Nabad
                 </button>
               </div>
@@ -239,13 +246,22 @@ export default function Home() {
           width: 100%;
           min-height: 100%;
           overflow-x: hidden;
-          background: #f7f8fc;
-          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
-            'Segoe UI', sans-serif;
+          background: #f4f8ff;
+          font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        :root {
+          --nabad-text: #091428;
+          --nabad-muted: #4f6178;
+          --nabad-surface: rgba(255,255,255,0.82);
+          --nabad-stroke: rgba(255,255,255,0.9);
+          --nabad-shadow: 0 20px 60px rgba(9,20,40,0.09);
+          --nabad-brand-a: #2563eb;
+          --nabad-brand-b: #06b6d4;
         }
 
         * { box-sizing: border-box; }
-        body { color: #0f172a; }
+        body { color: var(--nabad-text); }
 
         button, input, textarea, select { font: inherit; }
         a { color: inherit; }
@@ -255,9 +271,10 @@ export default function Home() {
           min-height: 100dvh;
           overflow: hidden;
           background:
-            radial-gradient(circle at top left, rgba(125,211,252,0.18), transparent 26%),
-            radial-gradient(circle at top right, rgba(196,181,253,0.22), transparent 26%),
-            linear-gradient(180deg, #f8fbff 0%, #f7f8fc 100%);
+            radial-gradient(circle at 10% 14%, rgba(56,189,248,0.22), transparent 24%),
+            radial-gradient(circle at 85% 18%, rgba(37,99,235,0.18), transparent 24%),
+            radial-gradient(circle at 50% 100%, rgba(14,165,233,0.14), transparent 32%),
+            linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
         }
 
         #nabad-page-bg {
@@ -325,11 +342,9 @@ export default function Home() {
           align-items: stretch;
           padding: 28px;
           border-radius: 34px;
-          background: rgba(255,255,255,0.72);
-          border: 1px solid rgba(255,255,255,0.8);
-          box-shadow:
-            0 20px 60px rgba(15,23,42,0.08),
-            inset 0 1px 0 rgba(255,255,255,0.75);
+          background: var(--nabad-surface);
+          border: 1px solid var(--nabad-stroke);
+          box-shadow: var(--nabad-shadow), inset 0 1px 0 rgba(255,255,255,0.75);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
         }
@@ -354,6 +369,7 @@ export default function Home() {
 
         #nabad-desktop-copy h1 {
           margin: 0 0 16px;
+          font-family: "Sora", "Manrope", sans-serif;
           font-size: clamp(40px, 5vw, 62px);
           line-height: 0.96;
           letter-spacing: -0.04em;
@@ -363,9 +379,9 @@ export default function Home() {
 
         .nabad-lead, .nabad-sublead {
           max-width: 700px;
-          font-size: 20px;
-          line-height: 1.65;
-          color: #475569;
+          font-size: 19px;
+          line-height: 1.6;
+          color: var(--nabad-muted);
           margin: 0 0 16px;
         }
 
@@ -393,9 +409,9 @@ export default function Home() {
 
         .nabad-feature-card p {
           margin: 0;
-          color: #5b6473;
-          font-size: 18px;
-          line-height: 1.55;
+          color: var(--nabad-muted);
+          font-size: 17px;
+          line-height: 1.52;
         }
 
         .nabad-side-card { height: 100%; padding: 24px; }
@@ -409,8 +425,8 @@ export default function Home() {
 
         .nabad-side-card p {
           margin: 0 0 14px;
-          color: #5b6473;
-          font-size: 17px;
+          color: var(--nabad-muted);
+          font-size: 16px;
           line-height: 1.6;
         }
 
@@ -434,7 +450,7 @@ export default function Home() {
           font-weight: 700;
           cursor: pointer;
           transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-          box-shadow: 0 8px 22px rgba(15,23,42,0.05);
+          box-shadow: 0 8px 22px rgba(9,20,40,0.06);
         }
 
         .nabad-chip:hover {
@@ -449,7 +465,7 @@ export default function Home() {
           border-radius: 999px;
           padding: 14px 18px;
           min-height: 48px;
-          background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 45%, #06b6d4 100%);
+          background: linear-gradient(135deg, var(--nabad-brand-a) 0%, #1d4ed8 40%, var(--nabad-brand-b) 100%);
           color: #fff;
           font-size: 15px;
           font-weight: 800;
