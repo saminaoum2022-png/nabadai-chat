@@ -87,12 +87,78 @@ function inferBottleneckFromText(text = '') {
   return '';
 }
 
+function mergeStringList(existing = [], incoming = [], max = 10) {
+  const out = [];
+  const push = (value = '') => {
+    const clean = cleanText(String(value || ''), 180);
+    if (!clean) return;
+    const exists = out.some(v => v.toLowerCase() === clean.toLowerCase());
+    if (!exists) out.push(clean);
+  };
+  (Array.isArray(existing) ? existing : []).forEach(push);
+  (Array.isArray(incoming) ? incoming : []).forEach(push);
+  return out.slice(-max);
+}
+
+function inferLearningSignals(userMessage = '', detectedInfo = null, userLanguage = 'en') {
+  const text = cleanText(userMessage, 1500);
+  const lower = text.toLowerCase();
+  const goals = [];
+  const constraints = [];
+  const preferences = [];
+
+  const goalRegexes = [
+    /\b(i want to|my goal is to|i need to|help me)\s+([^.!?\n]{8,140})/gi,
+    /\b(reach|hit|grow to|scale to)\s+([^.!?\n]{3,120})/gi
+  ];
+  goalRegexes.forEach((rx) => {
+    let match;
+    while ((match = rx.exec(text)) !== null) {
+      const snippet = cleanText(`${match[1]} ${match[2]}`, 140);
+      if (snippet) goals.push(snippet);
+    }
+  });
+
+  if (/\b(low budget|no budget|tight budget|limited budget|small budget)\b/i.test(lower)) {
+    constraints.push('budget is limited');
+  }
+  if (/\b(quick|fast|asap|urgent|immediately)\b/i.test(lower)) {
+    constraints.push('needs speed');
+  }
+  if (/\b(legal|regulation|compliance|license|paperwork|law)\b/i.test(lower)) {
+    constraints.push('needs legal-safe guidance');
+  }
+  if (/\b(solo|alone|one person|just me|small team)\b/i.test(lower)) {
+    constraints.push('small team capacity');
+  }
+
+  if (/\b(step by step|steps|roadmap|plan)\b/i.test(lower)) preferences.push('prefers step-by-step plans');
+  if (/\b(short|brief|concise)\b/i.test(lower)) preferences.push('prefers concise answers');
+  if (/\b(detailed|deep dive|in detail)\b/i.test(lower)) preferences.push('prefers detailed answers');
+  if (/\b(no fluff|direct|straight to the point)\b/i.test(lower)) preferences.push('prefers direct tone');
+
+  const structured = detectedInfo && typeof detectedInfo === 'object' ? detectedInfo : {};
+
+  return {
+    language: userLanguage === 'ar' ? 'ar' : 'en',
+    goals: mergeStringList([], goals, 8),
+    constraints: mergeStringList([], constraints, 8),
+    preferences: mergeStringList([], preferences, 8),
+    knownFields: mergeStringList([], Object.entries(structured)
+      .filter(([, v]) => typeof v === 'string' && v.trim())
+      .map(([k, v]) => `${k}: ${v}`), 12)
+  };
+}
+
 function mergeFounderMemory(current = {}, payload = {}) {
   const next = { ...(current || {}) };
   const profile = cleanText(payload.userProfile || '', 700);
   const conversationText = cleanText(payload.conversationText || '', 1200);
   const detectedInfo = payload.detectedInfo && typeof payload.detectedInfo === 'object'
     ? payload.detectedInfo
+    : {};
+  const learnSignals = payload.learnSignals && typeof payload.learnSignals === 'object'
+    ? payload.learnSignals
     : {};
 
   if (profile) next.profile = profile;
@@ -113,6 +179,22 @@ function mergeFounderMemory(current = {}, payload = {}) {
   const bottleneck = inferBottleneckFromText(`${profile} ${conversationText}`);
   if (bottleneck) next.bottleneck = bottleneck;
 
+  if (!next.learning || typeof next.learning !== 'object') next.learning = {};
+  if (learnSignals.language) next.learning.language = cleanText(learnSignals.language, 8);
+  if (Array.isArray(learnSignals.goals)) {
+    next.learning.goals = mergeStringList(next.learning.goals, learnSignals.goals, 12);
+  }
+  if (Array.isArray(learnSignals.constraints)) {
+    next.learning.constraints = mergeStringList(next.learning.constraints, learnSignals.constraints, 12);
+  }
+  if (Array.isArray(learnSignals.preferences)) {
+    next.learning.preferences = mergeStringList(next.learning.preferences, learnSignals.preferences, 12);
+  }
+  if (Array.isArray(learnSignals.knownFields)) {
+    next.learning.knownFields = mergeStringList(next.learning.knownFields, learnSignals.knownFields, 18);
+  }
+  next.learning.updatedAt = new Date().toISOString();
+
   next.updatedAt = new Date().toISOString();
   return next;
 }
@@ -124,6 +206,9 @@ function memoryToProfileString(memory = {}) {
   if (memory.industry) parts.push(`Industry: ${memory.industry}`);
   if (memory.stage) parts.push(`Stage: ${memory.stage}`);
   if (memory.bottleneck) parts.push(`Bottleneck: ${memory.bottleneck}`);
+  if (memory.learning?.goals?.length) parts.push(`Goals: ${memory.learning.goals.slice(0, 3).join('; ')}`);
+  if (memory.learning?.constraints?.length) parts.push(`Constraints: ${memory.learning.constraints.slice(0, 3).join('; ')}`);
+  if (memory.learning?.preferences?.length) parts.push(`Preferences: ${memory.learning.preferences.slice(0, 3).join('; ')}`);
   if (memory.facts && typeof memory.facts === 'object') {
     Object.entries(memory.facts).forEach(([k, v]) => {
       if (v) parts.push(`${k}: ${v}`);
@@ -725,7 +810,7 @@ function buildProactiveIntelligence(messages = [], lastUserMessage = '') {
   return insights.length ? `\n\nProactive intelligence (weave into reply naturally, never list verbatim): ${insights.join(' | ')}` : '';
 }
 
-function buildMemoryContext(messages = [], userProfile = '') {
+function buildMemoryContext(messages = [], userProfile = '', storedMemory = {}) {
   const facts = [];
 
   // ── Pull from structured userProfile string first ──
@@ -766,6 +851,22 @@ function buildMemoryContext(messages = [], userProfile = '') {
   );
   if (goalMatch && !profileLower.includes(goalMatch[0].toLowerCase())) {
     facts.push(`Goal: ${goalMatch[0]}`);
+  }
+
+  const learning = storedMemory?.learning && typeof storedMemory.learning === 'object'
+    ? storedMemory.learning
+    : {};
+  if (Array.isArray(learning.goals) && learning.goals.length) {
+    facts.push(`Persistent goals: ${learning.goals.slice(0, 3).join(' | ')}`);
+  }
+  if (Array.isArray(learning.constraints) && learning.constraints.length) {
+    facts.push(`Known constraints: ${learning.constraints.slice(0, 3).join(' | ')}`);
+  }
+  if (Array.isArray(learning.preferences) && learning.preferences.length) {
+    facts.push(`Communication preferences: ${learning.preferences.slice(0, 3).join(' | ')}`);
+  }
+  if (Array.isArray(learning.knownFields) && learning.knownFields.length) {
+    facts.push(`Remembered details: ${learning.knownFields.slice(0, 4).join(' | ')}`);
   }
 
   if (!facts.length) return '';
@@ -1741,11 +1842,13 @@ export default async function handler(req, res) {
     : false;
   const fullConversationText = `${messages.map(m => getMessageText(m.content)).join(' ')} ${lastUserMessage} ${parsedAttachment?.summaryText || ''}`;
 
-  const persistFounderMemory = async (detectedInfo = null) => {
+  const baseLearningSignals = inferLearningSignals(lastUserMessage, null, userLanguage);
+  const persistFounderMemory = async (detectedInfo = null, learningSignals = null) => {
     if (!memoryKey) return;
     const merged = mergeFounderMemory(storedFounderMemory || {}, {
       userProfile: incomingUserProfile,
       detectedInfo,
+      learnSignals: learningSignals || baseLearningSignals,
       conversationText: fullConversationText
     });
     await saveFounderMemory(memoryKey, merged);
@@ -2029,7 +2132,7 @@ export default async function handler(req, res) {
   }
 
   const proactiveIntelligence = buildProactiveIntelligence(messages, lastUserMessage);
-  const memoryContext = buildMemoryContext(messages, userProfile);
+  const memoryContext = buildMemoryContext(messages, userProfile, storedFounderMemory || {});
   const locationContext = buildLocationContext(detectedLocation);
 
   const toneInstruction = `
@@ -2210,7 +2313,8 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
 console.log('[NABAD DEBUG] detectedInfo:', JSON.stringify(detectedInfo));
 console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
 
-    await persistFounderMemory(detectedInfo);
+    const learningSignals = inferLearningSignals(lastUserMessage, detectedInfo, userLanguage);
+    await persistFounderMemory(detectedInfo, learningSignals);
     return res.status(200).json({
       reply: ensureHtmlReply(rawReply),
       detectedInfo,
