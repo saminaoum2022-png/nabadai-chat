@@ -29,14 +29,14 @@
   const PURIFY_CONFIG = {
     ALLOWED_TAGS: [
       'p','b','i','strong','em','h3','h4',
-      'ul','ol','li','a','br','img','span','div','table',
+      'ul','ol','li','a','br','img','span','div','table','button',
       'thead','tbody','tr','th','td'
     ],
     ALLOWED_ATTR: [
       'href','src','alt','target','rel','class','style',
       'data-nabad-card','data-nabad-brief','data-nabad-source',
       'data-nabad-model','data-nabad-prompt',
-      'data-score','data-quadrant'
+      'data-score','data-quadrant','data-nabad-action'
     ]
   };
 
@@ -64,8 +64,7 @@
     onboarded:   `${CONFIG.storageNamespace}:onboarded`,
     memoryKey:   `${CONFIG.storageNamespace}:memoryKey`,
     accountClaim:`${CONFIG.storageNamespace}:accountClaim`,
-    autoDetect:  `${CONFIG.storageNamespace}:autoDetect`,
-    ideaVault:   `${CONFIG.storageNamespace}:ideaVault`
+    autoDetect:  `${CONFIG.storageNamespace}:autoDetect`
   };
 
   const PERSONALITIES = [
@@ -129,6 +128,16 @@
       { key: 'preference',      label: 'Product or service business?',               placeholder: 'e.g. Service — I like working with people' },
       { key: 'timeCommitment',  label: 'How much time can you commit per week?',     placeholder: 'e.g. 10 hours, full time, evenings only' }
     ]
+  };
+
+  const SETTINGS_ICONS = {
+    auto: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><path d="M12 18v3"/><path d="M4.93 4.93l2.12 2.12"/><path d="M16.95 16.95l2.12 2.12"/><path d="M3 12h3"/><path d="M18 12h3"/><path d="M4.93 19.07l2.12-2.12"/><path d="M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="3.5"/></svg>`,
+    newChat: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`,
+    memory: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v10"/><path d="M7 12h10"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>`,
+    profile: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>`,
+    account: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/></svg>`,
+    warRoom: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.47 6.03.88-4.36 4.25 1.03 6.01L12 16.9 6.6 19.61l1.03-6.01L3.27 9.35l6.03-.88L12 3z"/></svg>`,
+    reset: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 10v7"/><path d="M14 10v7"/></svg>`
   };
 
   // ── STATE ────────────────────────────────────────────────────
@@ -268,22 +277,6 @@
         name: cleanText(claim.name || '', 100),
         claimedAt: cleanText(claim.claimedAt || new Date().toISOString(), 64)
       }));
-    } catch {}
-  }
-
-  function loadIdeaVault() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.ideaVault);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function saveIdeaVault(items = []) {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ideaVault, JSON.stringify(items.slice(-80)));
     } catch {}
   }
 
@@ -2559,6 +2552,10 @@ function showPersonalityPill(id) {
         border-color: rgba(34,197,94,0.3);
         background: rgba(34,197,94,0.08);
       }
+
+      .nabad-bubble button[data-nabad-action] {
+        font-family: inherit;
+      }
       
       /* ── Settings Page ── */
 #nabad-settings-page {
@@ -2672,6 +2669,12 @@ function showPersonalityPill(id) {
   justify-content: center;
   font-size: 17px;
   flex-shrink: 0;
+}
+
+.nabad-settings-row-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .nabad-settings-row-icon.red {
@@ -2862,8 +2865,12 @@ function showPersonalityPill(id) {
             </div>
           </div>
           <div id="nabad-header-actions">
-            <button class="nabad-icon-btn" id="nabad-new-chat" type="button" title="Options">⊙</button>
-            <button class="nabad-icon-btn nabad-desktop-only" id="nabad-close" type="button" title="Close">×</button>
+            <button class="nabad-icon-btn" id="nabad-new-chat" type="button" title="Settings">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.5"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .16 1.7 1.7 0 0 0-.99 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-.99-1.55A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.16-1 1.7 1.7 0 0 0-1.55-.99H2.8a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.44 8a1.7 1.7 0 0 0 .16-1A1.7 1.7 0 0 0 4.26 5.1l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.16 1.7 1.7 0 0 0 .99-1.55V2.8a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 .99 1.55A1.7 1.7 0 0 0 17 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c0 .35.06.69.16 1 .26.6.85.99 1.51.99h.13a2 2 0 1 1 0 4h-.13c-.66 0-1.25.39-1.51.99-.1.31-.16.65-.16 1z"/></svg>
+            </button>
+            <button class="nabad-icon-btn nabad-desktop-only" id="nabad-close" type="button" title="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
           </div>
         </div>
 
@@ -3656,26 +3663,23 @@ function finishOnboarding() {
         memoryBtn.innerHTML = `<span class="nabad-loading-dots"><span></span><span></span><span></span></span>`;
 
         try {
-          const clean = content.replace(/<[^>]+>/g, '').trim().slice(0, 500);
+          const clean = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 420);
           const resp = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              messages: [
-                { role: 'user', content: `Summarize this advice in maximum 8 words, no punctuation at the end:\n\n${clean}` }
-              ],
-              personality: 'auto',
-              memoryKey: getMemoryKey()
+              saveInsight: true,
+              insightText: clean,
+              memoryKey: getMemoryKey(),
+              userProfile: buildProfileSummary()
             })
           });
-          const data = await resp.json();
-          const summary = (data.reply || '').replace(/<[^>]+>/g, '').trim().slice(0, 80);
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
 
-          if (summary) {
-            const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
-            insights.push({ text: summary, date: new Date().toLocaleDateString() });
-            localStorage.setItem('nabad_insights', JSON.stringify(insights.slice(-20)));
-          }
+          const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
+          insights.push({ text: clean, date: new Date().toLocaleDateString() });
+          localStorage.setItem('nabad_insights', JSON.stringify(insights.slice(-40)));
 
           memoryBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
           memoryBtn.dataset.saved = 'true';
@@ -3686,32 +3690,10 @@ function finishOnboarding() {
 }
       });
 
-      // ── Save to Ideas Vault button ──
-      const vaultBtn = document.createElement('button');
-      vaultBtn.className = 'nabad-memory-btn';
-      vaultBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.77 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-      vaultBtn.title = 'Save this to Ideas Vault';
-      vaultBtn.addEventListener('click', () => {
-        if (vaultBtn.dataset.saved === 'true') return;
-        const text = String(content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 420);
-        if (!text) return;
-        const vault = loadIdeaVault();
-        vault.push({
-          text,
-          date: new Date().toLocaleDateString(),
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        });
-        saveIdeaVault(vault);
-        vaultBtn.dataset.saved = 'true';
-        vaultBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-        vaultBtn.title = 'Saved to Ideas Vault';
-      });
-
       const btnRow = document.createElement('div');
       btnRow.className = 'nabad-btn-row';
       btnRow.appendChild(speakerBtn);
       btnRow.appendChild(memoryBtn);
-      btnRow.appendChild(vaultBtn);
       bubble.appendChild(btnRow);
     }
 
@@ -3775,6 +3757,23 @@ function finishOnboarding() {
     bubble.querySelectorAll('a[href]').forEach(a => {
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
+    });
+
+    // Action buttons inside assistant cards
+    bubble.querySelectorAll('button[data-nabad-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const action = btn.getAttribute('data-nabad-action') || '';
+        if (!refs.input) return;
+        if (action === 'image-premium') {
+          refs.input.value = 'use premium';
+        } else if (action === 'image-free') {
+          refs.input.value = 'regenerate image';
+        } else {
+          return;
+        }
+        autoGrowTextarea();
+        setTimeout(() => sendMessage(), 80);
+      });
     });
   }
 
@@ -4195,13 +4194,13 @@ function openSettingsPage() {
 
       <!-- AI MODE SECTION -->
       <div>
-        <div class="nabad-settings-section-label">🤖 AI Mode</div>
+        <div class="nabad-settings-section-label">AI Mode</div>
         <div class="nabad-settings-card">
 
           <!-- Auto-detect toggle -->
           <div class="nabad-toggle-wrap">
             <div class="nabad-toggle-left">
-              <div class="nabad-settings-row-icon">🌀</div>
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.auto}</div>
               <div>
                 <div class="nabad-settings-row-label">Auto-detect mode</div>
                 <div class="nabad-settings-row-desc">Nabad switches personality based on your conversation</div>
@@ -4233,11 +4232,11 @@ function openSettingsPage() {
 
       <!-- CHAT SECTION -->
       <div>
-        <div class="nabad-settings-section-label">💬 Chat</div>
+        <div class="nabad-settings-section-label">Chat</div>
         <div class="nabad-settings-card">
           <div class="nabad-settings-row" id="nabad-set-new-chat">
             <div class="nabad-settings-row-left">
-              <div class="nabad-settings-row-icon">🔄</div>
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.newChat}</div>
               <div>
                 <div class="nabad-settings-row-label">New Chat</div>
                 <div class="nabad-settings-row-desc">Start fresh conversation</div>
@@ -4247,7 +4246,7 @@ function openSettingsPage() {
           </div>
           <div class="nabad-settings-row" id="nabad-set-memory">
             <div class="nabad-settings-row-left">
-              <div class="nabad-settings-row-icon">📚</div>
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.memory}</div>
               <div>
                 <div class="nabad-settings-row-label">My Memory</div>
                 <div class="nabad-settings-row-desc">View everything Nabad knows about you</div>
@@ -4255,19 +4254,9 @@ function openSettingsPage() {
             </div>
             <span class="nabad-settings-row-arrow">›</span>
           </div>
-          <div class="nabad-settings-row" id="nabad-set-vault">
-            <div class="nabad-settings-row-left">
-              <div class="nabad-settings-row-icon">⭐</div>
-              <div>
-                <div class="nabad-settings-row-label">Ideas Vault</div>
-                <div class="nabad-settings-row-desc">Saved brainstorm snippets from replies</div>
-              </div>
-            </div>
-            <span class="nabad-settings-row-arrow">›</span>
-          </div>
           <div class="nabad-settings-row" id="nabad-set-profile">
             <div class="nabad-settings-row-left">
-              <div class="nabad-settings-row-icon">🧾</div>
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.profile}</div>
               <div>
                 <div class="nabad-settings-row-label">Business Profile</div>
                 <div class="nabad-settings-row-desc">Edit country, industry, stage, and main goal</div>
@@ -4277,7 +4266,7 @@ function openSettingsPage() {
           </div>
           <div class="nabad-settings-row" id="nabad-set-account">
             <div class="nabad-settings-row-left">
-              <div class="nabad-settings-row-icon">🔐</div>
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.account}</div>
               <div>
                 <div class="nabad-settings-row-label">Account</div>
                 <div class="nabad-settings-row-desc">${
@@ -4291,7 +4280,7 @@ function openSettingsPage() {
           </div>
           <div class="nabad-settings-row" id="nabad-set-warroom">
             <div class="nabad-settings-row-left">
-              <div class="nabad-settings-row-icon">⚔️</div>
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.warRoom}</div>
               <div>
                 <div class="nabad-settings-row-label">War Room</div>
                 <div class="nabad-settings-row-desc">3 expert perspectives on one problem</div>
@@ -4304,11 +4293,11 @@ function openSettingsPage() {
 
       <!-- DANGER SECTION -->
       <div>
-        <div class="nabad-settings-section-label">⚠️ Danger Zone</div>
+        <div class="nabad-settings-section-label">Danger Zone</div>
         <div class="nabad-settings-card">
           <div class="nabad-settings-row" id="nabad-set-reset">
             <div class="nabad-settings-row-left">
-              <div class="nabad-settings-row-icon red">🗑️</div>
+              <div class="nabad-settings-row-icon red">${SETTINGS_ICONS.reset}</div>
               <div>
                 <div class="nabad-settings-row-label danger">Reset Everything</div>
                 <div class="nabad-settings-row-desc">Clear all messages, memory, and profile</div>
@@ -4394,9 +4383,6 @@ function openSettingsPage() {
   page.querySelector('#nabad-set-memory').addEventListener('click', () => {
     closeSettings(); setTimeout(() => showMemoryScreen(), 360);
   });
-  page.querySelector('#nabad-set-vault').addEventListener('click', () => {
-    closeSettings(); setTimeout(() => showIdeasVaultScreen(), 360);
-  });
   page.querySelector('#nabad-set-profile').addEventListener('click', () => {
     closeSettings(); setTimeout(() => showProfileEditorScreen(), 360);
   });
@@ -4443,7 +4429,7 @@ function openSettingsPage() {
 
     refs.messages.innerHTML = `
       <div id="nabad-onboarding">
-        <h3>🧾 Business Profile</h3>
+        <h3>Business Profile</h3>
         <p>Keep this updated so Nabad gives sharper plans, legal guidance, and market context.</p>
 
         <div class="nabad-questions-form">
@@ -4511,7 +4497,7 @@ function openSettingsPage() {
 
     refs.messages.innerHTML = `
       <div id="nabad-onboarding">
-        <h3>🔐 Claim Your Account</h3>
+        <h3>Account & Restore</h3>
         <p>Link this memory to your email so you can keep your business context safely tied to you.</p>
         ${claimedText}
 
@@ -4528,14 +4514,10 @@ function openSettingsPage() {
             <label class="nabad-question-label">Recovery Code (for new devices)</label>
             <input class="nabad-question-input" id="nabad-restore-code" placeholder="e.g. 9A4F2C7D" value="" />
           </div>
-          <div class="nabad-question-field">
-            <label class="nabad-question-label">Restore Email (new device)</label>
-            <input class="nabad-question-input" id="nabad-restore-email" placeholder="you@company.com" value="${escapeHtml(account.email || '')}" />
-          </div>
         </div>
 
-        <button class="nabad-ob-btn" id="nabad-claim-save" type="button">${account.email ? 'Update Claim' : 'Claim Account'}</button>
-        <button class="nabad-ob-back" id="nabad-restore-device" type="button">Restore on this device</button>
+        <button class="nabad-ob-btn" id="nabad-claim-save" type="button">${account.email ? 'Update Email Claim' : 'Claim This Device'}</button>
+        <button class="nabad-ob-back" id="nabad-restore-device" type="button">Restore Existing Memory</button>
         <button class="nabad-ob-back" id="nabad-claim-back" type="button">← Back to chat</button>
       </div>
     `;
@@ -4596,7 +4578,7 @@ function openSettingsPage() {
 
     refs.messages.querySelector('#nabad-restore-device')
       .addEventListener('click', async () => {
-        const email = (refs.messages.querySelector('#nabad-restore-email')?.value || '').trim().toLowerCase();
+        const email = (refs.messages.querySelector('#nabad-claim-email')?.value || '').trim().toLowerCase();
         const code = (refs.messages.querySelector('#nabad-restore-code')?.value || '').trim().toUpperCase();
         if (!email) {
           alert('Enter your claimed email first.');
@@ -4647,49 +4629,9 @@ function openSettingsPage() {
         } catch (err) {
           alert(err?.message || 'Could not restore memory. Check email/code and try again.');
           btn.disabled = false;
-          btn.textContent = 'Restore on this device';
+          btn.textContent = 'Restore Existing Memory';
         }
       });
-
-    scrollToBottom();
-  }
-
-  // ── IDEAS VAULT ───────────────────────────────────────────────
-  function showIdeasVaultScreen() {
-    document.getElementById('nabad-input-wrap').style.display = 'none';
-    const vault = loadIdeaVault();
-
-    refs.messages.innerHTML = `
-      <div id="nabad-onboarding">
-        <h3>⭐ Ideas Vault</h3>
-        <p>Short ideas you saved from Nabad replies.</p>
-
-        ${vault.length ? `
-          <div style="margin-bottom:14px;">
-            ${vault.slice().reverse().map((item, idx) => `
-              <div style="padding:10px 12px;margin-bottom:8px;background:#f8faff;border-radius:12px;border:1px solid rgba(37,99,235,0.1);font-size:13px;color:#0f172a;">
-                <div style="line-height:1.45">${escapeHtml(item.text || '')}</div>
-                <div style="margin-top:6px;font-size:11px;color:#64748b;">${escapeHtml(item.date || '')} ${escapeHtml(item.time || '')}</div>
-              </div>
-            `).join('')}
-          </div>
-          <button class="nabad-ob-skip" id="nabad-vault-clear" type="button">Clear vault</button>
-        ` : `<p style="color:#94a3b8;font-size:13px;text-align:center;padding:18px 0;">No saved ideas yet.<br>Tap the ⭐ button on any assistant reply.</p>`}
-
-        <button class="nabad-ob-back" id="nabad-vault-back" type="button">← Back to chat</button>
-      </div>
-    `;
-
-    refs.messages.querySelector('#nabad-vault-back')
-      .addEventListener('click', backToChat);
-
-    const clearBtn = refs.messages.querySelector('#nabad-vault-clear');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        saveIdeaVault([]);
-        showIdeasVaultScreen();
-      });
-    }
 
     scrollToBottom();
   }
@@ -4703,7 +4645,7 @@ function openSettingsPage() {
 
     refs.messages.innerHTML = `
       <div id="nabad-onboarding">
-        <h3>📚 Your Memory</h3>
+        <h3>Your Memory</h3>
         <p>Everything Nabad remembers about you.</p>
 
         ${Object.keys(profile).length ? `
