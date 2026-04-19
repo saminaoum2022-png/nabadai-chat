@@ -35,7 +35,7 @@
     ALLOWED_ATTR: [
       'href','src','alt','target','rel','class','style',
       'data-nabad-card','data-nabad-brief','data-nabad-source',
-      'data-nabad-model','data-nabad-prompt',
+      'data-nabad-model',
       'data-score','data-quadrant','data-nabad-action'
     ]
   };
@@ -45,6 +45,14 @@
       return window.DOMPurify.sanitize(html, PURIFY_CONFIG);
     }
     return `<p>${escapeHtml(String(html))}</p>`;
+  }
+
+  function cleanText(value = '', maxLen = 300) {
+    return String(value || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, maxLen);
   }
 
   const CONFIG = {
@@ -131,13 +139,13 @@
   };
 
   const SETTINGS_ICONS = {
-    auto: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><path d="M12 18v3"/><path d="M4.93 4.93l2.12 2.12"/><path d="M16.95 16.95l2.12 2.12"/><path d="M3 12h3"/><path d="M18 12h3"/><path d="M4.93 19.07l2.12-2.12"/><path d="M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="3.5"/></svg>`,
-    newChat: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`,
-    memory: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v10"/><path d="M7 12h10"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>`,
-    profile: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>`,
-    account: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/></svg>`,
-    warRoom: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.47 6.03.88-4.36 4.25 1.03 6.01L12 16.9 6.6 19.61l1.03-6.01L3.27 9.35l6.03-.88L12 3z"/></svg>`,
-    reset: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 10v7"/><path d="M14 10v7"/></svg>`
+    auto: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><path d="M12 18v3"/><path d="M4.93 4.93l2.12 2.12"/><path d="M16.95 16.95l2.12 2.12"/><path d="M3 12h3"/><path d="M18 12h3"/><path d="M4.93 19.07l2.12-2.12"/><path d="M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="3.5"/></svg>`,
+    newChat: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`,
+    memory: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v10"/><path d="M7 12h10"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>`,
+    profile: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>`,
+    account: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/></svg>`,
+    warRoom: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.47 6.03.88-4.36 4.25 1.03 6.01L12 16.9 6.6 19.61l1.03-6.01L3.27 9.35l6.03-.88L12 3z"/></svg>`,
+    reset: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 10v7"/><path d="M14 10v7"/></svg>`
   };
 
   // ── STATE ────────────────────────────────────────────────────
@@ -658,7 +666,7 @@ function showPersonalityPill(id) {
         border-radius: 12px;
         cursor: pointer;
         background: rgba(255,255,255,0.85);
-        color: #1e3a8a;
+        color: #2563eb;
         font-size: 16px;
         display: flex;
         align-items: center;
@@ -2591,7 +2599,7 @@ function showPersonalityPill(id) {
   border: none;
   border-radius: 12px;
   background: rgba(255,255,255,0.85);
-  color: #1e3a8a;
+  color: #2563eb;
   font-size: 18px;
   cursor: pointer;
   display: flex;
@@ -3721,7 +3729,7 @@ function finishOnboarding() {
     bubble.querySelectorAll('img[data-nabad-source]').forEach(img => {
       const src    = img.getAttribute('data-nabad-source') || img.src;
       const model  = img.getAttribute('data-nabad-model')  || 'pollinations';
-      const prompt = img.getAttribute('data-nabad-prompt') || '';
+      const prompt = img.alt || '';
 
       const placeholder = createImagePlaceholder();
       img.replaceWith(placeholder);
