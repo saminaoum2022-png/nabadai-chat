@@ -842,8 +842,12 @@ function isStockPhotoRequest(text = '') {
   return /\b(stock\s*photo|stock\s*image|real\s*(photo|picture|image)|actual\s*(photo|picture|image)|photograph of|photo of a real)\b/i.test(text);
 }
 function isImageRequest(text = '') {
-  return /\b(generate|create|make|draw|design|build|produce|show)\b.{0,40}\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b/i.test(text)
-    || /\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b.{0,30}\b(generate|create|make|draw|design|for me|please)\b/i.test(text);
+  const t = String(text || '');
+  return /\b(generate|create|make|draw|design|build|produce|show)\b.{0,40}\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b/i.test(t)
+    || /\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b.{0,30}\b(generate|create|make|draw|design|for me|please)\b/i.test(t)
+    || /\b(logo|brandmark|wordmark|icon)\b.{0,40}\b(for|of|for my|for our)\b/i.test(t)
+    || /\b(i need|we need|help me with)\b.{0,40}\b(logo|brand identity|brand mark|icon)\b/i.test(t)
+    || /\b(logo)\b/i.test(t);
 }
 function isRegenerationRequest(text = '') {
   return /\b(regenerate|redo|try again|another version|different version|new version)\b.{0,30}\b(image|logo|picture|visual|photo|banner|icon)\b/i.test(text)
