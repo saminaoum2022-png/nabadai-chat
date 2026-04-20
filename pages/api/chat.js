@@ -465,6 +465,115 @@ async function generateWithIdeogram(prompt = '') {
   return imageUrl;
 }
 
+function extractImageUrlFromPayload(payload = null) {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const candidates = [
+    p?.data?.[0]?.url,
+    p?.data?.[0]?.image_url,
+    p?.data?.[0]?.imageUrl,
+    p?.images?.[0]?.url,
+    p?.images?.[0]?.image_url,
+    p?.images?.[0]?.imageUrl,
+    p?.output?.[0]?.url,
+    p?.output?.[0]?.image_url,
+    p?.output?.[0]?.imageUrl,
+    p?.result?.url,
+    p?.result?.image_url,
+    p?.result?.imageUrl,
+    p?.url,
+    p?.image_url,
+    p?.imageUrl
+  ];
+  return candidates.find((v) => typeof v === 'string' && /^https?:\/\//i.test(v)) || '';
+}
+
+async function generateWithGenspark(prompt = '', imageType = 'image') {
+  const apiKey = process.env.GENSPARK_API_KEY;
+  if (!apiKey) throw new Error('GENSPARK_API_KEY not set');
+
+  const apiUrl = process.env.GENSPARK_IMAGE_API_URL || 'https://api.genspark.ai/v1/images/generations';
+  const cleanPrompt = sanitizePromptText(prompt).slice(0, 900);
+  const model = cleanText(process.env.GENSPARK_IMAGE_MODEL || '', 80);
+  const styleByType = {
+    logo: 'logo',
+    icon: 'icon',
+    banner: 'design',
+    illustration: 'illustration',
+    mockup: 'mockup',
+    image: 'design'
+  };
+
+  const body = {
+    prompt: cleanPrompt,
+    size: '1024x1024',
+    n: 1,
+    ...(model ? { model } : {}),
+    ...(styleByType[imageType] ? { style: styleByType[imageType] } : {})
+  };
+
+  const response = await fetchWithTimeout(apiUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'x-api-key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  }, 30000);
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Genspark API error: ${response.status} — ${errText.slice(0, 140)}`);
+  }
+
+  const data = await readJsonSafe(response);
+  const imageUrl = extractImageUrlFromPayload(data);
+  if (!imageUrl) throw new Error('No image URL returned from Genspark');
+  return imageUrl;
+}
+
+async function generateImageWithProviderChain(imagePrompt = '', imageType = 'image') {
+  const preferred = cleanText(process.env.NABAD_IMAGE_PROVIDER || 'auto', 24).toLowerCase();
+  const providers = [];
+  const hasGenspark = !!process.env.GENSPARK_API_KEY;
+  const hasIdeogram = !!process.env.IDEOGRAM_API_KEY;
+
+  if (preferred === 'genspark' || preferred === 'auto') {
+    if (hasGenspark) providers.push('genspark');
+    if (hasIdeogram) providers.push('ideogram');
+    providers.push('pollinations');
+  } else if (preferred === 'ideogram') {
+    if (hasIdeogram) providers.push('ideogram');
+    if (hasGenspark) providers.push('genspark');
+    providers.push('pollinations');
+  } else {
+    providers.push('pollinations');
+    if (hasGenspark) providers.push('genspark');
+    if (hasIdeogram) providers.push('ideogram');
+  }
+
+  let lastError = null;
+  for (const provider of providers) {
+    try {
+      if (provider === 'genspark') {
+        const url = await generateWithGenspark(imagePrompt, imageType);
+        return { provider, url };
+      }
+      if (provider === 'ideogram') {
+        const url = await generateWithIdeogram(imagePrompt);
+        return { provider, url };
+      }
+      const seed = Math.floor(Math.random() * 999999);
+      const url = buildPollinationsUrl(imagePrompt, { seed, model: 'flux' });
+      return { provider: 'pollinations', url };
+    } catch (err) {
+      lastError = err;
+      console.error(`[IMAGE PROVIDER ERROR] ${provider}:`, err?.message);
+    }
+  }
+  throw lastError || new Error('No image provider available');
+}
+
 function isImageQualityComplaint(text = '') {
   return /\b(fix\s*(the\s*)?text|text\s*(is\s*)?(wrong|broken|off|bad|blurry)|wrong\s*text|fix\s*(the\s*)?spelling|spelling\s*(is\s*)?wrong)\b/i.test(text)
     || /\b(bad\s*(quality|image|photo|result)|not\s*good|looks\s*(bad|terrible|wrong|off)|better\s*quality|higher\s*quality|sharper|cleaner)\b/i.test(text)
@@ -582,13 +691,15 @@ function extractLastImageMeta(messages = [], lookback = 15) {
     };
     const ideogramMatch = text.match(/https?:\/\/(?:img\.)?ideogram\.ai\/[^\s"'<]+/);
     if (ideogramMatch) return { url: ideogramMatch[0], prompt: '', source: 'ideogram' };
+    const gensparkMatch = text.match(/https?:\/\/[^\s"'<]*genspark[^\s"'<]*/i);
+    if (gensparkMatch) return { url: gensparkMatch[0], prompt: '', source: 'genspark' };
   }
   return null;
 }
 function conversationRecentlyHadImage(messages = [], lookback = 10) {
   return messages.slice(-lookback).some(m => {
     const text = getMessageText(m.content);
-    return /image\.pollinations\.ai|ideogram\.ai|img\.ideogram\.ai/.test(text);
+    return /image\.pollinations\.ai|ideogram\.ai|img\.ideogram\.ai|genspark/i.test(text);
   });
 }
 function shouldGenerateImage(text = '', messages = []) {
@@ -616,16 +727,21 @@ async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiCl
     return resp.choices?.[0]?.message?.content?.trim() || userText;
   } catch { return userText; }
 }
-function buildPollinationsImageHtml(imageUrl = '', altText = '', caption = '') {
+function buildGeneratedImageHtml(imageUrl = '', provider = 'pollinations') {
+  const providerLabel = {
+    genspark: 'Genspark',
+    ideogram: 'Ideogram',
+    pollinations: 'Nabad'
+  }[provider] || 'Nabad';
   return `<div class="nabad-image-wrap">
     <img src="${imageUrl}" alt="Generated image" class="nabad-gen-image" loading="lazy" />
-    <p class="nabad-image-caption">Generated by Nabad</p>
+    <p class="nabad-image-caption">Generated by ${providerLabel}</p>
   </div>`;
 }
-function buildImageReplyHtml(imageUrl = '', promptText = '', imageType = 'image') {
+function buildImageReplyHtml(imageUrl = '', promptText = '', imageType = 'image', provider = 'pollinations') {
   const labels = { logo: '🎨 Your logo is ready', banner: '🖼️ Banner created', icon: '✨ Icon generated', illustration: '🎭 Illustration ready', mockup: '📦 Mockup generated', image: '🖼️ Image generated' };
   const label = labels[imageType] || labels.image;
-  return `<p><strong>${label}</strong></p>${buildPollinationsImageHtml(imageUrl, promptText, '')}`;
+  return `<p><strong>${label}</strong></p>${buildGeneratedImageHtml(imageUrl, provider)}`;
 }
 
 // ── Business Mode & Personality ───────────────────────────────────────────────
@@ -1975,9 +2091,11 @@ export default async function handler(req, res) {
         imagePrompt = await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       }
       imagePrompt = enrichImagePrompt(imagePrompt, imageType);
-      const seed = Math.floor(Math.random() * 999999);
-      const imageUrl = buildPollinationsUrl(imagePrompt, { seed, model: 'flux' });
-      return res.status(200).json({ reply: buildImageReplyHtml(imageUrl, imagePrompt, imageType), detectedPersonality: 'creative' });
+      const generated = await generateImageWithProviderChain(imagePrompt, imageType);
+      return res.status(200).json({
+        reply: buildImageReplyHtml(generated.url, imagePrompt, imageType, generated.provider),
+        detectedPersonality: 'creative'
+      });
     } catch (err) {
       console.error('[IMAGE GEN ERROR]', err?.message);
       return res.status(200).json({ reply: '<p>Image generation hit a snag — please try again.</p>', detectedPersonality: 'auto' });
