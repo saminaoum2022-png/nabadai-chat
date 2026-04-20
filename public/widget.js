@@ -547,13 +547,19 @@
     const a = toPlainText(assistantText).toLowerCase();
     if (!u || !a) return '';
 
+    const genericQuery = /\b(weather|temperature|time|date|repeat|again|translate|spell|who are you|what is this|hello|hi|thanks|thank you)\b/.test(u)
+      || /^(\?|what|who|when|where|why|how|can you|could you)\b/.test(u);
+    if (genericQuery) return '';
+
     const negativeAssistant = /\b(can't|cannot|not possible|unable|i don't|do not|won't|error|failed|hit a snag|not recommend)\b/.test(a);
     if (negativeAssistant) return '';
 
     const positiveAssistant = /\b(exactly|perfect|great|love|strong|smart|good move|right move|well done|nice|spot on|excellent|bold)\b/.test(a)
       || /\b(ممتاز|رائع|فكرة قوية|قرار ذكي)\b/.test(a);
     const userCommitment = /\b(i will|i'll|let's|lets|done|i decided|we should|my name is|my current location is|brand name is|the name of my brand is)\b/.test(u);
+    const strategicIntent = /\b(focus|position|pricing|offer|brand|launch|users?|customers?|revenue|growth|market|icp|strategy|plan|validate|build|ship|mvp|sales)\b/.test(u);
 
+    if (!userCommitment && !strategicIntent) return '';
     if (!positiveAssistant && !userCommitment) return '';
 
     const variants = ['✓ aligned', '🔥 strong move', '⚡ smart call'];
