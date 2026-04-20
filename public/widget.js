@@ -510,6 +510,33 @@
     refs.input.placeholder = map[state.personality] || 'Ask Nabad anything...';
   }
 
+  function shouldForceCreativeForImage(text = '', attachment = null) {
+    const t = String(text || '').toLowerCase();
+    const asksGeneration =
+      /\b(generate|create|make|design|draw|build|produce|regenerate|redo)\b/.test(t) &&
+      /\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b/.test(t);
+    const asksImageByNoun = /\b(logo|mockup|brand mark|wordmark|icon)\b/.test(t);
+    const attachedImageEdit =
+      !!(attachment && attachment.kind === 'image' && /\b(edit|change|modify|remove|replace|add|improve|tweak)\b/.test(t));
+    return asksGeneration || asksImageByNoun || attachedImageEdit;
+  }
+
+  function forceCreativeModeForImage() {
+    if (state.personality === 'creative' && state.autoDetectMode === false) return;
+    const prev = state.personality;
+    state.personality = 'creative';
+    state.autoDetectMode = false;
+    state.personalityChosen = true;
+    state.personalityBuffer = null;
+    state.personalityCount = 0;
+    state.personalityScore = 0;
+    savePersonality('creative');
+    saveAutoDetect(false);
+    updatePersonalityBadge();
+    setInputPlaceholder();
+    applyPersonalityColor('creative', prev !== 'creative');
+  }
+
   // ── [PC-1] APPLY PERSONALITY COLOR ───────────────────────────
   function applyPersonalityColor(id, announce = false) {
   const c = PERSONALITY_COLORS[id] || PERSONALITY_COLORS.auto;
@@ -4596,6 +4623,10 @@ function finishOnboarding() {
     const attachment = state.pendingAttachment;
     const replyTo = state.replyTo;
     if (!text && !attachment) return;
+
+    if (shouldForceCreativeForImage(text, attachment)) {
+      forceCreativeModeForImage();
+    }
 
     refs.input.value = '';
     refs.input.style.height = 'auto';
