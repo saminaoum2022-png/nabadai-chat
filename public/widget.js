@@ -4545,13 +4545,13 @@ function finishOnboarding() {
         } else if (action === 'image-free') {
           refs.input.value = 'regenerate image';
         } else if (action === 'image-style-simple') {
-          refs.input.value = 'Generate a simple minimal clean version';
+          refs.input.value = 'Generate a simple minimal clean logo image version';
         } else if (action === 'image-style-creative') {
-          refs.input.value = 'Generate a creative artistic bold version';
+          refs.input.value = 'Generate a creative artistic bold logo image version';
         } else if (action === 'image-style-realistic') {
-          refs.input.value = 'Generate a realistic photoreal version';
+          refs.input.value = 'Generate a realistic photoreal logo image version';
         } else if (action === 'image-style-logo') {
-          refs.input.value = 'Generate a modern logo version';
+          refs.input.value = 'Generate a modern professional logo image version';
         } else if (action === 'onboard-business' || action === 'onboard-idea' || action === 'onboard-figuring') {
           const path = action.replace('onboard-', '');
           state.userProfile = { ...state.userProfile, path };
