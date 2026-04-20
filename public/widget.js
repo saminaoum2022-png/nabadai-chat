@@ -74,7 +74,8 @@
     memoryKey:   `${CONFIG.storageNamespace}:memoryKey`,
     accountClaim:`${CONFIG.storageNamespace}:accountClaim`,
     autoDetect:  `${CONFIG.storageNamespace}:autoDetect`,
-    dailyFocusDate: `${CONFIG.storageNamespace}:dailyFocusDate`
+    dailyFocusDate: `${CONFIG.storageNamespace}:dailyFocusDate`,
+    notificationsEnabled: `${CONFIG.storageNamespace}:notificationsEnabled`
   };
 
   const PERSONALITIES = [
@@ -155,6 +156,7 @@
     newChat: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`,
     memory: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v10"/><path d="M7 12h10"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>`,
     profile: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>`,
+    notifications: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></svg>`,
     account: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/></svg>`,
     warRoom: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.47 6.03.88-4.36 4.25 1.03 6.01L12 16.9 6.6 19.61l1.03-6.01L3.27 9.35l6.03-.88L12 3z"/></svg>`,
     reset: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 10v7"/><path d="M14 10v7"/></svg>`
@@ -183,7 +185,8 @@
     personalityCount: 0,
     personalityScore: 0,
     pendingAttachment: null,
-    replyTo: null
+    replyTo: null,
+    notificationsEnabled: loadNotificationsEnabled()
   };
 
   const refs = {
@@ -274,6 +277,138 @@
       const v = String(value || 'auto').toLowerCase();
       localStorage.setItem(STORAGE_KEYS.imageProvider, v);
     } catch {}
+  }
+
+  function loadNotificationsEnabled() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.notificationsEnabled);
+      if (raw === null) return false;
+      return raw === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  function saveNotificationsEnabled(value = false) {
+    try { localStorage.setItem(STORAGE_KEYS.notificationsEnabled, String(Boolean(value))); }
+    catch {}
+  }
+
+  function isPushSupported() {
+    return typeof window !== 'undefined'
+      && 'Notification' in window
+      && 'serviceWorker' in navigator
+      && 'PushManager' in window;
+  }
+
+  function notificationStatusText() {
+    if (!isPushSupported()) return 'Notifications are not supported in this browser.';
+    if (Notification.permission === 'denied') return 'Blocked in browser settings.';
+    if (state.notificationsEnabled) return 'Daily brief and important updates are enabled.';
+    return 'Get daily brief reminders and key updates.';
+  }
+
+  function urlBase64ToUint8Array(base64String = '') {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const output = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) output[i] = rawData.charCodeAt(i);
+    return output;
+  }
+
+  async function ensureServiceWorkerRegistration() {
+    if (!('serviceWorker' in navigator)) throw new Error('Service Worker not supported');
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (existing) return existing;
+    return navigator.serviceWorker.register('/sw.js');
+  }
+
+  async function enableNotifications() {
+    if (!isPushSupported()) return false;
+    const vapidPublicKey = String(CONFIG.vapidPublicKey || window.NABAD_VAPID_PUBLIC_KEY || '').trim();
+    if (!vapidPublicKey) {
+      alert('Notifications are not configured yet. Add NEXT_PUBLIC_VAPID_PUBLIC_KEY on Vercel first.');
+      return false;
+    }
+
+    try {
+      let permission = Notification.permission;
+      if (permission === 'default') {
+        permission = await Notification.requestPermission();
+      }
+      if (permission !== 'granted') {
+        state.notificationsEnabled = false;
+        saveNotificationsEnabled(false);
+        return false;
+      }
+
+      const reg = await ensureServiceWorkerRegistration();
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        });
+      }
+
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub, saveOnly: true })
+      });
+
+      state.pushSubscription = sub;
+      state.notificationsEnabled = true;
+      saveNotificationsEnabled(true);
+      return true;
+    } catch (err) {
+      console.error('[NABAD] Notification enable failed:', err);
+      state.notificationsEnabled = false;
+      saveNotificationsEnabled(false);
+      return false;
+    }
+  }
+
+  async function disableNotifications() {
+    if (!isPushSupported()) {
+      state.notificationsEnabled = false;
+      saveNotificationsEnabled(false);
+      return false;
+    }
+    try {
+      const reg = await ensureServiceWorkerRegistration();
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+      state.pushSubscription = null;
+      state.notificationsEnabled = false;
+      saveNotificationsEnabled(false);
+      return false;
+    } catch (err) {
+      console.error('[NABAD] Notification disable failed:', err);
+      state.notificationsEnabled = false;
+      saveNotificationsEnabled(false);
+      return false;
+    }
+  }
+
+  async function syncNotificationState() {
+    if (!isPushSupported()) {
+      state.notificationsEnabled = false;
+      saveNotificationsEnabled(false);
+      return;
+    }
+    try {
+      const reg = await ensureServiceWorkerRegistration();
+      const sub = await reg.pushManager.getSubscription();
+      state.pushSubscription = sub || null;
+      const enabled = loadNotificationsEnabled() && Notification.permission === 'granted' && !!sub;
+      state.notificationsEnabled = !!enabled;
+      saveNotificationsEnabled(!!enabled);
+    } catch {
+      state.notificationsEnabled = false;
+      saveNotificationsEnabled(false);
+    }
   }
 
   function loadOnboarded() {
@@ -816,7 +951,7 @@ function showPersonalityPill(id) {
         justify-content: center;
         box-shadow: 0 0 0 0 rgba(37,99,235,0.4);
         animation: nabadBreath 2.5s ease-in-out infinite;
-        overflow: hidden;
+        overflow: visible;
         transition: box-shadow 0.6s ease, border-color 0.6s ease;
       }
 
@@ -828,8 +963,9 @@ function showPersonalityPill(id) {
       }
 
       #nabad-logo.nabad-logo-shift img {
-        animation: nabadLogoSwitch 700ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+        animation: nabadLogoSwitch 880ms cubic-bezier(0.16, 0.9, 0.2, 1) both;
         transform-origin: 50% 50%;
+        will-change: transform, filter;
       }
 
       @keyframes nabadLogoSwitch {
@@ -837,13 +973,13 @@ function showPersonalityPill(id) {
           transform: rotate(0deg) scale(0.94);
           filter: saturate(0.95);
         }
-        45% {
-          transform: rotate(300deg) scale(1.06);
-          filter: saturate(1.1);
+        30% {
+          transform: rotate(210deg) scale(1.08);
+          filter: saturate(1.12);
         }
-        78% {
-          transform: rotate(345deg) scale(1.01);
-          filter: saturate(1.03);
+        64% {
+          transform: rotate(330deg) scale(1.03);
+          filter: saturate(1.1);
         }
         100% {
           transform: rotate(360deg) scale(1);
@@ -853,7 +989,7 @@ function showPersonalityPill(id) {
 
       @keyframes nabadBreath {
   0%   { box-shadow: 0 0 0 0px var(--nabad-logo-pulse-color, rgba(37,99,235,0.35)); }
-  50%  { box-shadow: 0 0 0 7px var(--nabad-logo-pulse-color, rgba(37,99,235,0.10)); }
+  50%  { box-shadow: 0 0 0 6px var(--nabad-logo-pulse-color, rgba(37,99,235,0.10)); }
   100% { box-shadow: 0 0 0 0px var(--nabad-logo-pulse-color, rgba(37,99,235,0.35)); }
 }
 
@@ -2439,7 +2575,7 @@ function showPersonalityPill(id) {
 
       @keyframes nabadStrongPulse {
         0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
-        50%  { box-shadow: 0 0 0 12px rgba(37,99,235,0.15); }
+        50%  { box-shadow: 0 0 0 9px rgba(37,99,235,0.15); }
         100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
       }
 
@@ -2472,7 +2608,7 @@ function showPersonalityPill(id) {
 
       @keyframes nabadThinking {
         0%   { box-shadow: 0 0 0 0px var(--nabad-logo-thinking-strong, rgba(37,99,235,0.6)); }
-        50%  { box-shadow: 0 0 0 14px var(--nabad-logo-thinking-soft, rgba(37,99,235,0.15)); }
+        50%  { box-shadow: 0 0 0 10px var(--nabad-logo-thinking-soft, rgba(37,99,235,0.15)); }
         100% { box-shadow: 0 0 0 0px var(--nabad-logo-thinking-strong, rgba(37,99,235,0.6)); }
       }
 
@@ -5149,6 +5285,19 @@ function openSettingsPage() {
       <div>
         <div class="nabad-settings-section-label">Chat</div>
         <div class="nabad-settings-card">
+          <div class="nabad-toggle-wrap" style="padding:12px 14px;">
+            <div class="nabad-toggle-left">
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.notifications}</div>
+              <div>
+                <div class="nabad-settings-row-label">Notifications</div>
+                <div class="nabad-settings-row-desc" id="nabad-notifications-status">${escapeHtml(notificationStatusText())}</div>
+              </div>
+            </div>
+            <label class="nabad-toggle">
+              <input type="checkbox" id="nabad-notifications-toggle" ${state.notificationsEnabled ? 'checked' : ''} />
+              <span class="nabad-toggle-slider"></span>
+            </label>
+          </div>
           <div class="nabad-settings-row" id="nabad-set-new-chat">
             <div class="nabad-settings-row-left">
               <div class="nabad-settings-row-icon">${SETTINGS_ICONS.newChat}</div>
@@ -5245,6 +5394,30 @@ function openSettingsPage() {
   const autoToggle = page.querySelector('#nabad-auto-toggle');
   const personalityGrid = page.querySelector('#nabad-settings-personality-grid');
   const imageProviderSelect = page.querySelector('#nabad-image-provider-select');
+  const notificationsToggle = page.querySelector('#nabad-notifications-toggle');
+  const notificationsStatus = page.querySelector('#nabad-notifications-status');
+
+  if (notificationsStatus) {
+    notificationsStatus.textContent = notificationStatusText();
+  }
+  if (notificationsToggle) {
+    notificationsToggle.checked = Boolean(state.notificationsEnabled);
+    if (!isPushSupported()) {
+      notificationsToggle.disabled = true;
+    }
+    notificationsToggle.addEventListener('change', async () => {
+      notificationsToggle.disabled = true;
+      let enabled = false;
+      if (notificationsToggle.checked) {
+        enabled = await enableNotifications();
+      } else {
+        enabled = await disableNotifications();
+      }
+      notificationsToggle.checked = Boolean(enabled);
+      notificationsToggle.disabled = !isPushSupported();
+      if (notificationsStatus) notificationsStatus.textContent = notificationStatusText();
+    });
+  }
 
   if (imageProviderSelect) {
     imageProviderSelect.addEventListener('change', () => {
@@ -5322,6 +5495,7 @@ function openSettingsPage() {
     closeSettings();
     setTimeout(() => {
       confirmAction('Reset everything? This will clear all messages, memory, and your profile.', () => {
+        disableNotifications();
         Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
         localStorage.removeItem('nabad_insights');
         state.messages          = [];
@@ -5336,6 +5510,8 @@ function openSettingsPage() {
         state.personalityBuffer = null;
         state.personalityCount  = 0;
         state.personalityScore  = 0;
+        state.notificationsEnabled = false;
+        state.pushSubscription = null;
         refs.messages.innerHTML = '';
         document.getElementById('nabad-input-wrap').style.display = 'flex';
         updatePersonalityBadge();
@@ -5956,6 +6132,7 @@ function setSendState(stateLabel) {
   loadDOMPurify(() => {
     injectStyles();
     buildShell();
+    syncNotificationState();
     bindLauncherClick();
     if (INLINE_MODE) toggleWidget(true);
 
