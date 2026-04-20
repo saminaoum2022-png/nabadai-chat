@@ -159,14 +159,15 @@ export default function Home() {
           window.NABAD_WIDGET_CONFIG = {
             apiUrl: '/api/chat',
             title: 'NabadAi',
-            subtitle: 'Business AI'
+            subtitle: 'Business AI',
+            vapidPublicKey: '${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}'
           };
         `}
       </Script>
 
       <Script
         id="nabad-widget-script"
-        src="/widget.js?v=40"
+        src="/widget.js?v=41"
         strategy="afterInteractive"
       />
 
