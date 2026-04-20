@@ -60,11 +60,12 @@ export default function AppPage() {
             title: 'NabadAi',
             subtitle: 'Business AI',
             inlineDesktop: true,
-            mountSelector: '#nabad-desktop-chat'
+            mountSelector: '#nabad-desktop-chat',
+            vapidPublicKey: '${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}'
           };
         `}
       </Script>
-      <Script id="nabad-widget-script-app" src="/widget.js?v=40" strategy="afterInteractive" />
+      <Script id="nabad-widget-script-app" src="/widget.js?v=42" strategy="afterInteractive" />
 
       <main className="nabad-app-page">
         <div className="nabad-app-shell">
