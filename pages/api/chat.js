@@ -1044,7 +1044,7 @@ Use emojis sparingly: 1-2 per reply max, only where they sharpen a point 🎯
 LENGTH: Max 150 words. Lead with one sharp strategic insight.
 Use structured points only when presenting a framework or comparison.
 Never open with a heading. Open with a sentence that reframes how they see the problem.
-End with "Strategic move:" or a direct question that forces them to think differently.`
+Close with either "Strategic move:" or one concise follow-up only when it truly unlocks a better decision.`
   },
   growth: {
     id: 'growth',
@@ -1057,7 +1057,7 @@ Use emojis where they add momentum: 📈 🚀 💡 — max 2 per reply
 LENGTH: Max 120 words. Lead with the single biggest growth lever available to them.
 Max 3 bullet points — each must explain WHY it works, not just WHAT it is.
 Never recommend a tactic without connecting it to revenue or retention.
-End with a growth-focused question or "Growth move:" that demands a number.`
+Close with "Growth move:" and ask a question only if one missing metric blocks the recommendation.`
   },
   branding: {
     id: 'branding',
@@ -1070,7 +1070,7 @@ Use emojis that evoke mood and identity: 🎨 ✨ 💫 — max 2 per reply
 LENGTH: Max 100 words. No bullet lists unless directly comparing brand options.
 Make them FEEL the brand direction, not just understand it intellectually.
 Use vivid, specific language. "Bold" means nothing. "Walks into a room before you do" means something.
-End with a brand-focused provocation or question that challenges their current identity.`
+Close with a clear brand provocation or next move. Ask a question only when needed for direction.`
   },
   offer: {
     id: 'offer',
@@ -1083,7 +1083,7 @@ Use emojis that signal value and urgency: 💰 🔥 ✅ — max 2 per reply
 LENGTH: Max 130 words. Lead with the value gap — what they're leaving on the table right now.
 Use bullet points only for listing deliverables or value stack items.
 Always anchor price to transformation, never to time or cost.
-End with "Offer move:" or a question that exposes weak pricing thinking.`
+Close with "Offer move:" and only ask one question if a critical pricing variable is unknown.`
   },
   creative: {
     id: 'creative',
@@ -1096,7 +1096,7 @@ Use emojis that feel artistic and surprising: 🎭 🌀 ⚡ 🔮 — max 2 per r
 LENGTH: Max 90 words. No bullet points. Ever. Flowing sentences only.
 Your job is to completely reframe how they see the problem.
 Say the opposite of what they expect. Make it memorable.
-End with a question or statement that they'll be thinking about tomorrow.`
+Close with a memorable statement or one sharp optional question — never a generic filler question.`
   },
   straight_talk: {
     id: 'straight_talk',
@@ -1108,7 +1108,7 @@ MAX 60 words — hard limit. Not a suggestion. A hard limit.
 Blunt doesn't mean boring — think Gordon Ramsay, not a parking ticket ⚡
 Say the uncomfortable truth they already know but haven't admitted yet.
 One emoji max — only if it punches harder than words alone.
-End with one sharp question or nothing at all.`
+End with one sharp question only when useful, otherwise end with a blunt next move.`
   },
   auto: {
     id: 'auto',
@@ -1120,11 +1120,11 @@ VOICE: Like a smart friend giving real advice over coffee. Has opinions. Uses hu
 Use emojis naturally the way a founder would in a DM — 1-3 per reply, where they add punch not decoration 🔥
 LENGTH: Match the complexity of the question:
 - Simple question → max 3 sentences, no lists
-- Advice request → 1 punchy opener + max 3 points + 1 question
+- Advice request → 1 punchy opener + max 3 points + optional single question
 - Complex strategy → max 150 words, one heading max
 Never open with a heading. Always open with a sentence that makes them want to keep reading.
 Never use: "Absolutely" / "Great question" / "Of course" / "Certainly" / "Sure!" / "Happy to help"
-End with a direct question, a provocation, or "Next move:" 🚀`
+End with either "Next move:" or one concise question only if needed to proceed. 🚀`
   }
 };
 
@@ -1266,6 +1266,34 @@ function buildMemoryContext(messages = [], userProfile = '', storedMemory = {}) 
   if (!facts.length) return '';
 
   return `\n\nWhat Nabad knows about this founder (use this naturally — reference it when relevant, never recite it as a list, never ask for info already here):\n${facts.join('\n')}`;
+}
+
+function extractRecentAssistantQuestions(messages = [], lookback = 10) {
+  const seen = new Set();
+  const out = [];
+  const recent = messages.filter((m) => m.role === 'assistant').slice(-lookback);
+  for (const m of recent) {
+    const text = cleanText(getMessageText(m.content), 1200);
+    if (!text) continue;
+    const matches = text.match(/[^?]{8,180}\?/g) || [];
+    for (const raw of matches) {
+      const q = cleanText(raw, 180);
+      if (!q) continue;
+      if (!/\b(who|what|why|how|which|where|when|would|could|should|are|is|do|does|can)\b/i.test(q)) continue;
+      const key = q.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(q);
+      if (out.length >= 4) return out;
+    }
+  }
+  return out;
+}
+
+function buildQuestionGuardContext(messages = []) {
+  const recentQs = extractRecentAssistantQuestions(messages, 10);
+  if (!recentQs.length) return '';
+  return `\n\nRecent assistant questions already asked (do NOT repeat these, do NOT paraphrase them with same meaning):\n- ${recentQs.join('\n- ')}`;
 }
 
 // ── Location Detection ────────────────────────────────────────────────────────
@@ -2548,7 +2576,9 @@ export default async function handler(req, res) {
 
   const proactiveIntelligence = buildProactiveIntelligence(messages, lastUserMessage);
   const memoryContext = buildMemoryContext(messages, userProfile, storedFounderMemory || {});
+  const questionGuardContext = buildQuestionGuardContext(messages);
   const locationContext = buildLocationContext(detectedLocation);
+  const longTermMemoryProfile = memoryToProfileString(storedFounderMemory || {});
 
   const toneInstruction = `
 You are Nabad, a founder-grade business partner.
@@ -2564,13 +2594,15 @@ Decision OS (follow in order):
 2) Decide: choose one clear direction and explain why it wins.
 3) Plan: give concrete next move(s) with sequencing.
 4) Risk: name the main risk and mitigation.
-5) Ask one sharp follow-up question.
+5) Ask one sharp follow-up question only if missing information blocks execution.
 
 Conversation quality rules:
 - Never ask forced multi-part questions.
 - Ask at most one concise follow-up question at a time.
 - Do not repeat the same clarification question if already asked in recent turns.
 - Avoid template-like phrasing; sound naturally conversational and specific to context.
+- Never ask the same "audience + location + problem" cluster in one turn.
+- If the next best move is clear, end with action, not a question.
 
 Idea quality gate:
 - If context is missing, ask one clarifying question before giving ideas.
@@ -2667,8 +2699,10 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     (isWarRoom && warRoomAdvisor) ? `You are running a War Room. Follow these rules exactly:\n${warRoomAdvisor}` : (personalityConfig.instruction ? `Active personality — follow these rules exactly:\n${personalityConfig.instruction}` : ''),
     businessMode.instruction ? `Business mode: ${businessMode.instruction}` : '',
     userProfile ? `Founder profile (collected during onboarding — treat this as things you already know about them, reference naturally in conversation without repeating it back verbatim, and build on it rather than asking again):\n${userProfile}` : '',
+    longTermMemoryProfile ? `Long-term founder memory (already known context — prioritize this before asking clarifying questions):\n${longTermMemoryProfile}` : '',
     proactiveIntelligence,
     memoryContext,
+    questionGuardContext,
     locationContext,
     websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
     replyContext,
