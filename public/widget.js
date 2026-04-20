@@ -433,7 +433,9 @@
       snippet: cleanText(target.snippet || '', 220)
     };
     renderReplyBar();
-    refs.input?.focus();
+    const inputWrap = document.getElementById('nabad-input-wrap');
+    if (inputWrap) inputWrap.style.display = 'flex';
+    scrollToBottom();
   }
 
   function getPersonalityGreeting(id = 'auto') {
