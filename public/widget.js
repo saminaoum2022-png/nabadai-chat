@@ -96,6 +96,16 @@
     auto:          { pulse: '#06b6d4', border: '#06b6d4', label: '🌀 Auto'          }
   };
 
+  const PERSONALITY_LOGOS = {
+    strategist: '/logo-strategist.png',
+    growth: '/logo-growth.png',
+    branding: '/logo-branding.png',
+    offer: '/logo-offer.png',
+    creative: '/logo-creative.png',
+    straight_talk: '/logo-straight-talk.png',
+    auto: '/logo.png'
+  };
+
   const ONBOARDING_PATHS = [
     {
       id: 'existing',
@@ -484,6 +494,7 @@
   // ── [PC-1] APPLY PERSONALITY COLOR ───────────────────────────
   function applyPersonalityColor(id, announce = false) {
   const c = PERSONALITY_COLORS[id] || PERSONALITY_COLORS.auto;
+  const logoSrc = PERSONALITY_LOGOS[id] || PERSONALITY_LOGOS.auto;
 
   // 1. Update logo pulse color via CSS variable (works WITH the animation)
   const logo = document.getElementById('nabad-logo');
@@ -499,6 +510,22 @@
     );
     logo.style.transition = 'border-color 0.6s ease';
     logo.style.borderColor = c.pulse;
+  }
+  const logoImg = document.querySelector('#nabad-logo img');
+  if (logoImg && logoImg.getAttribute('src') !== logoSrc) {
+    logoImg.setAttribute('src', logoSrc);
+    logoImg.onerror = () => {
+      logoImg.onerror = null;
+      logoImg.setAttribute('src', PERSONALITY_LOGOS.auto);
+    };
+  }
+  if (announce && logo) {
+    logo.classList.remove('nabad-logo-shift');
+    void logo.offsetWidth;
+    logo.classList.add('nabad-logo-shift');
+    logo.addEventListener('animationend', () => {
+      logo.classList.remove('nabad-logo-shift');
+    }, { once: true });
   }
 
   // 2. Update bubble left border color via CSS variable
@@ -710,6 +737,30 @@ function showPersonalityPill(id) {
         border-radius: 999px;
       }
 
+      #nabad-logo.nabad-logo-shift img {
+        animation: nabadLogoSwitch 700ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+        transform-origin: 50% 50%;
+      }
+
+      @keyframes nabadLogoSwitch {
+        0% {
+          transform: rotate(0deg) scale(0.94);
+          filter: saturate(0.95);
+        }
+        45% {
+          transform: rotate(300deg) scale(1.06);
+          filter: saturate(1.1);
+        }
+        78% {
+          transform: rotate(345deg) scale(1.01);
+          filter: saturate(1.03);
+        }
+        100% {
+          transform: rotate(360deg) scale(1);
+          filter: saturate(1);
+        }
+      }
+
       @keyframes nabadBreath {
   0%   { box-shadow: 0 0 0 0px var(--nabad-logo-pulse-color, rgba(37,99,235,0.35)); }
   50%  { box-shadow: 0 0 0 7px var(--nabad-logo-pulse-color, rgba(37,99,235,0.10)); }
@@ -814,6 +865,8 @@ function showPersonalityPill(id) {
         padding: 14px;
         scroll-behavior: smooth;
         -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: none;
+        overscroll-behavior-y: contain;
       }
 
       .nabad-msg {
@@ -841,6 +894,7 @@ function showPersonalityPill(id) {
         font-size: 15px;
         word-break: break-word;
         overflow-wrap: anywhere;
+        touch-action: pan-y;
       }
 
       .nabad-msg.user .nabad-bubble {
@@ -1443,6 +1497,7 @@ function showPersonalityPill(id) {
 
       #nabad-input {
         flex: 1;
+        min-width: 0;
         resize: none;
         border: 1px solid rgba(37,99,235,0.14);
         border-radius: 16px;
@@ -2672,7 +2727,7 @@ function showPersonalityPill(id) {
       }
 
       #nabad-attachment-chip {
-        margin-top: 8px;
+        margin-bottom: 8px;
         display: none;
         align-items: center;
         justify-content: space-between;
@@ -2688,6 +2743,8 @@ function showPersonalityPill(id) {
       }
 
       #nabad-attachment-chip .nabad-attachment-label {
+        flex: 1;
+        min-width: 0;
         font-size: 12px;
         color: #1e3a8a;
         font-weight: 700;
@@ -2697,6 +2754,7 @@ function showPersonalityPill(id) {
       }
 
       #nabad-attachment-chip .nabad-attachment-clear {
+        flex-shrink: 0;
         border: none;
         background: transparent;
         color: #2563eb;
@@ -3265,6 +3323,7 @@ function showPersonalityPill(id) {
         </div>
 
         <div id="nabad-input-wrap">
+          <div id="nabad-attachment-chip" aria-live="polite"></div>
           <div id="nabad-reply-bar" aria-live="polite"></div>
           <div id="nabad-input-row">
             <button id="nabad-attach" type="button" aria-label="Attach file">
@@ -3289,7 +3348,6 @@ function showPersonalityPill(id) {
             </button>
           </div>
           <input id="nabad-file-input" type="file" hidden accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx" />
-          <div id="nabad-attachment-chip" aria-live="polite"></div>
         </div>
       </div>
 
@@ -4184,15 +4242,22 @@ function finishOnboarding() {
       if (axisLock === 'y') {
         return;
       }
+      if (dx >= 0) {
+        bubble.style.transform = 'translateX(0px)';
+        bubble.classList.remove('nabad-swipe-armed');
+        swipeDx = 0;
+        swipeArmed = false;
+        return;
+      }
       e.preventDefault();
       if (Math.abs(dx) < 8) return;
       swiping = true;
       swipeDx = dx;
-      const max = 64;
-      const damped = Math.max(-max, Math.min(max, dx * 0.55));
+      const max = 60;
+      const damped = Math.max(-max, dx * 0.5);
       bubble.style.transform = `translateX(${damped}px)`;
-      bubble.classList.toggle('nabad-swipe-armed', Math.abs(damped) >= 34);
-      swipeArmed = Math.abs(damped) >= 34;
+      bubble.classList.toggle('nabad-swipe-armed', Math.abs(damped) >= 30);
+      swipeArmed = Math.abs(damped) >= 30;
     }, { passive: false });
 
     bubble.addEventListener('touchend', (e) => {
@@ -4200,7 +4265,7 @@ function finishOnboarding() {
         bubble.style.transition = 'transform 180ms ease, box-shadow 180ms ease';
         bubble.style.transform = 'translateX(0px)';
         bubble.classList.remove('nabad-swipe-armed');
-        if (swipeArmed || Math.abs(swipeDx) > 52) {
+        if (swipeArmed || swipeDx < -46) {
           setReplyTarget(target);
           if (navigator.vibrate) navigator.vibrate(8);
         }
