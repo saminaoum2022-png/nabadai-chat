@@ -516,9 +516,8 @@ async function generateWithGenspark(prompt = '', imageType = 'image') {
     ...(styleByType[imageType] ? { style: styleByType[imageType] } : {})
   };
 
-  let response;
-  try {
-    response = await fetchWithTimeout(apiUrl, {
+  const send = async (targetUrl = '') => {
+    return fetchWithTimeout(targetUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -527,10 +526,30 @@ async function generateWithGenspark(prompt = '', imageType = 'image') {
       },
       body: JSON.stringify(body)
     }, 30000);
+  };
+
+  let response;
+  try {
+    console.log('[GENSPARK DEBUG] trying url:', apiUrl);
+    response = await send(apiUrl);
   } catch (err) {
     const causeCode = err?.cause?.code || '';
     const causeName = err?.cause?.name || '';
-    throw new Error(`Genspark network error: ${causeCode || causeName || err?.message || 'fetch failed'}`);
+    const isDnsFail = String(causeCode || causeName || err?.message || '').toUpperCase().includes('ENOTFOUND');
+    const canTryWwwFallback = /https?:\/\/api\.genspark\.ai/i.test(apiUrl);
+    if (isDnsFail && canTryWwwFallback) {
+      const fallbackUrl = apiUrl.replace(/^https?:\/\/api\.genspark\.ai/i, 'https://www.genspark.ai/api');
+      try {
+        console.log('[GENSPARK DEBUG] trying fallback url:', fallbackUrl);
+        response = await send(fallbackUrl);
+      } catch (fallbackErr) {
+        const fbCode = fallbackErr?.cause?.code || '';
+        const fbName = fallbackErr?.cause?.name || '';
+        throw new Error(`Genspark network error: ${fbCode || fbName || fallbackErr?.message || 'fetch failed'}`);
+      }
+    } else {
+      throw new Error(`Genspark network error: ${causeCode || causeName || err?.message || 'fetch failed'}`);
+    }
   }
 
   if (!response.ok) {
