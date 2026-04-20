@@ -49,6 +49,15 @@ export default function Home() {
   const [splashHiding, setSplashHiding] = useState(false);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+    const keepWebsiteMode = new URLSearchParams(window.location.search).get('website') === '1';
+    if (isDesktop && !keepWebsiteMode) {
+      window.location.replace('/app');
+    }
+  }, []);
+
+  useEffect(() => {
     // [FIX-5] Fade first, then unmount
     const fadeTimer   = window.setTimeout(() => setSplashHiding(true), 1200);
     const removeTimer = window.setTimeout(() => setShowSplash(false), 1650);
@@ -157,7 +166,7 @@ export default function Home() {
 
       <Script
         id="nabad-widget-script"
-        src="/widget.js?v=39"
+        src="/widget.js?v=40"
         strategy="afterInteractive"
       />
 
