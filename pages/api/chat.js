@@ -733,28 +733,43 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     if (hasIdeogram) providers.push('ideogram');
     if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
   }
+  console.log('[IMAGE ROUTER]', JSON.stringify({
+    preferred,
+    forcedMode,
+    imageType,
+    hasGeminiImage,
+    hasOpenAIImage,
+    hasIdeogram,
+    hasGenspark,
+    providers
+  }));
 
   let lastError = null;
   for (const provider of providers) {
     try {
       if (provider === 'gemini') {
         const url = await generateWithGeminiImage(imagePrompt, imageType);
+        console.log('[IMAGE PROVIDER USED]', provider);
         return { provider: 'gemini', url };
       }
       if (provider === 'openai') {
         const url = await generateWithOpenAIImage(imagePrompt, imageType);
+        console.log('[IMAGE PROVIDER USED]', provider);
         return { provider: 'openai', url };
       }
       if (provider === 'genspark') {
         const url = await generateWithGenspark(imagePrompt, imageType);
+        console.log('[IMAGE PROVIDER USED]', provider);
         return { provider, url };
       }
       if (provider === 'ideogram') {
         const url = await generateWithIdeogram(imagePrompt);
+        console.log('[IMAGE PROVIDER USED]', provider);
         return { provider, url };
       }
       const seed = Math.floor(Math.random() * 999999);
       const url = buildPollinationsUrl(imagePrompt, { seed, model: 'flux' });
+      console.log('[IMAGE PROVIDER USED]', 'pollinations');
       return { provider: 'pollinations', url };
     } catch (err) {
       lastError = err;
