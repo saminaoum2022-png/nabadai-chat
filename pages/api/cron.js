@@ -3,14 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
 );  
-
-webpush.setVapidDetails(
-  'mailto:' + process.env.VAPID_EMAIL,
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
 
 export default async function handler(req, res) {
   // Security check — only allow Vercel cron calls
@@ -19,6 +13,22 @@ export default async function handler(req, res) {
   }
 
   try {
+    const vapidEmail = process.env.VAPID_EMAIL;
+    const vapidPublic = process.env.VAPID_PUBLIC_KEY;
+    const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+    if (!vapidEmail || !vapidPublic || !vapidPrivate) {
+      return res.status(500).json({
+        error: 'Missing VAPID env vars',
+        detail: 'Set VAPID_EMAIL, VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY'
+      });
+    }
+
+    webpush.setVapidDetails(
+      `mailto:${vapidEmail}`,
+      vapidPublic,
+      vapidPrivate
+    );
+
     const now = new Date();
     const hour = now.getUTCHours();
     const day = now.getUTCDay(); // 0 = Sunday, 1 = Monday
