@@ -58,9 +58,26 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // [FIX-5] Fade first, then unmount
-    const fadeTimer   = window.setTimeout(() => setSplashHiding(true), 1200);
-    const removeTimer = window.setTimeout(() => setShowSplash(false), 1650);
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    let splashClosed = false;
+    let failSafeTimer = null;
+    const hideSplash = () => {
+      if (splashClosed) return;
+      splashClosed = true;
+      setSplashHiding(true);
+      window.setTimeout(() => setShowSplash(false), 380);
+    };
+
+    // Desktop keeps timed splash; mobile waits for chat open to avoid blue flash
+    let fadeTimer = null;
+    let removeTimer = null;
+    if (!isMobile) {
+      fadeTimer = window.setTimeout(() => setSplashHiding(true), 1200);
+      removeTimer = window.setTimeout(() => setShowSplash(false), 1650);
+    } else {
+      // Never block forever if widget fails for any reason
+      failSafeTimer = window.setTimeout(() => hideSplash(), 5200);
+    }
 
     // [FIX-3] Register SW with immediate update check
     const registerServiceWorker = () => {
@@ -80,10 +97,15 @@ export default function Home() {
     const openWidget = () => {
       if (window.__NABAD_OPEN_WIDGET__) {
         window.__NABAD_OPEN_WIDGET__();
+        if (isMobile) hideSplash();
         return true;
       }
       const launcher = document.getElementById('nabad-launcher');
-      if (launcher) { launcher.click(); return true; }
+      if (launcher) {
+        launcher.click();
+        if (isMobile) hideSplash();
+        return true;
+      }
       return false;
     };
 
@@ -106,6 +128,7 @@ export default function Home() {
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(removeTimer);
+      window.clearTimeout(failSafeTimer);
       window.clearTimeout(autoOpenTimer);
       window.clearInterval(pollTimer);
     };
