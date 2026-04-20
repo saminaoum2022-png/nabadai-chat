@@ -214,7 +214,156 @@ function memoryToProfileString(memory = {}) {
       if (v) parts.push(`${k}: ${v}`);
     });
   }
+  if (Array.isArray(memory.savedInsights) && memory.savedInsights.length) {
+    const recent = memory.savedInsights
+      .slice(-3)
+      .map((item) => cleanText(item?.text || '', 180))
+      .filter(Boolean);
+    if (recent.length) parts.push(`Saved insights: ${recent.join(' ; ')}`);
+  }
   return cleanText(parts.join(' | '), 950);
+}
+
+function normalizeMemoryField(raw = '') {
+  const f = cleanText(raw, 80).toLowerCase();
+  if (!f) return '';
+  if (/\b(country|location|city|market|where i am|where i'm based)\b/.test(f)) return 'country';
+  if (/\b(industry|sector|niche|business type)\b/.test(f)) return 'industry';
+  if (/\b(stage|business stage)\b/.test(f)) return 'stage';
+  if (/\b(bottleneck|blocker|biggest block|constraint)\b/.test(f)) return 'bottleneck';
+  if (/\b(name|business name|company name|brand name)\b/.test(f)) return 'businessName';
+  if (/\b(offer|what i sell|product|service)\b/.test(f)) return 'whatYouSell';
+  if (/\b(revenue|income|sales)\b/.test(f)) return 'revenue';
+  if (/\b(challenge|problem|pain)\b/.test(f)) return 'biggestChallenge';
+  if (/\b(customer|audience|target)\b/.test(f)) return 'targetCustomer';
+  if (/\b(idea|vision)\b/.test(f)) return 'ideaSummary';
+  if (/\b(progress|status|current progress)\b/.test(f)) return 'currentProgress';
+  if (/\b(skill|strength|expertise)\b/.test(f)) return 'skills';
+  if (/\b(preference|style|tone)\b/.test(f)) return 'preference';
+  if (/\b(time|availability|time commitment)\b/.test(f)) return 'timeCommitment';
+  return '';
+}
+
+function parseMemoryCommand(userMessage = '', replyTo = null) {
+  const text = cleanText(userMessage, 1200);
+  const lower = text.toLowerCase();
+  if (!text) return null;
+
+  const saveMatch = text.match(/\b(?:remember|save|store|add)\b(?:\s+this)?(?:\s+to\s+memory)?\s*[:\-]?\s*(.*)$/i);
+  if (saveMatch && /\b(?:remember|save|store|add)\b/.test(lower)) {
+    const payload = cleanText(saveMatch[1] || '', 400);
+    const note = payload || cleanText(replyTo?.snippet || '', 240);
+    if (note) return { type: 'save_note', note };
+  }
+
+  const setMatch = text.match(/\b(?:update|set|change)\s+my\s+(.{2,60}?)\s+(?:to|as|is)\s+(.+)$/i);
+  if (setMatch) {
+    const field = normalizeMemoryField(setMatch[1] || '');
+    const value = cleanText(setMatch[2] || '', 240);
+    if (field && value) return { type: 'set_field', field, value };
+  }
+
+  const forgetMatch = text.match(/\b(?:forget|delete|remove|clear)\s+(?:my\s+)?(.{2,80}?)(?:\s+from\s+memory|\s+memory)?$/i);
+  if (forgetMatch && !/\b(all|everything)\b/i.test(forgetMatch[1] || '')) {
+    const field = normalizeMemoryField(forgetMatch[1] || '');
+    if (field) return { type: 'delete_field', field };
+    const phrase = cleanText(forgetMatch[1] || '', 180);
+    if (phrase && /\bthis\b/i.test(phrase)) {
+      const note = cleanText(replyTo?.snippet || '', 240);
+      if (note) return { type: 'delete_note', note };
+    }
+  }
+
+  if (/\b(forget|clear|delete|remove)\s+(all|everything)\b.*\bmemory\b/i.test(lower)) {
+    return { type: 'clear_notes_only' };
+  }
+
+  return null;
+}
+
+function applyMemoryCommand(currentMemory = {}, command = null, userProfile = '') {
+  const next = mergeFounderMemory(currentMemory || {}, {
+    userProfile: cleanText(userProfile || '', 700),
+    conversationText: ''
+  });
+  if (!command || typeof command !== 'object') {
+    return { memory: next, changed: false, reply: '<p>No memory action detected.</p>' };
+  }
+
+  const ensureFacts = () => {
+    if (!next.facts || typeof next.facts !== 'object') next.facts = {};
+  };
+  const removeFactKey = (key = '') => {
+    if (!next.facts || typeof next.facts !== 'object') return;
+    delete next.facts[key];
+    if (Object.keys(next.facts).length === 0) delete next.facts;
+  };
+
+  if (command.type === 'save_note') {
+    const note = cleanText(command.note || '', 420);
+    if (!note) return { memory: next, changed: false, reply: '<p>I could not find what to save. Reply to a message and say “save this to memory”.</p>' };
+    if (!Array.isArray(next.savedInsights)) next.savedInsights = [];
+    next.savedInsights.push({ text: note, savedAt: new Date().toISOString(), source: 'manual-chat' });
+    next.savedInsights = next.savedInsights.slice(-180);
+    if (!next.learning || typeof next.learning !== 'object') next.learning = {};
+    next.learning.knownFields = mergeStringList(next.learning.knownFields, [`manual_note: ${note}`], 18);
+    return { memory: next, changed: true, reply: `<p>Saved to memory: <strong>${escapeHtml(note)}</strong>.</p>` };
+  }
+
+  if (command.type === 'set_field') {
+    const field = command.field;
+    const value = cleanText(command.value || '', 240);
+    if (!field || !value) return { memory: next, changed: false, reply: '<p>I need both a field and value. Example: “update my country to UAE”.</p>' };
+    if (field === 'country') {
+      next.country = detectCountryFromContext(value) || value.toUpperCase();
+    } else if (field === 'industry') {
+      const inferred = detectIndustryFromContext(value);
+      next.industry = inferred !== 'general' ? inferred : value;
+    } else if (field === 'stage') {
+      next.stage = inferStageFromText(value) || value;
+    } else if (field === 'bottleneck') {
+      next.bottleneck = inferBottleneckFromText(value) || value;
+    } else {
+      ensureFacts();
+      next.facts[field] = value;
+    }
+    return { memory: next, changed: true, reply: `<p>Updated memory: <strong>${escapeHtml(field)}</strong> = <strong>${escapeHtml(value)}</strong>.</p>` };
+  }
+
+  if (command.type === 'delete_field') {
+    const field = command.field;
+    if (!field) return { memory: next, changed: false, reply: '<p>I could not identify which memory field to remove.</p>' };
+    if (field === 'country') delete next.country;
+    else if (field === 'industry') delete next.industry;
+    else if (field === 'stage') delete next.stage;
+    else if (field === 'bottleneck') delete next.bottleneck;
+    else removeFactKey(field);
+    return { memory: next, changed: true, reply: `<p>Removed <strong>${escapeHtml(field)}</strong> from memory.</p>` };
+  }
+
+  if (command.type === 'delete_note') {
+    const note = cleanText(command.note || '', 240);
+    if (!note || !Array.isArray(next.savedInsights)) {
+      return { memory: next, changed: false, reply: '<p>I could not find that saved memory note to remove.</p>' };
+    }
+    const before = next.savedInsights.length;
+    next.savedInsights = next.savedInsights.filter((item) => !cleanText(item?.text || '', 240).includes(note));
+    if (!next.savedInsights.length) delete next.savedInsights;
+    return {
+      memory: next,
+      changed: before !== (next.savedInsights?.length || 0),
+      reply: before !== (next.savedInsights?.length || 0)
+        ? '<p>Removed that saved note from memory.</p>'
+        : '<p>I could not find that saved note in memory.</p>'
+    };
+  }
+
+  if (command.type === 'clear_notes_only') {
+    delete next.savedInsights;
+    return { memory: next, changed: true, reply: '<p>Cleared saved notes. Core profile memory is still intact.</p>' };
+  }
+
+  return { memory: next, changed: false, reply: '<p>No memory action detected.</p>' };
 }
 
 async function loadFounderMemory(memoryKey = '') {
@@ -1941,6 +2090,21 @@ function upgradeCardRecentlyShown(messages = [], lookback = 4) {
 }
 
 async function detectMeaningfulInfo(userMessage, openai) {
+  const lite = detectMeaningfulInfoLite(userMessage);
+  const mergeDetected = (primary = {}, fallback = {}) => {
+    const out = {};
+    [fallback, primary].forEach((src) => {
+      if (!src || typeof src !== 'object') return;
+      Object.entries(src).forEach(([k, v]) => {
+        if (typeof v !== 'string') return;
+        const cleaned = cleanText(v, 240);
+        if (!cleaned) return;
+        out[k] = cleaned;
+      });
+    });
+    return out;
+  };
+
   try {
     // Step 1 — quick yes/no check
     const check = await openai.chat.completions.create({
@@ -1955,9 +2119,12 @@ async function detectMeaningfulInfo(userMessage, openai) {
       ]
     });
 
-    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
+    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase() || '';
     console.log('[NABAD DEBUG] Step1 answer:', answer);
-    if (answer !== 'yes') return null;
+    const looksYes = /^y(es)?\b/.test(answer) || /\byes\b/.test(answer);
+    if (!looksYes) {
+      return Object.keys(lite).length ? lite : null;
+    }
 
     // Step 2 — extract the actual data
     const extract = await openai.chat.completions.create({
@@ -1992,19 +2159,59 @@ Return ONLY a JSON object. If truly nothing found return {}.`
 
     const raw = extract.choices?.[0]?.message?.content?.trim() || '{}';
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return null;
+    if (!match) return Object.keys(lite).length ? lite : null;
 
     const parsed = JSON.parse(match[0]);
     console.log('[NABAD DEBUG] Step2 parsed:', JSON.stringify(parsed));
-    if (!parsed || Object.keys(parsed).length === 0) return null;
-
-    return parsed;
+    const merged = mergeDetected(parsed, lite);
+    if (!merged || Object.keys(merged).length === 0) return null;
+    return merged;
 
   } catch (err) {
     console.error('[NABAD] detectMeaningfulInfo error:', err?.message);
     console.error('[NABAD] detectMeaningfulInfo full error:', JSON.stringify(err));
-    return null;
+    return Object.keys(lite).length ? lite : null;
   }
+}
+
+function detectMeaningfulInfoLite(userMessage = '') {
+  const text = cleanText(userMessage || '', 1200);
+  const t = text.toLowerCase();
+  if (!t) return {};
+
+  const out = {};
+  const set = (key, value, max = 240) => {
+    const cleaned = cleanText(value || '', max);
+    if (!cleaned) return;
+    out[key] = cleaned;
+  };
+
+  const short = t.length <= 36;
+  const directCountry = detectCountryFromContext(t);
+  if (directCountry && short) set('location', directCountry, 80);
+
+  const locMatch = text.match(/\b(?:i(?:\s*am|'m)?\s*(?:in|from)|we(?:'re| are)?\s*(?:in|from)|based in|located in)\s+([a-zA-Z][a-zA-Z\s\-]{1,60})\b/i);
+  if (locMatch) set('location', locMatch[1], 80);
+
+  const nameMatch = text.match(/\b(?:name(?:\s+is|\s*s)?|called)\s+([a-zA-Z0-9][a-zA-Z0-9\s\-_]{1,70})\b/i);
+  if (nameMatch) set('businessName', nameMatch[1], 100);
+
+  const sellMatch = text.match(/\b(?:i|we)\s+(?:sell|offer|provide)\s+([^.,\n]{2,120})/i);
+  if (sellMatch) set('whatYouSell', sellMatch[1], 160);
+
+  const revenueMatch = text.match(/\b(?:revenue|income|make|making)\s*(?:is|around|about|=)?\s*([$€£]?\s?\d[\d,.\skKmM]*)/i);
+  if (revenueMatch) set('revenue', revenueMatch[1], 80);
+
+  const challengeMatch = text.match(/\b(?:challenge|problem|struggle|stuck(?: with)?|biggest block(?:er)?)\s*(?:is|:)?\s*([^.\n]{3,140})/i);
+  if (challengeMatch) set('biggestChallenge', challengeMatch[1], 180);
+
+  const ideaMatch = text.match(/\b(?:idea|startup idea|business idea)\s*(?:is|:)?\s*([^.\n]{3,180})/i);
+  if (ideaMatch) set('ideaSummary', ideaMatch[1], 200);
+
+  const skillMatch = text.match(/\b(?:i(?:'m| am)?\s+good at|my skill(?:s)?(?:\s+is|\s+are)?|i can)\s+([^.\n]{2,120})/i);
+  if (skillMatch) set('skills', skillMatch[1], 140);
+
+  return out;
 }
 
 async function detectWarRoom(userMessage, recentMessages, userProfile, openai) {
@@ -2132,7 +2339,7 @@ export default async function handler(req, res) {
   const restoreEmail = cleanText(body?.restoreEmail || '', 180).toLowerCase();
   const restoreCode = normalizeRecoveryCode(body?.restoreCode || '');
   const saveInsight = body?.saveInsight === true;
-  const insightText = cleanText(body?.insightText || '', 420);
+  const insightText = cleanText(body?.insightText || '', 2000);
   const replyTo = body?.replyTo && typeof body.replyTo === 'object'
     ? {
         id: cleanText(body.replyTo.id || '', 60),
@@ -2281,10 +2488,39 @@ export default async function handler(req, res) {
     });
     await saveFounderMemory(memoryKey, merged);
   };
+  const respond = async (payload, { persist = true, detectedInfo = null, learningSignals = null } = {}) => {
+    if (persist) {
+      await persistFounderMemory(detectedInfo, learningSignals);
+    }
+    return res.status(200).json(payload);
+  };
+
+  // ── Manual memory commands from chat ──
+  const memoryCommand = parseMemoryCommand(lastUserMessage, replyTo);
+  if (memoryCommand) {
+    if (!memoryKey) {
+      return res.status(200).json({
+        reply: '<p>I can do that, but memory is not initialized on this device yet.</p>',
+        detectedPersonality: 'auto'
+      });
+    }
+    const { memory: patchedMemory, changed, reply } = applyMemoryCommand(storedFounderMemory || {}, memoryCommand, incomingUserProfile);
+    if (changed) {
+      await saveFounderMemory(memoryKey, patchedMemory);
+    }
+    return res.status(200).json({
+      reply,
+      detectedPersonality: 'auto',
+      memoryAction: {
+        type: memoryCommand.type,
+        changed: !!changed
+      }
+    });
+  }
 
   // ── Positioning question ──
   if (isPositioningQuestion(lastUserMessage)) {
-    return res.status(200).json({ reply: POSITIONING_REPLY, detectedPersonality: 'auto' });
+    return respond({ reply: POSITIONING_REPLY, detectedPersonality: 'auto' });
   }
 
   // ── Legal/compliance request (country + industry aware) ──
@@ -2307,7 +2543,7 @@ export default async function handler(req, res) {
 
   // ── Stock photo ──
   if (isStockPhotoRequest(lastUserMessage)) {
-    return res.status(200).json({ reply: buildStockPhotoHtml(lastUserMessage), detectedPersonality: 'auto' });
+    return respond({ reply: buildStockPhotoHtml(lastUserMessage), detectedPersonality: 'auto' });
   }
 
   // ── Premium image confirmation ──
@@ -2323,10 +2559,10 @@ export default async function handler(req, res) {
         : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       const imageType = detectImageType(prompt);
       const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
-      return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
+      return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[PREMIUM IMAGE ERROR]', err?.message);
-      return res.status(200).json({
+      return respond({
         reply: `<p>⚠️ Premium generation hit a snag — <strong>try again in a moment</strong>.</p>`,
         detectedPersonality: 'auto'
       });
@@ -2349,10 +2585,10 @@ export default async function handler(req, res) {
         : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       const imageType = detectImageType(prompt);
       const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
-      return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
+      return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[PREMIUM IMAGE ERROR]', err?.message);
-      return res.status(200).json({
+      return respond({
         reply: `<p>⚠️ Premium generation hit a snag — <strong>try again in a moment</strong>.</p>`,
         detectedPersonality: 'auto'
       });
@@ -2367,10 +2603,10 @@ export default async function handler(req, res) {
       const prompt = enrichImagePrompt(basePrompt, detectImageType(basePrompt));
       const imageType = detectImageType(prompt);
       const generated = await generateImageWithProviderChain(`${prompt} exact text`, imageType, { preferred: imageProvider });
-      return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
+      return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[DIRECT PREMIUM ERROR]', err?.message);
-      return res.status(200).json({
+      return respond({
         reply: `<p>⚠️ Premium generation hit a snag — <strong>try again in a moment</strong>.</p>`,
         detectedPersonality: 'auto'
       });
@@ -2385,12 +2621,12 @@ export default async function handler(req, res) {
     !upgradeCardRecentlyShown(messages)
   ) {
     const lastMeta = extractLastImageMeta(messages);
-    return res.status(200).json({ reply: buildPremiumUpgradeOffer(lastMeta?.prompt || ''), detectedPersonality: 'auto' });
+    return respond({ reply: buildPremiumUpgradeOffer(lastMeta?.prompt || ''), detectedPersonality: 'auto' });
   }
 
   // ── Ask image style first for better control ──
   if (shouldAskImageStyleChoice(lastUserMessage, messages)) {
-    return res.status(200).json({
+    return respond({
       reply: buildImageStyleChoiceCard(),
       detectedPersonality: 'creative'
     });
@@ -2417,13 +2653,13 @@ export default async function handler(req, res) {
       }
       imagePrompt = enrichImagePrompt(imagePrompt, imageType);
       const generated = await generateImageWithProviderChain(imagePrompt, imageType, { preferred: imageProvider });
-      return res.status(200).json({
+      return respond({
         reply: buildImageReplyHtml(generated.url, imagePrompt, imageType, generated.provider),
         detectedPersonality: 'creative'
       });
     } catch (err) {
       console.error('[IMAGE GEN ERROR]', err?.message);
-      return res.status(200).json({ reply: '<p>Image generation hit a snag — please try again.</p>', detectedPersonality: 'auto' });
+      return respond({ reply: '<p>Image generation hit a snag — please try again.</p>', detectedPersonality: 'auto' });
     }
   }
 
@@ -2434,42 +2670,42 @@ export default async function handler(req, res) {
     if (lastOffer === 'offer') {
       try {
         const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
-        return res.status(200).json({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
+        return respond({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
       } catch (err) { console.error('[OFFER CONFIRM ERROR]', err?.message); }
     }
 
     if (lastOffer === 'snapshot' && snapshotAlreadyOffered(messages) && hasRichBusinessContext(messages)) {
       try {
         const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai, userProfile);
-        return res.status(200).json({ reply: buildSnapshotCard(snapshotData, detectedLocation), detectedPersonality: 'strategist' });
+        return respond({ reply: buildSnapshotCard(snapshotData, detectedLocation), detectedPersonality: 'strategist' });
       } catch (err) { console.error('[SNAPSHOT CONFIRM ERROR]', err?.message); }
     }
 
     if (lastOffer === 'action-plan') {
       try {
         const planData = await generateActionPlan(messages, detectedLocation, openai);
-        return res.status(200).json({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
+        return respond({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
       } catch (err) { console.error('[ACTION PLAN CONFIRM ERROR]', err?.message); }
     }
 
     if (lastOffer === 'score') {
       try {
         const scoreData = await generateNabadScore(messages, openai);
-        return res.status(200).json({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
+        return respond({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
       } catch (err) { console.error('[SCORE CONFIRM ERROR]', err?.message); }
     }
 
     if (lastOffer === 'pricing') {
       try {
         const pricingData = await generatePricingTable(messages, detectedLocation, openai);
-        return res.status(200).json({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
+        return respond({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
       } catch (err) { console.error('[PRICING CONFIRM ERROR]', err?.message); }
     }
 
     if (lastOffer === 'matrix') {
       try {
         const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
-        return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
+        return respond({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
       } catch (err) { console.error('[MATRIX CONFIRM ERROR]', err?.message); }
     }
 
@@ -2481,7 +2717,7 @@ export default async function handler(req, res) {
           : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
         const imageType = detectImageType(prompt);
         const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
-        return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
+        return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
       } catch (err) { console.error('[PREMIUM YES ERROR]', err?.message); }
     }
   }
@@ -2490,7 +2726,7 @@ export default async function handler(req, res) {
   if (isIdeaScoringRequest(lastUserMessage)) {
     try {
       const scoreData = await generateNabadScore(messages, openai);
-      return res.status(200).json({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
+      return respond({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
     } catch (err) { console.error('[SCORE ERROR]', err?.message); }
   }
 
@@ -2498,7 +2734,7 @@ export default async function handler(req, res) {
   if (isPricingTableRequest(lastUserMessage)) {
     try {
       const pricingData = await generatePricingTable(messages, detectedLocation, openai);
-      return res.status(200).json({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
+      return respond({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
     } catch (err) { console.error('[PRICING ERROR]', err?.message); }
   }
 
@@ -2506,7 +2742,7 @@ export default async function handler(req, res) {
   if (isOfferCardRequest(lastUserMessage)) {
     try {
       const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
-      return res.status(200).json({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
+      return respond({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
     } catch (err) { console.error('[OFFER ERROR]', err?.message); }
   }
 
@@ -2514,7 +2750,7 @@ export default async function handler(req, res) {
   if (isPositioningMatrixRequest(lastUserMessage)) {
     try {
       const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
-      return res.status(200).json({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
+      return respond({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
     } catch (err) { console.error('[MATRIX ERROR]', err?.message); }
   }
 
@@ -2522,17 +2758,17 @@ export default async function handler(req, res) {
   if (isActionPlanRequest(lastUserMessage)) {
     try {
       const planData = await generateActionPlan(messages, detectedLocation, openai);
-      return res.status(200).json({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
+      return respond({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
     } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message); }
   }
 
   // ── Idea quality gate (avoid random brainstorm outputs) ──
   if (shouldGateIdeaGeneration(lastUserMessage, messages, userProfile)) {
     await persistFounderMemory();
-    return res.status(200).json({
+    return respond({
       reply: buildIdeaGateQuestion(lastUserMessage, userProfile),
       detectedPersonality: 'strategist'
-    });
+    }, { persist: false });
   }
 
   // ── Location ask ──
@@ -2547,7 +2783,7 @@ export default async function handler(req, res) {
     !YES_PATTERN.test(lastUserMessage.trim()) &&
     !shouldGenerateImage(lastUserMessage, messages)
   ) {
-    return res.status(200).json({
+    return respond({
       reply: `<p>Quick one so I can make this market-accurate: <strong>which country are you operating in?</strong></p>`,
       detectedPersonality: 'auto'
     });
