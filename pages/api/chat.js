@@ -484,6 +484,46 @@ async function generateWithOpenAIImage(prompt = '', imageType = 'image') {
   throw new Error('No image URL returned from OpenAI image generation');
 }
 
+async function generateWithGeminiImage(prompt = '', imageType = 'image') {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+
+  const model = cleanText(process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image', 80);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const cleanPrompt = sanitizePromptText(prompt).slice(0, 900);
+  const aspectRatio = imageType === 'banner' ? '3:2' : '1:1';
+
+  const response = await fetchWithTimeout(endpoint, {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: cleanPrompt }] }],
+      generationConfig: {
+        responseModalities: ['IMAGE'],
+        imageConfig: { aspectRatio }
+      }
+    })
+  }, 35000);
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API error: ${response.status} — ${errText.slice(0, 140)}`);
+  }
+
+  const data = await readJsonSafe(response);
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const imgPart = parts.find((p) => p?.inlineData?.data || p?.inline_data?.data) || null;
+  const b64 = imgPart?.inlineData?.data || imgPart?.inline_data?.data || '';
+  const mime = imgPart?.inlineData?.mimeType || imgPart?.inline_data?.mime_type || 'image/png';
+  if (typeof b64 === 'string' && b64.length > 100) {
+    return `data:${mime};base64,${b64}`;
+  }
+  throw new Error('No image bytes returned from Gemini');
+}
+
 function extractImageUrlFromPayload(payload = null) {
   const p = payload && typeof payload === 'object' ? payload : {};
   const candidates = [
@@ -636,11 +676,13 @@ async function generateWithGenspark(prompt = '', imageType = 'image') {
   return imageUrl;
 }
 
-async function generateImageWithProviderChain(imagePrompt = '', imageType = 'image') {
-  const preferred = cleanText(process.env.NABAD_IMAGE_PROVIDER || 'auto', 24).toLowerCase();
+async function generateImageWithProviderChain(imagePrompt = '', imageType = 'image', options = {}) {
+  const preferredOverride = cleanText(options?.preferred || '', 24).toLowerCase();
+  const preferred = preferredOverride || cleanText(process.env.NABAD_IMAGE_PROVIDER || 'auto', 24).toLowerCase();
   const forcedMode = cleanText(process.env.NABAD_IMAGE_MODE || 'balanced', 24).toLowerCase();
   const providers = [];
   const hasOpenAIImage = !!process.env.OPENAI_API_KEY;
+  const hasGeminiImage = !!process.env.GEMINI_API_KEY;
   const hasGenspark = !!process.env.GENSPARK_API_KEY;
   const hasIdeogram = !!process.env.IDEOGRAM_API_KEY;
   const isFastMode = /\b(fast|quick|draft|free mode)\b/i.test(imagePrompt) || forcedMode === 'fast';
@@ -648,10 +690,17 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
 
   if (preferred === 'openai') {
     if (hasOpenAIImage) providers.push('openai');
+    if (hasGeminiImage) providers.push('gemini');
+    if (hasIdeogram) providers.push('ideogram');
+    providers.push('pollinations');
+  } else if (preferred === 'gemini' || preferred === 'nanobanana' || preferred === 'nano-banana') {
+    if (hasGeminiImage) providers.push('gemini');
+    if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
     providers.push('pollinations');
   } else if (preferred === 'ideogram') {
     if (hasIdeogram) providers.push('ideogram');
+    if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     providers.push('pollinations');
   } else if (preferred === 'genspark') {
@@ -661,20 +710,24 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     providers.push('pollinations');
   } else if (preferred === 'pollinations') {
     providers.push('pollinations');
+    if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
     if (hasGenspark) providers.push('genspark');
   } else if (isFastMode) {
     providers.push('pollinations');
+    if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
     if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
   } else if (isTextCritical) {
+    if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
     providers.push('pollinations');
     if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
   } else {
+    if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     providers.push('pollinations');
     if (hasIdeogram) providers.push('ideogram');
@@ -684,6 +737,10 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
   let lastError = null;
   for (const provider of providers) {
     try {
+      if (provider === 'gemini') {
+        const url = await generateWithGeminiImage(imagePrompt, imageType);
+        return { provider: 'gemini', url };
+      }
       if (provider === 'openai') {
         const url = await generateWithOpenAIImage(imagePrompt, imageType);
         return { provider: 'openai', url };
@@ -783,7 +840,7 @@ function isImageModificationRequest(text = '') {
 }
 function hasImageStyleSignal(text = '') {
   const t = String(text || '').toLowerCase();
-  return /\b(simple|minimal|clean|creative|artistic|bold|realistic|photoreal|cinematic|3d|flat|vector|logo|icon|banner|mockup)\b/.test(t);
+  return /\b(simple|minimal|clean|creative|artistic|bold|realistic|photoreal|cinematic|3d|flat|vector|modern|luxury|playful|futuristic)\b/.test(t);
 }
 function imageChoiceRecentlyShown(messages = [], lookback = 4) {
   return messages.slice(-lookback).some(m =>
@@ -888,6 +945,32 @@ async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiCl
     });
     return resp.choices?.[0]?.message?.content?.trim() || userText;
   } catch { return userText; }
+}
+async function buildImageEditPromptFromAttachment(userText = '', imageDataUrl = '', messages = [], openaiClient) {
+  try {
+    const historyContext = messages.slice(-4).map(m => `${m.role}: ${getMessageText(m.content).slice(0, 200)}`).join('\n');
+    const resp = await openaiClient.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert image-edit prompt writer. Use the attached image and user instruction to write one clear generation prompt (max 120 words) that keeps identity and applies requested changes.'
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: `Conversation:\n${historyContext}\n\nUser edit request: ${userText}\n\nWrite the edited image prompt:` },
+            { type: 'image_url', image_url: { url: imageDataUrl } }
+          ]
+        }
+      ],
+      max_tokens: 200,
+      temperature: 0.6
+    });
+    return resp.choices?.[0]?.message?.content?.trim() || userText;
+  } catch {
+    return userText;
+  }
 }
 function buildGeneratedImageHtml(imageUrl = '', provider = 'pollinations') {
   return `<div class="nabad-image-wrap">
@@ -1297,6 +1380,11 @@ function buildLegalChecklistCard(country = '', industry = 'general') {
 function shouldGateIdeaGeneration(text = '', messages = [], userProfile = '') {
   const asksForIdeas = /\b(idea|ideas|brainstorm|brainstorming|what should i build|what business should i start|what should i do next|give me options|suggest)\b/i.test(text);
   if (!asksForIdeas) return false;
+  const recentlyAskedAnchor = messages.slice(-8).some((m) =>
+    m.role === 'assistant' &&
+    /quick anchor before i generate ideas|who is your exact first customer|what are you actually selling first|what result do you want in the next 90 days/i.test(getMessageText(m.content))
+  );
+  if (recentlyAskedAnchor) return false;
   const contextBlob = `${messages.slice(-8).map(m => getMessageText(m.content)).join(' ')} ${userProfile}`.toLowerCase();
   const hasAudience = /\b(customer|audience|client|target|niche)\b/.test(contextBlob);
   const hasOffer = /\b(product|service|offer|package|saas|agency|store)\b/.test(contextBlob);
@@ -1310,7 +1398,7 @@ function buildIdeaGateQuestion(text = '', userProfile = '') {
   const hasGoal = /\b(revenue|sales|clients?|leads?|launch|scale|grow|profit|mrr|arr)\b/.test(t);
 
   if (!hasAudience) {
-    return `<p>Quick anchor before I generate ideas:</p><p><strong>Who is your exact first customer?</strong></p>`;
+    return `<p>Before ideas, give me one precise target user so I avoid random suggestions.</p><p><strong>Who is the first customer you want to win?</strong></p>`;
   }
   if (!hasOffer) {
     return `<p>Quick anchor before I generate ideas:</p><p><strong>What are you actually selling first?</strong></p>`;
@@ -1986,6 +2074,7 @@ export default async function handler(req, res) {
         snippet: cleanText(body.replyTo.snippet || '', 240)
       }
     : null;
+  const imageProvider = cleanText(body?.imageProvider || '', 24).toLowerCase();
   const attachment = body?.attachment && typeof body.attachment === 'object' ? body.attachment : null;
 
   if (saveInsight) {
@@ -2167,7 +2256,7 @@ export default async function handler(req, res) {
         ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
         : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       const imageType = detectImageType(prompt);
-      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType);
+      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
       return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[PREMIUM IMAGE ERROR]', err?.message);
@@ -2193,7 +2282,7 @@ export default async function handler(req, res) {
         ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
         : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       const imageType = detectImageType(prompt);
-      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType);
+      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
       return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[PREMIUM IMAGE ERROR]', err?.message);
@@ -2211,7 +2300,7 @@ export default async function handler(req, res) {
       const basePrompt = lastMeta?.prompt || lastUserMessage;
       const prompt = enrichImagePrompt(basePrompt, detectImageType(basePrompt));
       const imageType = detectImageType(prompt);
-      const generated = await generateImageWithProviderChain(`${prompt} exact text`, imageType);
+      const generated = await generateImageWithProviderChain(`${prompt} exact text`, imageType, { preferred: imageProvider });
       return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[DIRECT PREMIUM ERROR]', err?.message);
@@ -2242,21 +2331,26 @@ export default async function handler(req, res) {
   }
 
   // ── Standard image generation ──
-  if (shouldGenerateImage(lastUserMessage, messages)) {
+  const attachmentImageEditIntent = !!(parsedAttachment?.imageDataUrl && /\b(change|edit|modify|make|remove|replace|add|improve|tweak|turn)\b/i.test(lastUserMessage));
+  if (shouldGenerateImage(lastUserMessage, messages) || attachmentImageEditIntent) {
     try {
       const imageType = detectImageType(lastUserMessage);
       let imagePrompt;
       if (isRegenerationRequest(lastUserMessage) || isImageModificationRequest(lastUserMessage)) {
         const lastMeta = extractLastImageMeta(messages);
         const modText = isImageModificationRequest(lastUserMessage) ? lastUserMessage : '';
-        imagePrompt = lastMeta
-          ? enrichImagePrompt(`${modText} ${lastMeta.prompt}`.trim(), imageType)
-          : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+        if (parsedAttachment?.imageDataUrl && isImageModificationRequest(lastUserMessage)) {
+          imagePrompt = await buildImageEditPromptFromAttachment(lastUserMessage, parsedAttachment.imageDataUrl, messages, openai);
+        } else {
+          imagePrompt = lastMeta
+            ? enrichImagePrompt(`${modText} ${lastMeta.prompt}`.trim(), imageType)
+            : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+        }
       } else {
         imagePrompt = await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       }
       imagePrompt = enrichImagePrompt(imagePrompt, imageType);
-      const generated = await generateImageWithProviderChain(imagePrompt, imageType);
+      const generated = await generateImageWithProviderChain(imagePrompt, imageType, { preferred: imageProvider });
       return res.status(200).json({
         reply: buildImageReplyHtml(generated.url, imagePrompt, imageType, generated.provider),
         detectedPersonality: 'creative'
@@ -2320,7 +2414,7 @@ export default async function handler(req, res) {
           ? enrichImagePrompt(lastMeta.prompt, detectImageType(lastMeta.prompt))
           : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
         const imageType = detectImageType(prompt);
-        const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType);
+        const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
         return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
       } catch (err) { console.error('[PREMIUM YES ERROR]', err?.message); }
     }
