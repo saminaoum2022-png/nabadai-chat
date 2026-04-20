@@ -508,6 +508,14 @@
       '--nabad-logo-pulse-color',
       `rgba(${r},${g},${b},0.35)`
     );
+    document.documentElement.style.setProperty(
+      '--nabad-logo-thinking-strong',
+      `rgba(${r},${g},${b},0.6)`
+    );
+    document.documentElement.style.setProperty(
+      '--nabad-logo-thinking-soft',
+      `rgba(${r},${g},${b},0.15)`
+    );
     logo.style.transition = 'border-color 0.6s ease';
     logo.style.borderColor = c.pulse;
   }
@@ -2381,9 +2389,9 @@ function showPersonalityPill(id) {
       }
 
       @keyframes nabadThinking {
-        0%   { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
-        50%  { box-shadow: 0 0 0 14px rgba(37,99,235,0.15); }
-        100% { box-shadow: 0 0 0 0px rgba(37,99,235,0.6); }
+        0%   { box-shadow: 0 0 0 0px var(--nabad-logo-thinking-strong, rgba(37,99,235,0.6)); }
+        50%  { box-shadow: 0 0 0 14px var(--nabad-logo-thinking-soft, rgba(37,99,235,0.15)); }
+        100% { box-shadow: 0 0 0 0px var(--nabad-logo-thinking-strong, rgba(37,99,235,0.6)); }
       }
 
       /* ── Options Popup ── */
