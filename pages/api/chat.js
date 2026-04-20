@@ -249,6 +249,12 @@ function parseMemoryCommand(userMessage = '', replyTo = null) {
   const lower = text.toLowerCase();
   if (!text) return null;
 
+  const trailingSaveMatch = text.match(/^(.+?)\s+(?:then\s+)?(?:remember|save|store|add)\s+this(?:\s+to\s+memory)?$/i);
+  if (trailingSaveMatch) {
+    const note = cleanText(trailingSaveMatch[1] || '', 420);
+    if (note) return { type: 'save_note', note };
+  }
+
   const saveMatch = text.match(/\b(?:remember|save|store|add)\b(?:\s+this)?(?:\s+to\s+memory)?\s*[:\-]?\s*(.*)$/i);
   if (saveMatch && /\b(?:remember|save|store|add)\b/.test(lower)) {
     const payload = cleanText(saveMatch[1] || '', 400);
@@ -303,7 +309,7 @@ function applyMemoryCommand(currentMemory = {}, command = null, userProfile = ''
     const note = cleanText(command.note || '', 420);
     if (!note) return { memory: next, changed: false, reply: '<p>I could not find what to save. Reply to a message and say “save this to memory”.</p>' };
     if (!Array.isArray(next.savedInsights)) next.savedInsights = [];
-    next.savedInsights.push({ text: note, savedAt: new Date().toISOString(), source: 'manual-chat' });
+    next.savedInsights.push({ id: makeMemoryItemId(), text: note, savedAt: new Date().toISOString(), source: 'manual-chat' });
     next.savedInsights = next.savedInsights.slice(-180);
     if (!next.learning || typeof next.learning !== 'object') next.learning = {};
     next.learning.knownFields = mergeStringList(next.learning.knownFields, [`manual_note: ${note}`], 18);
@@ -414,6 +420,9 @@ function getMessageText(content) {
 function cleanText(val = '', maxLen = 300) {
   if (typeof val !== 'string') return '';
   return val.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
+}
+function makeMemoryItemId() {
+  return randomBytes(6).toString('hex');
 }
 function parseDataUrl(dataUrl = '') {
   const raw = String(dataUrl || '');
@@ -2338,6 +2347,12 @@ export default async function handler(req, res) {
   const claimName = cleanText(body?.claimName || '', 120);
   const restoreEmail = cleanText(body?.restoreEmail || '', 180).toLowerCase();
   const restoreCode = normalizeRecoveryCode(body?.restoreCode || '');
+  const memoryAction = cleanText(body?.memoryAction || '', 32).toLowerCase();
+  const memoryField = cleanText(body?.memoryField || '', 80);
+  const memoryValue = cleanText(body?.memoryValue || '', 260);
+  const memoryInsightId = cleanText(body?.memoryInsightId || '', 40);
+  const memoryInsightText = cleanText(body?.memoryInsightText || '', 420);
+  const memoryInsightIndex = Number.isFinite(Number(body?.memoryInsightIndex)) ? Number(body.memoryInsightIndex) : -1;
   const saveInsight = body?.saveInsight === true;
   const insightText = cleanText(body?.insightText || '', 2000);
   const replyTo = body?.replyTo && typeof body.replyTo === 'object'
@@ -2350,6 +2365,70 @@ export default async function handler(req, res) {
   const imageProvider = cleanText(body?.imageProvider || '', 24).toLowerCase();
   const attachment = body?.attachment && typeof body.attachment === 'object' ? body.attachment : null;
 
+  if (memoryAction) {
+    if (!memoryKey) return res.status(400).json({ error: 'Missing memoryKey.' });
+    const profileText = cleanText(body?.userProfile || '', 700);
+    const baseMemory = mergeFounderMemory(storedFounderMemory || {}, {
+      userProfile: profileText,
+      conversationText: ''
+    });
+
+    if (memoryAction === 'get') {
+      return res.status(200).json({ ok: true, memory: storedFounderMemory || baseMemory });
+    }
+
+    if (memoryAction === 'update_field') {
+      const field = normalizeMemoryField(memoryField);
+      const value = cleanText(memoryValue, 240);
+      if (!field || !value) return res.status(400).json({ error: 'Field and value are required.' });
+      const { memory, changed, reply } = applyMemoryCommand(storedFounderMemory || {}, { type: 'set_field', field, value }, profileText);
+      if (changed) await saveFounderMemory(memoryKey, memory);
+      return res.status(200).json({ ok: true, changed, reply, memory });
+    }
+
+    if (memoryAction === 'delete_field') {
+      const field = normalizeMemoryField(memoryField);
+      if (!field) return res.status(400).json({ error: 'Field is required.' });
+      const { memory, changed, reply } = applyMemoryCommand(storedFounderMemory || {}, { type: 'delete_field', field }, profileText);
+      if (changed) await saveFounderMemory(memoryKey, memory);
+      return res.status(200).json({ ok: true, changed, reply, memory });
+    }
+
+    if (memoryAction === 'add_insight') {
+      if (!memoryInsightText) return res.status(400).json({ error: 'Insight text is required.' });
+      if (!Array.isArray(baseMemory.savedInsights)) baseMemory.savedInsights = [];
+      baseMemory.savedInsights.push({
+        id: makeMemoryItemId(),
+        text: memoryInsightText,
+        savedAt: new Date().toISOString(),
+        source: 'manual-ui'
+      });
+      baseMemory.savedInsights = baseMemory.savedInsights.slice(-180);
+      await saveFounderMemory(memoryKey, baseMemory);
+      return res.status(200).json({ ok: true, changed: true, memory: baseMemory });
+    }
+
+    if (memoryAction === 'delete_insight') {
+      if (!Array.isArray(baseMemory.savedInsights) || !baseMemory.savedInsights.length) {
+        return res.status(200).json({ ok: true, changed: false, memory: baseMemory });
+      }
+      const before = baseMemory.savedInsights.length;
+      if (memoryInsightId) {
+        baseMemory.savedInsights = baseMemory.savedInsights.filter((it) => cleanText(it?.id || '', 40) !== memoryInsightId);
+      } else if (memoryInsightIndex >= 0) {
+        baseMemory.savedInsights = baseMemory.savedInsights.filter((_, idx) => idx !== memoryInsightIndex);
+      } else {
+        return res.status(400).json({ error: 'Provide memoryInsightId or memoryInsightIndex.' });
+      }
+      if (!baseMemory.savedInsights.length) delete baseMemory.savedInsights;
+      const changed = before !== (baseMemory.savedInsights?.length || 0);
+      if (changed) await saveFounderMemory(memoryKey, baseMemory);
+      return res.status(200).json({ ok: true, changed, memory: baseMemory });
+    }
+
+    return res.status(400).json({ error: 'Unsupported memory action.' });
+  }
+
   if (saveInsight) {
     if (!memoryKey) return res.status(400).json({ error: 'Missing memoryKey for saving insight.' });
     if (!insightText) return res.status(400).json({ error: 'Insight text is empty.' });
@@ -2359,8 +2438,10 @@ export default async function handler(req, res) {
     });
     if (!Array.isArray(merged.savedInsights)) merged.savedInsights = [];
     merged.savedInsights.push({
+      id: makeMemoryItemId(),
       text: insightText,
-      savedAt: new Date().toISOString()
+      savedAt: new Date().toISOString(),
+      source: 'assistant-like-button'
     });
     merged.savedInsights = merged.savedInsights.slice(-120);
     await saveFounderMemory(memoryKey, merged);
