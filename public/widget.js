@@ -542,6 +542,55 @@
       .trim();
   }
 
+  function pickNabadReaction(userText = '', assistantText = '') {
+    const u = toPlainText(userText).toLowerCase();
+    const a = toPlainText(assistantText).toLowerCase();
+    if (!u || !a) return '';
+
+    const negativeAssistant = /\b(can't|cannot|not possible|unable|i don't|do not|won't|error|failed|hit a snag|not recommend)\b/.test(a);
+    if (negativeAssistant) return '';
+
+    const positiveAssistant = /\b(exactly|perfect|great|love|strong|smart|good move|right move|well done|nice|spot on|excellent|bold)\b/.test(a)
+      || /\b(ممتاز|رائع|فكرة قوية|قرار ذكي)\b/.test(a);
+    const userCommitment = /\b(i will|i'll|let's|lets|done|i decided|we should|my name is|my current location is|brand name is|the name of my brand is)\b/.test(u);
+
+    if (!positiveAssistant && !userCommitment) return '';
+
+    const variants = ['✓ aligned', '🔥 strong move', '⚡ smart call'];
+    const seed = (u + a).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+    return variants[seed % variants.length];
+  }
+
+  function applyNabadReactionToLastUserBubble(userText = '', assistantText = '') {
+    const label = pickNabadReaction(userText, assistantText);
+    if (!label || !refs.messages) return;
+    const userMsgs = refs.messages.querySelectorAll('.nabad-msg.user');
+    if (!userMsgs.length) return;
+    const lastUserMsg = userMsgs[userMsgs.length - 1];
+    const bubble = lastUserMsg.querySelector('.nabad-bubble');
+    if (!bubble) return;
+    if (bubble.querySelector('.nabad-user-reaction')) return;
+
+    const badge = document.createElement('div');
+    badge.className = 'nabad-user-reaction';
+    badge.textContent = label;
+    badge.style.cssText = [
+      'display:inline-flex',
+      'align-items:center',
+      'gap:6px',
+      'margin-top:8px',
+      'padding:4px 9px',
+      'border-radius:999px',
+      'font-size:11px',
+      'font-weight:700',
+      'line-height:1',
+      'color:#dbeafe',
+      'background:rgba(11,31,87,0.32)',
+      'border:1px solid rgba(147,197,253,0.24)'
+    ].join(';');
+    bubble.appendChild(badge);
+  }
+
   function buildReplyLabel(role = 'assistant') {
     return role === 'assistant' ? 'Replying to Nabad' : 'Replying to your message';
   }
@@ -4950,6 +4999,7 @@ function finishOnboarding() {
 
       const reply = data.reply || '<p>Sorry — no response received.</p>';
       renderMessage('assistant', reply);
+      applyNabadReactionToLastUserBubble(text, reply);
 
       // ── Handle detectedInfo ──
 if (data.detectedInfo && typeof data.detectedInfo === 'object') {
