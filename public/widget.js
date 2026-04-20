@@ -63,6 +63,7 @@
     zIndex: 2147483000,
     ...window.NABAD_WIDGET_CONFIG
   };
+  const INLINE_MODE = Boolean(CONFIG.inlineDesktop || CONFIG.mountSelector);
 
   const STORAGE_KEYS = {
     messages:    `${CONFIG.storageNamespace}:messages`,
@@ -699,6 +700,39 @@ function showPersonalityPill(id) {
       #nabad-panel,
       #nabad-lightbox {
         pointer-events: auto;
+      }
+
+      #nabad-widget-root.nabad-inline-app {
+        position: relative;
+        inset: auto;
+        right: auto;
+        bottom: auto;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        z-index: auto;
+        pointer-events: auto;
+      }
+
+      #nabad-widget-root.nabad-inline-app #nabad-launcher {
+        display: none !important;
+      }
+
+      #nabad-widget-root.nabad-inline-app #nabad-close {
+        display: none !important;
+      }
+
+      #nabad-widget-root.nabad-inline-app #nabad-panel {
+        position: relative;
+        right: auto;
+        bottom: auto;
+        width: 100%;
+        height: 100%;
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 20px;
+        display: flex;
+        box-shadow: 0 22px 60px rgba(9,20,40,0.16);
       }
 
       #nabad-launcher {
@@ -3337,6 +3371,7 @@ function showPersonalityPill(id) {
   function buildShell() {
     const root = document.createElement('div');
     root.id = 'nabad-widget-root';
+    if (INLINE_MODE) root.classList.add('nabad-inline-app');
 
     root.innerHTML = `
       <button id="nabad-launcher" type="button" aria-label="${escapeHtml(CONFIG.launcherLabel)}">✦</button>
@@ -3421,7 +3456,10 @@ function showPersonalityPill(id) {
       </div>
     `;
 
-    document.body.appendChild(root);
+    const mountEl = INLINE_MODE && typeof CONFIG.mountSelector === 'string'
+      ? document.querySelector(CONFIG.mountSelector)
+      : null;
+    (mountEl || document.body).appendChild(root);
 
     refs.root          = root;
     refs.launcher      = root.querySelector('#nabad-launcher');
@@ -3549,6 +3587,25 @@ function showPersonalityPill(id) {
   }
 
   function toggleWidget(force) {
+    if (INLINE_MODE) {
+      state.open = true;
+      refs.panel.classList.add('open');
+      refs.panel.setAttribute('aria-hidden', 'false');
+      refs.root.classList.add('nabad-open');
+      setTimeout(() => {
+        if (!state.onboarded && !state.messages.length) {
+          renderOnboardingIntro();
+          scrollToBottom();
+          return;
+        }
+        if (shouldShowMorningBrief()) {
+          showMorningBrief();
+          return;
+        }
+        scrollToBottom();
+      }, 0);
+      return;
+    }
     state.open = typeof force === 'boolean' ? force : !state.open;
     refs.panel.classList.toggle('open', state.open);
     refs.panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
@@ -5889,6 +5946,7 @@ function setSendState(stateLabel) {
 
   // ── LAUNCHER CLICK ────────────────────────────────────────────
   function bindLauncherClick() {
+    if (INLINE_MODE) return;
     if (refs.launcher) {
       refs.launcher.addEventListener('click', () => toggleWidget(true));
     }
@@ -5899,10 +5957,22 @@ function setSendState(stateLabel) {
     injectStyles();
     buildShell();
     bindLauncherClick();
+    if (INLINE_MODE) toggleWidget(true);
 
     // Public API used by landing and embeds.
     window.__NABAD_OPEN_WIDGET__ = () => toggleWidget(true);
     window.__NABAD_SET_PERSONALITY__ = (id) => setActivePersonality(String(id || 'auto'));
+    window.__NABAD_SET_IMAGE_PROVIDER__ = (provider) => {
+      const next = String(provider || 'auto').toLowerCase();
+      state.imageProvider = ['auto', 'openai', 'gemini', 'pollinations'].includes(next) ? next : 'auto';
+      saveImageProvider(state.imageProvider);
+    };
+    window.__NABAD_NEW_CHAT__ = () => newChat();
+    window.__NABAD_OPEN_SETTINGS__ = () => openSettingsPage();
+    window.__NABAD_OPEN_MEMORY__ = () => showMemoryScreen();
+    window.__NABAD_OPEN_PROFILE__ = () => showProfileEditorScreen();
+    window.__NABAD_OPEN_ACCOUNT__ = () => showAccountClaimScreen();
+    window.__NABAD_BACK_TO_CHAT__ = () => backToChat();
     window.__NABAD_OPEN_WITH_PERSONALITY__ = (id) => {
       setActivePersonality(String(id || 'auto'), { announce: true });
       toggleWidget(true);
