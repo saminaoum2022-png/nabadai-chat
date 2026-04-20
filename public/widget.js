@@ -1236,7 +1236,14 @@ function showPersonalityPill(id) {
         border-top-left-radius: 6px;
         border-bottom-left-radius: 6px;
         box-shadow: 0 10px 28px rgba(15,23,42,0.06);
-        transition: border-color 0.6s ease;
+        transition: border-color 0.6s ease, transform 0.18s ease, box-shadow 0.22s ease;
+      }
+
+      @media (min-width: 641px) {
+        .nabad-msg.bot .nabad-bubble:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 14px 34px rgba(15,23,42,0.09);
+        }
       }
 
       .nabad-msg.bot .nabad-bubble.nabad-reply-pop {
@@ -1279,6 +1286,20 @@ function showPersonalityPill(id) {
       }
 
       .nabad-bubble a:hover { text-decoration: underline; }
+
+      .nabad-bubble [data-nabad-card] {
+        border-radius: 18px !important;
+        box-shadow: 0 10px 26px rgba(15,23,42,0.07);
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.22s ease;
+      }
+
+      @media (min-width: 641px) {
+        .nabad-bubble [data-nabad-card]:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 14px 30px rgba(15,23,42,0.1);
+        }
+      }
 
       .nabad-bubble img {
         display: block;
@@ -3197,6 +3218,13 @@ function showPersonalityPill(id) {
         padding: 8px 12px !important;
         font-size: 12px !important;
         font-weight: 700 !important;
+        transition: transform 0.16s ease, box-shadow 0.18s ease, background 0.18s ease !important;
+      }
+
+      .nabad-bubble button[data-nabad-action]:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 16px rgba(37,99,235,0.12);
+        background: #f8fbff !important;
       }
 
       .nabad-bubble button[data-nabad-action="image-premium"] {
@@ -3285,10 +3313,10 @@ function showPersonalityPill(id) {
 }
 
 .nabad-settings-card {
-  background: #fff;
-  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border-radius: 16px;
   border: 1px solid rgba(37,99,235,0.08);
-  box-shadow: 0 4px 16px rgba(15,23,42,0.05);
+  box-shadow: 0 8px 22px rgba(15,23,42,0.06);
   overflow: hidden;
 }
 
@@ -3296,13 +3324,16 @@ function showPersonalityPill(id) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 15px 16px;
   gap: 12px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.nabad-settings-row:hover { background: rgba(37,99,235,0.03); }
+.nabad-settings-row:hover {
+  background: rgba(37,99,235,0.03);
+  transform: translateX(1px);
+}
 
 .nabad-settings-row + .nabad-settings-row {
   border-top: 1px solid rgba(15,23,42,0.05);
@@ -3316,15 +3347,16 @@ function showPersonalityPill(id) {
 }
 
 .nabad-settings-row-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #eff6ff, #dbeafe);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 17px;
   flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,0.08);
 }
 
 .nabad-settings-row-icon svg {
@@ -3354,6 +3386,11 @@ function showPersonalityPill(id) {
   color: #cbd5e1;
   font-size: 18px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
 }
 
 /* ── Auto-detect toggle ── */
