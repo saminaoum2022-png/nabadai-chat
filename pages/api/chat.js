@@ -482,20 +482,66 @@ function extractImageUrlFromPayload(payload = null) {
     p?.result?.imageUrl,
     p?.url,
     p?.image_url,
-    p?.imageUrl
+    p?.imageUrl,
+    Array.isArray(p?.data) && typeof p.data[0] === 'string' ? p.data[0] : '',
+    Array.isArray(p?.images) && typeof p.images[0] === 'string' ? p.images[0] : '',
+    Array.isArray(p?.output) && typeof p.output[0] === 'string' ? p.output[0] : ''
   ];
-  return candidates.find((v) => typeof v === 'string' && /^https?:\/\//i.test(v)) || '';
+  const directUrl = candidates.find((v) => typeof v === 'string' && /^https?:\/\//i.test(v)) || '';
+  if (directUrl) return directUrl;
+
+  const base64Candidates = [
+    p?.data?.[0]?.b64_json,
+    p?.images?.[0]?.b64_json,
+    p?.output?.[0]?.b64_json,
+    p?.result?.b64_json,
+    p?.b64_json,
+    p?.image_base64,
+    p?.imageBase64
+  ];
+  const b64 = base64Candidates.find((v) => typeof v === 'string' && v.length > 120) || '';
+  if (b64) return `data:image/png;base64,${b64}`;
+
+  const textBlob = typeof p?.text === 'string'
+    ? p.text
+    : typeof p?.message === 'string'
+      ? p.message
+      : typeof p?.result === 'string'
+        ? p.result
+        : '';
+  if (textBlob) {
+    const m = textBlob.match(/https?:\/\/[^\s"'<>]+/i);
+    if (m) return m[0];
+  }
+  return '';
 }
 
 async function generateWithGenspark(prompt = '', imageType = 'image') {
   const apiKey = process.env.GENSPARK_API_KEY;
   if (!apiKey) throw new Error('GENSPARK_API_KEY not set');
 
-  let apiUrl = cleanText(process.env.GENSPARK_IMAGE_API_URL || '', 300) || 'https://api.genspark.ai/v1/images/generations';
-  if (/^https?:\/\/api\.genspark\.ai\/?$/i.test(apiUrl)) {
-    apiUrl = 'https://api.genspark.ai/v1/images/generations';
-  } else if (/^https?:\/\/api\.genspark\.ai\/v\d+\/?$/i.test(apiUrl)) {
-    apiUrl = `${apiUrl.replace(/\/$/, '')}/images/generations`;
+  const rawUrl = cleanText(process.env.GENSPARK_IMAGE_API_URL || '', 300) || 'https://api.genspark.ai/v1/images/generations';
+  const trimmed = rawUrl.replace(/\/+$/, '');
+  const candidateUrls = [];
+  const addUrl = (u = '') => {
+    const clean = cleanText(u, 300).replace(/\/+$/, '');
+    if (!clean || !/^https?:\/\//i.test(clean)) return;
+    if (!candidateUrls.includes(clean)) candidateUrls.push(clean);
+  };
+
+  if (/^https?:\/\/www\.genspark\.ai\/?$/i.test(trimmed)) {
+    addUrl('https://www.genspark.ai');
+    addUrl('https://www.genspark.ai/api/v1/images/generations');
+    addUrl('https://www.genspark.ai/v1/images/generations');
+  } else if (/^https?:\/\/api\.genspark\.ai\/?$/i.test(trimmed)) {
+    addUrl('https://api.genspark.ai/v1/images/generations');
+    addUrl('https://www.genspark.ai/api/v1/images/generations');
+    addUrl('https://www.genspark.ai/v1/images/generations');
+  } else if (/^https?:\/\/api\.genspark\.ai\/v\d+\/?$/i.test(trimmed)) {
+    addUrl(`${trimmed}/images/generations`);
+    addUrl(trimmed.replace(/^https?:\/\/api\.genspark\.ai/i, 'https://www.genspark.ai/api') + '/images/generations');
+  } else {
+    addUrl(trimmed);
   }
   const cleanPrompt = sanitizePromptText(prompt).slice(0, 900);
   const model = cleanText(process.env.GENSPARK_IMAGE_MODEL || '', 80);
@@ -528,38 +574,44 @@ async function generateWithGenspark(prompt = '', imageType = 'image') {
     }, 30000);
   };
 
-  let response;
-  try {
-    console.log('[GENSPARK DEBUG] trying url:', apiUrl);
-    response = await send(apiUrl);
-  } catch (err) {
-    const causeCode = err?.cause?.code || '';
-    const causeName = err?.cause?.name || '';
-    const isDnsFail = String(causeCode || causeName || err?.message || '').toUpperCase().includes('ENOTFOUND');
-    const canTryWwwFallback = /https?:\/\/api\.genspark\.ai/i.test(apiUrl);
-    if (isDnsFail && canTryWwwFallback) {
-      const fallbackUrl = apiUrl.replace(/^https?:\/\/api\.genspark\.ai/i, 'https://www.genspark.ai/api');
-      try {
-        console.log('[GENSPARK DEBUG] trying fallback url:', fallbackUrl);
-        response = await send(fallbackUrl);
-      } catch (fallbackErr) {
-        const fbCode = fallbackErr?.cause?.code || '';
-        const fbName = fallbackErr?.cause?.name || '';
-        throw new Error(`Genspark network error: ${fbCode || fbName || fallbackErr?.message || 'fetch failed'}`);
+  let response = null;
+  let lastErr = null;
+  for (const targetUrl of candidateUrls) {
+    try {
+      console.log('[GENSPARK DEBUG] trying url:', targetUrl);
+      const resp = await send(targetUrl);
+      if (resp.ok) {
+        response = resp;
+        break;
       }
-    } else {
-      throw new Error(`Genspark network error: ${causeCode || causeName || err?.message || 'fetch failed'}`);
+      const errText = await resp.text();
+      const msg = `Genspark API error: ${resp.status} — ${errText.slice(0, 140)}`;
+      console.error('[GENSPARK DEBUG] non-200:', msg);
+      if (resp.status === 404 || resp.status === 405) {
+        lastErr = new Error(msg);
+        continue;
+      }
+      throw new Error(msg);
+    } catch (err) {
+      const causeCode = err?.cause?.code || '';
+      const causeName = err?.cause?.name || '';
+      lastErr = new Error(`Genspark network error: ${causeCode || causeName || err?.message || 'fetch failed'}`);
     }
   }
+  if (!response) throw (lastErr || new Error('Genspark API error: endpoint unavailable'));
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Genspark API error: ${response.status} — ${errText.slice(0, 140)}`);
-  }
-
-  const data = await readJsonSafe(response);
+  const rawText = await response.text();
+  let data = null;
+  try { data = JSON.parse(rawText); } catch {}
   const imageUrl = extractImageUrlFromPayload(data);
-  if (!imageUrl) throw new Error('No image URL returned from Genspark');
+  if (!imageUrl) {
+    const urlInText = (rawText.match(/https?:\/\/[^\s"'<>]+/i) || [])[0] || '';
+    if (urlInText) return urlInText;
+    const topKeys = data && typeof data === 'object' ? Object.keys(data).slice(0, 12).join(',') : 'non-json';
+    console.error('[GENSPARK DEBUG] response keys:', topKeys);
+    console.error('[GENSPARK DEBUG] response sample:', String(rawText || '').slice(0, 260));
+    throw new Error('No image URL returned from Genspark');
+  }
   return imageUrl;
 }
 
