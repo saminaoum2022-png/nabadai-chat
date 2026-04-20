@@ -67,6 +67,7 @@
   const STORAGE_KEYS = {
     messages:    `${CONFIG.storageNamespace}:messages`,
     personality: `${CONFIG.storageNamespace}:personality`,
+    imageProvider: `${CONFIG.storageNamespace}:imageProvider`,
     userProfile: `${CONFIG.storageNamespace}:userProfile`,
     onboarded:   `${CONFIG.storageNamespace}:onboarded`,
     memoryKey:   `${CONFIG.storageNamespace}:memoryKey`,
@@ -167,6 +168,7 @@
     personality: loadPersonality() || 'auto',
     personalityChosen: !!loadPersonality(),
     autoDetectMode: loadAutoDetect(),
+    imageProvider: loadImageProvider(),
     onboarded: loadOnboarded(),
     userProfile: loadUserProfile(),
     claimedAccount: loadAccountClaim(),
@@ -244,6 +246,16 @@
     }
   }
 
+  function loadImageProvider() {
+    try {
+      const raw = (localStorage.getItem(STORAGE_KEYS.imageProvider) || '').toLowerCase().trim();
+      const valid = ['auto', 'openai', 'gemini', 'pollinations'];
+      return valid.includes(raw) ? raw : 'auto';
+    } catch {
+      return 'auto';
+    }
+  }
+
   function savePersonality(value) {
     try {
       if (!value) { localStorage.removeItem(STORAGE_KEYS.personality); return; }
@@ -254,6 +266,13 @@
   function saveAutoDetect(value = true) {
     try { localStorage.setItem(STORAGE_KEYS.autoDetect, String(Boolean(value))); }
     catch {}
+  }
+
+  function saveImageProvider(value = 'auto') {
+    try {
+      const v = String(value || 'auto').toLowerCase();
+      localStorage.setItem(STORAGE_KEYS.imageProvider, v);
+    } catch {}
   }
 
   function loadOnboarded() {
@@ -4640,6 +4659,7 @@ function finishOnboarding() {
         body: JSON.stringify({
           messages:    outboundMessages,
           personality: state.autoDetectMode ? 'auto' : state.personality,
+          imageProvider: state.imageProvider || 'auto',
           userProfile: profile,
           memoryKey: getMemoryKey(),
           attachment: attachmentPayload,
@@ -5016,6 +5036,22 @@ function openSettingsPage() {
             `).join('')}
           </div>
 
+          <div class="nabad-settings-row" style="margin-top:10px;">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.auto}</div>
+              <div>
+                <div class="nabad-settings-row-label">Image Engine</div>
+                <div class="nabad-settings-row-desc">Choose how Nabad generates images</div>
+              </div>
+            </div>
+            <select id="nabad-image-provider-select" style="border:1px solid rgba(37,99,235,0.16);border-radius:10px;padding:7px 10px;background:#fff;color:#0f172a;font-size:12px;font-weight:700;">
+              <option value="auto" ${state.imageProvider === 'auto' ? 'selected' : ''}>Let Nabad choose</option>
+              <option value="openai" ${state.imageProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
+              <option value="gemini" ${state.imageProvider === 'gemini' ? 'selected' : ''}>Gemini</option>
+              <option value="pollinations" ${state.imageProvider === 'pollinations' ? 'selected' : ''}>Draft (Free)</option>
+            </select>
+          </div>
+
         </div>
       </div>
 
@@ -5118,6 +5154,15 @@ function openSettingsPage() {
   // ── Auto-detect toggle ──
   const autoToggle = page.querySelector('#nabad-auto-toggle');
   const personalityGrid = page.querySelector('#nabad-settings-personality-grid');
+  const imageProviderSelect = page.querySelector('#nabad-image-provider-select');
+
+  if (imageProviderSelect) {
+    imageProviderSelect.addEventListener('change', () => {
+      const next = (imageProviderSelect.value || 'auto').toLowerCase();
+      state.imageProvider = ['auto', 'openai', 'gemini', 'pollinations'].includes(next) ? next : 'auto';
+      saveImageProvider(state.imageProvider);
+    });
+  }
 
   autoToggle.addEventListener('change', () => {
     const isAuto = autoToggle.checked;
@@ -5192,6 +5237,7 @@ function openSettingsPage() {
         state.messages          = [];
         state.personality       = 'auto';
         state.autoDetectMode    = true;
+        state.imageProvider     = 'auto';
         state.personalityChosen = false;
         state.onboarded         = false;
         state.userProfile       = {};
