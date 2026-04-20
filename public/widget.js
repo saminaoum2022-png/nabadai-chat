@@ -4943,6 +4943,7 @@ function finishOnboarding() {
 if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   const info = data.detectedInfo;
   let profileUpdated = false;
+  const changedInfo = {};
 
   const fieldsToCapture = [
     'businessName', 'location', 'whatYouSell', 'revenue',
@@ -4952,15 +4953,19 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   ];
 
   fieldsToCapture.forEach(field => {
-    if (info[field] && !state.userProfile[field]) {
-      state.userProfile[field] = info[field];
+    const incoming = cleanText(String(info[field] || ''), 240);
+    if (!incoming) return;
+    const current = cleanText(String(state.userProfile[field] || ''), 240);
+    if (!current || current.toLowerCase() !== incoming.toLowerCase()) {
+      state.userProfile[field] = incoming;
+      changedInfo[field] = incoming;
       profileUpdated = true;
     }
   });
 
   if (profileUpdated) {
     saveUserProfile(state.userProfile);
-    showProfileUpdateToast(info);
+    showProfileUpdateToast(changedInfo);
   }
 }
 
@@ -5760,6 +5765,12 @@ function openSettingsPage() {
           if (data?.memory?.country) state.userProfile.country = data.memory.country;
           if (data?.memory?.industry) state.userProfile.industry = data.memory.industry;
           if (data?.memory?.stage) state.userProfile.stage = data.memory.stage;
+          if (data?.memory?.bottleneck) state.userProfile.bottleneck = data.memory.bottleneck;
+          const restoredFacts = data?.memory?.facts && typeof data.memory.facts === 'object' ? data.memory.facts : {};
+          ['businessName', 'location', 'whatYouSell', 'revenue', 'biggestChallenge', 'targetCustomer', 'ideaSummary', 'currentProgress', 'skills', 'preference', 'timeCommitment']
+            .forEach((k) => {
+              if (restoredFacts[k]) state.userProfile[k] = cleanText(String(restoredFacts[k] || ''), 240);
+            });
           saveUserProfile(state.userProfile);
 
           renderMessage('assistant', '<p>✅ Memory restored on this device. Nabad remembers your context now.</p>');
@@ -5775,60 +5786,303 @@ function openSettingsPage() {
   }
 
   // ── MEMORY SCREEN ─────────────────────────────────────────────
-  function showMemoryScreen() {
+  function formatMemoryFieldLabel(field = '') {
+    const map = {
+      country: 'Country',
+      location: 'Location',
+      industry: 'Industry',
+      stage: 'Stage',
+      bottleneck: 'Main Bottleneck',
+      businessName: 'Business Name',
+      whatYouSell: 'What You Sell',
+      revenue: 'Revenue',
+      biggestChallenge: 'Biggest Challenge',
+      targetCustomer: 'Target Customer',
+      ideaSummary: 'Idea Summary',
+      currentProgress: 'Current Progress',
+      skills: 'Skills',
+      preference: 'Preference',
+      timeCommitment: 'Availability'
+    };
+    return map[field] || field.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase());
+  }
+
+  function formatMemoryDate(input = '') {
+    const dt = new Date(input || '');
+    if (Number.isNaN(dt.getTime())) return '';
+    return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  async function callMemoryApi(action = '', payload = {}) {
+    const resp = await fetch(CONFIG.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        memoryAction: action,
+        memoryKey: getMemoryKey(),
+        userProfile: buildProfileSummary(),
+        ...payload
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  function buildCoreMemoryItems(memory = {}, profile = {}) {
+    const out = [];
+    const push = (field, value, source = 'memory') => {
+      const clean = cleanText(String(value || ''), 240);
+      if (!clean) return;
+      out.push({ field, value: clean, source, label: formatMemoryFieldLabel(field) });
+    };
+
+    push('country', memory.country || profile.country);
+    push('industry', memory.industry || profile.industry);
+    push('stage', memory.stage || profile.stage);
+    push('bottleneck', memory.bottleneck || profile.bottleneck);
+
+    const facts = memory.facts && typeof memory.facts === 'object' ? memory.facts : {};
+    const orderedFields = [
+      'businessName', 'location', 'whatYouSell', 'revenue', 'biggestChallenge',
+      'targetCustomer', 'ideaSummary', 'currentProgress', 'skills', 'preference', 'timeCommitment'
+    ];
+    orderedFields.forEach((field) => {
+      push(field, facts[field] || profile[field], facts[field] ? 'facts' : 'profile');
+    });
+
+    const seen = new Set();
+    return out.filter((item) => {
+      if (seen.has(item.field)) return false;
+      seen.add(item.field);
+      return true;
+    });
+  }
+
+  function buildRecentMemoryItems(memory = {}) {
+    const out = [];
+    const learning = memory.learning && typeof memory.learning === 'object' ? memory.learning : {};
+    const addList = (items = [], type = '') => {
+      (Array.isArray(items) ? items : []).slice(-10).forEach((item) => {
+        const text = cleanText(String(item || ''), 220);
+        if (!text) return;
+        out.push({ type, text });
+      });
+    };
+    addList(learning.goals, 'Goal');
+    addList(learning.constraints, 'Constraint');
+    addList(learning.preferences, 'Preference');
+    addList(learning.knownFields, 'Signal');
+    return out.slice(-24).reverse();
+  }
+
+  async function showMemoryScreen(startTab = 'core') {
     document.getElementById('nabad-input-wrap').style.display = 'none';
-    const insights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
-    const profile  = state.userProfile || {};
-    const account  = state.claimedAccount || null;
+    const account = state.claimedAccount || null;
+    let localInsights = JSON.parse(localStorage.getItem('nabad_insights') || '[]');
+    let memory = {};
 
-    refs.messages.innerHTML = `
-      <div id="nabad-onboarding">
-        <h3>Your Memory</h3>
-        <p>Everything Nabad remembers about you.</p>
+    const mergeProfileFromMemory = (m = {}) => {
+      const facts = m.facts && typeof m.facts === 'object' ? m.facts : {};
+      const nextProfile = { ...state.userProfile };
+      if (m.country) nextProfile.country = m.country;
+      if (m.industry) nextProfile.industry = m.industry;
+      if (m.stage) nextProfile.stage = m.stage;
+      if (m.bottleneck) nextProfile.bottleneck = m.bottleneck;
+      ['businessName', 'location', 'whatYouSell', 'revenue', 'biggestChallenge', 'targetCustomer', 'ideaSummary', 'currentProgress', 'skills', 'preference', 'timeCommitment']
+        .forEach((k) => {
+          if (facts[k]) nextProfile[k] = facts[k];
+        });
+      state.userProfile = nextProfile;
+      saveUserProfile(nextProfile);
+    };
 
-        ${Object.keys(profile).length ? `
-          <div style="margin-bottom:16px;">
-            <div class="nabad-brief-card-label" style="margin-bottom:8px;">👤 Your Profile</div>
-            ${Object.entries(profile)
-              .filter(([k]) => k !== 'path')
-              .map(([k, v]) => `
-                <div style="padding:8px 12px;margin-bottom:6px;background:#f8faff;border-radius:10px;border:1px solid rgba(37,99,235,0.08);font-size:13px;color:#334155;">
-                  <strong style="color:#0f172a;text-transform:capitalize">${escapeHtml(k.replace(/([A-Z])/g, ' $1'))}:</strong>
-                  ${escapeHtml(String(v))}
+    try {
+      const data = await callMemoryApi('get');
+      memory = data?.memory && typeof data.memory === 'object' ? data.memory : {};
+      mergeProfileFromMemory(memory);
+    } catch {}
+
+    const renderTab = (tab = 'core') => {
+      const coreItems = buildCoreMemoryItems(memory, state.userProfile || {});
+      const recentItems = buildRecentMemoryItems(memory);
+      const vaultItems = Array.isArray(memory.savedInsights) ? memory.savedInsights.slice().reverse() : [];
+
+      const coreHtml = coreItems.length
+        ? coreItems.map((item) => `
+            <div style="padding:10px 12px;margin-bottom:8px;background:#f8faff;border:1px solid rgba(37,99,235,0.10);border-radius:12px;">
+              <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+                <div>
+                  <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#2563eb;">${escapeHtml(item.label)}</div>
+                  <div style="font-size:13px;color:#1e293b;margin-top:3px;line-height:1.45;">${escapeHtml(item.value)}</div>
                 </div>
-              `).join('')}
-          </div>
-        ` : ''}
+                <div style="display:flex;gap:6px;">
+                  <button type="button" data-core-edit="${escapeHtml(item.field)}" style="border:1px solid rgba(37,99,235,.20);background:#fff;color:#1e3a8a;border-radius:8px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">Edit</button>
+                  <button type="button" data-core-del="${escapeHtml(item.field)}" style="border:1px solid rgba(239,68,68,.25);background:#fff;color:#b91c1c;border-radius:8px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">Delete</button>
+                </div>
+              </div>
+            </div>
+          `).join('')
+        : `<p style="color:#94a3b8;font-size:13px;text-align:center;padding:10px 0;">No core memory yet. Keep chatting and ask Nabad to remember key facts.</p>`;
 
-        ${account?.email ? `
-          <div style="margin-bottom:16px;">
-            <div class="nabad-brief-card-label" style="margin-bottom:8px;">🔐 Account Claim</div>
-            <div style="padding:8px 12px;background:#ecfeff;border-radius:10px;border:1px solid rgba(6,182,212,0.22);font-size:13px;color:#0f766e;">
+      const recentHtml = recentItems.length
+        ? recentItems.map((item) => `
+            <div style="padding:9px 12px;margin-bottom:7px;background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:10px;">
+              <div style="font-size:11px;color:#64748b;font-weight:700;letter-spacing:.03em;text-transform:uppercase;">${escapeHtml(item.type)}</div>
+              <div style="font-size:13px;color:#334155;line-height:1.4;margin-top:3px;">${escapeHtml(item.text)}</div>
+            </div>
+          `).join('')
+        : `<p style="color:#94a3b8;font-size:13px;text-align:center;padding:10px 0;">No recent signals yet.</p>`;
+
+      const vaultHtml = vaultItems.length
+        ? vaultItems.map((item, idx) => `
+            <div style="padding:10px 12px;margin-bottom:8px;background:#f0fdf4;border:1px solid rgba(34,197,94,.18);border-radius:12px;">
+              <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+                <div style="font-size:13px;color:#14532d;line-height:1.45;">${escapeHtml(cleanText(item?.text || '', 420))}</div>
+                <button type="button" data-vault-del-id="${escapeHtml(cleanText(item?.id || '', 40))}" data-vault-del-index="${idx}" style="border:1px solid rgba(239,68,68,.22);background:#fff;color:#b91c1c;border-radius:8px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">Delete</button>
+              </div>
+              <div style="font-size:11px;color:#16a34a;margin-top:6px;">${escapeHtml(formatMemoryDate(item?.savedAt || ''))}</div>
+            </div>
+          `).join('')
+        : (
+          localInsights.length
+            ? `<p style="color:#64748b;font-size:13px;text-align:center;padding:10px 0;">No cloud vault notes yet. You still have ${localInsights.length} local note(s) on this browser.</p>`
+            : `<p style="color:#94a3b8;font-size:13px;text-align:center;padding:10px 0;">No vault notes yet.<br>Use the save button or say “save this to memory”.</p>`
+        );
+
+      refs.messages.innerHTML = `
+        <div id="nabad-onboarding">
+          <h3>Your Memory</h3>
+          <p>Organized into Core, Recent, and Vault for clean long-term memory.</p>
+
+          ${account?.email ? `
+            <div style="margin-bottom:12px;padding:9px 12px;background:#ecfeff;border-radius:10px;border:1px solid rgba(6,182,212,.22);font-size:12px;color:#0f766e;">
               Linked email: <strong>${escapeHtml(account.email)}</strong>${account.name ? ` (${escapeHtml(account.name)})` : ''}
             </div>
+          ` : ''}
+
+          <div style="display:flex;gap:8px;margin:0 0 12px;flex-wrap:wrap;">
+            <button type="button" data-memory-tab="core" class="nabad-memory-tab ${tab === 'core' ? 'active' : ''}">Core</button>
+            <button type="button" data-memory-tab="recent" class="nabad-memory-tab ${tab === 'recent' ? 'active' : ''}">Recent</button>
+            <button type="button" data-memory-tab="vault" class="nabad-memory-tab ${tab === 'vault' ? 'active' : ''}">Vault</button>
           </div>
-        ` : ''}
 
-        ${insights.length ? `
-          <div>
-            <div class="nabad-brief-card-label" style="margin-bottom:8px;">💡 Saved Insights (${insights.length})</div>
-            ${insights.slice().reverse().map((ins, i) => `
-              <div style="padding:8px 12px;margin-bottom:6px;background:#f0fdf4;border-radius:10px;border:1px solid rgba(34,197,94,0.12);font-size:13px;color:#14532d;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                <span>✓ ${escapeHtml(ins.text)}</span>
-                <span style="font-size:11px;color:#86efac;white-space:nowrap;margin-top:1px">${escapeHtml(ins.date || '')}</span>
-              </div>
-            `).join('')}
-          </div>
-        ` : `<p style="color:#94a3b8;font-size:13px;text-align:center;padding:16px 0;">No saved insights yet.<br>Tap the 👍 button on any response to save it.</p>`}
+          <style>
+            .nabad-memory-tab{border:1px solid rgba(37,99,235,.2);background:#fff;color:#1e3a8a;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}
+            .nabad-memory-tab.active{background:linear-gradient(135deg,#2563eb,#06b6d4);border-color:transparent;color:#fff}
+          </style>
 
-        <button class="nabad-ob-back" id="nabad-memory-back" type="button" style="margin-top:16px">← Back to chat</button>
-      </div>
-    `;
+          ${tab === 'core' ? coreHtml : ''}
+          ${tab === 'recent' ? recentHtml : ''}
+          ${tab === 'vault' ? `
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <button class="nabad-ob-btn" id="nabad-vault-add" type="button" style="margin:0;flex:1;">Add Vault Note</button>
+              ${localInsights.length ? `<button class="nabad-ob-back" id="nabad-vault-sync-local" type="button" style="margin:0;flex:1;">Sync Local Notes</button>` : ''}
+            </div>
+            ${vaultHtml}
+          ` : ''}
 
-    refs.messages.querySelector('#nabad-memory-back')
-      .addEventListener('click', backToChat);
+          <button class="nabad-ob-back" id="nabad-memory-back" type="button" style="margin-top:16px">← Back to chat</button>
+        </div>
+      `;
 
-    scrollToBottom();
+      refs.messages.querySelectorAll('[data-memory-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => renderTab(btn.getAttribute('data-memory-tab') || 'core'));
+      });
+
+      refs.messages.querySelectorAll('[data-core-edit]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const field = cleanText(btn.getAttribute('data-core-edit') || '', 80);
+          const current = coreItems.find((item) => item.field === field)?.value || '';
+          const value = window.prompt(`Update ${formatMemoryFieldLabel(field)}`, current);
+          const nextVal = cleanText(value || '', 240);
+          if (!nextVal || nextVal === current) return;
+          try {
+            const data = await callMemoryApi('update_field', { memoryField: field, memoryValue: nextVal });
+            memory = data?.memory && typeof data.memory === 'object' ? data.memory : memory;
+            mergeProfileFromMemory(memory);
+            renderTab('core');
+          } catch (err) {
+            alert(err?.message || 'Could not update memory right now.');
+          }
+        });
+      });
+
+      refs.messages.querySelectorAll('[data-core-del]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const field = cleanText(btn.getAttribute('data-core-del') || '', 80);
+          confirmAction(`Delete "${formatMemoryFieldLabel(field)}" from memory?`, async () => {
+            try {
+              const data = await callMemoryApi('delete_field', { memoryField: field });
+              memory = data?.memory && typeof data.memory === 'object' ? data.memory : memory;
+              mergeProfileFromMemory(memory);
+              renderTab('core');
+            } catch (err) {
+              alert(err?.message || 'Could not delete memory field.');
+            }
+          });
+        });
+      });
+
+      refs.messages.querySelectorAll('[data-vault-del-id],[data-vault-del-index]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const insightId = cleanText(btn.getAttribute('data-vault-del-id') || '', 40);
+          const idx = Number(btn.getAttribute('data-vault-del-index') || '-1');
+          confirmAction('Delete this vault note?', async () => {
+            try {
+              if (insightId) {
+                const data = await callMemoryApi('delete_insight', { memoryInsightId: insightId });
+                memory = data?.memory && typeof data.memory === 'object' ? data.memory : memory;
+              } else if (idx >= 0) {
+                localInsights = localInsights.filter((_, i) => i !== (localInsights.length - 1 - idx));
+                localStorage.setItem('nabad_insights', JSON.stringify(localInsights.slice(-40)));
+              }
+              renderTab('vault');
+            } catch (err) {
+              alert(err?.message || 'Could not delete this note.');
+            }
+          });
+        });
+      });
+
+      refs.messages.querySelector('#nabad-vault-add')?.addEventListener('click', async () => {
+        const note = window.prompt('Add a memory note');
+        const clean = cleanText(note || '', 420);
+        if (!clean) return;
+        try {
+          const data = await callMemoryApi('add_insight', { memoryInsightText: clean });
+          memory = data?.memory && typeof data.memory === 'object' ? data.memory : memory;
+          renderTab('vault');
+        } catch (err) {
+          alert(err?.message || 'Could not save vault note.');
+        }
+      });
+
+      refs.messages.querySelector('#nabad-vault-sync-local')?.addEventListener('click', async () => {
+        if (!localInsights.length) return;
+        try {
+          for (const item of localInsights.slice(-20)) {
+            const txt = cleanText(String(item?.text || ''), 420);
+            if (!txt) continue;
+            await callMemoryApi('add_insight', { memoryInsightText: txt });
+          }
+          localInsights = [];
+          localStorage.setItem('nabad_insights', JSON.stringify([]));
+          const data = await callMemoryApi('get');
+          memory = data?.memory && typeof data.memory === 'object' ? data.memory : memory;
+          renderTab('vault');
+        } catch (err) {
+          alert(err?.message || 'Could not sync local notes.');
+        }
+      });
+
+      refs.messages.querySelector('#nabad-memory-back')
+        ?.addEventListener('click', backToChat);
+
+      scrollToBottom();
+    };
+
+    renderTab(startTab);
   }
 
   // ── TRIGGER NABAD DETECTED ANIMATION ─────────────────────────
