@@ -352,10 +352,22 @@
         });
       }
 
+      const welcomeMessages = [
+        { title: 'Nabad is live', body: 'I am here — one click away whenever you need a sharp move.' },
+        { title: 'NabadAI is ready', body: 'Your business co-founder is online. Tap to continue building.' },
+        { title: 'Notifications enabled', body: 'You will get timely Nabad nudges when it matters most.' }
+      ];
+      const selectedMsg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+
       await fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription: sub, saveOnly: true })
+        body: JSON.stringify({
+          subscription: sub,
+          saveOnly: false,
+          title: selectedMsg.title,
+          body: selectedMsg.body
+        })
       });
 
       state.pushSubscription = sub;
