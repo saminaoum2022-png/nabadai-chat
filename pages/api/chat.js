@@ -465,6 +465,25 @@ async function generateWithIdeogram(prompt = '') {
   return imageUrl;
 }
 
+async function generateWithOpenAIImage(prompt = '', imageType = 'image') {
+  const cleanPrompt = sanitizePromptText(prompt).slice(0, 900);
+  const model = cleanText(process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1', 80);
+  const size = imageType === 'banner' ? '1536x1024' : '1024x1024';
+  const response = await openai.images.generate({
+    model,
+    prompt: cleanPrompt,
+    size
+  });
+  const item = response?.data?.[0] || null;
+  const url = item?.url && /^https?:\/\//i.test(item.url) ? item.url : '';
+  if (url) return url;
+  const b64 = item?.b64_json || item?.b64;
+  if (typeof b64 === 'string' && b64.length > 120) {
+    return `data:image/png;base64,${b64}`;
+  }
+  throw new Error('No image URL returned from OpenAI image generation');
+}
+
 function extractImageUrlFromPayload(payload = null) {
   const p = payload && typeof payload === 'object' ? payload : {};
   const candidates = [
@@ -521,7 +540,7 @@ async function generateWithGenspark(prompt = '', imageType = 'image') {
   if (!apiKey) throw new Error('GENSPARK_API_KEY not set');
 
   const rawUrl = cleanText(process.env.GENSPARK_IMAGE_API_URL || '', 300) || 'https://api.genspark.ai/v1/images/generations';
-  const trimmed = rawUrl.replace(/\/+$/, '');
+  const trimmed = rawUrl.replace(/\/+$/, '').replace(/\.+$/, '');
   const candidateUrls = [];
   const addUrl = (u = '') => {
     const clean = cleanText(u, 300).replace(/\/+$/, '');
@@ -530,7 +549,6 @@ async function generateWithGenspark(prompt = '', imageType = 'image') {
   };
 
   if (/^https?:\/\/www\.genspark\.ai\/?$/i.test(trimmed)) {
-    addUrl('https://www.genspark.ai');
     addUrl('https://www.genspark.ai/api/v1/images/generations');
     addUrl('https://www.genspark.ai/v1/images/generations');
   } else if (/^https?:\/\/api\.genspark\.ai\/?$/i.test(trimmed)) {
@@ -612,32 +630,64 @@ async function generateWithGenspark(prompt = '', imageType = 'image') {
     console.error('[GENSPARK DEBUG] response sample:', String(rawText || '').slice(0, 260));
     throw new Error('No image URL returned from Genspark');
   }
+  if (/^https?:\/\/www\.genspark\.ai\/?$/i.test(imageUrl.replace(/\.+$/, ''))) {
+    throw new Error('Invalid image URL returned from Genspark (homepage URL)');
+  }
   return imageUrl;
 }
 
 async function generateImageWithProviderChain(imagePrompt = '', imageType = 'image') {
   const preferred = cleanText(process.env.NABAD_IMAGE_PROVIDER || 'auto', 24).toLowerCase();
+  const forcedMode = cleanText(process.env.NABAD_IMAGE_MODE || 'balanced', 24).toLowerCase();
   const providers = [];
+  const hasOpenAIImage = !!process.env.OPENAI_API_KEY;
   const hasGenspark = !!process.env.GENSPARK_API_KEY;
   const hasIdeogram = !!process.env.IDEOGRAM_API_KEY;
+  const isFastMode = /\b(fast|quick|draft|free mode)\b/i.test(imagePrompt) || forcedMode === 'fast';
+  const isTextCritical = imageType === 'logo' || /\b(wordmark|exact text|spelling|typography|text)\b/i.test(imagePrompt);
 
-  if (preferred === 'genspark' || preferred === 'auto') {
-    if (hasGenspark) providers.push('genspark');
+  if (preferred === 'openai') {
+    if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
     providers.push('pollinations');
   } else if (preferred === 'ideogram') {
     if (hasIdeogram) providers.push('ideogram');
-    if (hasGenspark) providers.push('genspark');
+    if (hasOpenAIImage) providers.push('openai');
     providers.push('pollinations');
-  } else {
-    providers.push('pollinations');
+  } else if (preferred === 'genspark') {
     if (hasGenspark) providers.push('genspark');
+    if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
+    providers.push('pollinations');
+  } else if (preferred === 'pollinations') {
+    providers.push('pollinations');
+    if (hasOpenAIImage) providers.push('openai');
+    if (hasIdeogram) providers.push('ideogram');
+    if (hasGenspark) providers.push('genspark');
+  } else if (isFastMode) {
+    providers.push('pollinations');
+    if (hasOpenAIImage) providers.push('openai');
+    if (hasIdeogram) providers.push('ideogram');
+    if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
+  } else if (isTextCritical) {
+    if (hasOpenAIImage) providers.push('openai');
+    if (hasIdeogram) providers.push('ideogram');
+    providers.push('pollinations');
+    if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
+  } else {
+    if (hasOpenAIImage) providers.push('openai');
+    providers.push('pollinations');
+    if (hasIdeogram) providers.push('ideogram');
+    if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
   }
 
   let lastError = null;
   for (const provider of providers) {
     try {
+      if (provider === 'openai') {
+        const url = await generateWithOpenAIImage(imagePrompt, imageType);
+        return { provider: 'openai', url };
+      }
       if (provider === 'genspark') {
         const url = await generateWithGenspark(imagePrompt, imageType);
         return { provider, url };
@@ -676,7 +726,7 @@ function isDirectPremiumTextRequest(text = '') {
 function buildPremiumUpgradeOffer(lastPrompt = '') {
   return `<div class="nabad-image-choice-card">
   <div style="font-size:17px;font-weight:800;margin-bottom:6px">Want a sharper result?</div>
-  <p style="font-size:13px;color:#475569;margin:0 0 10px 0;line-height:1.5">Ideogram 2.0 is better for logos and visuals where exact text spelling matters.</p>
+  <p style="font-size:13px;color:#475569;margin:0 0 10px 0;line-height:1.5">Premium mode uses higher-quality image generation and text-accurate rendering for logos.</p>
   <div class="nabad-image-choice-grid" style="margin-bottom:12px">
     <div class="nabad-image-choice-col">
       <div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em">Current</div>
@@ -686,7 +736,7 @@ function buildPremiumUpgradeOffer(lastPrompt = '') {
     </div>
     <div class="nabad-image-choice-col">
       <div style="font-size:10px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em">Premium</div>
-      <strong style="font-size:13px">Ideogram 2.0</strong>
+      <strong style="font-size:13px">Nabad Premium</strong>
       <div style="font-size:11px;color:#64748b;margin-top:2px">Sharper quality</div>
       <div style="font-size:11px;color:#047857;margin-top:2px">Accurate text rendering</div>
     </div>
@@ -700,12 +750,12 @@ function buildPremiumUpgradeOffer(lastPrompt = '') {
 
 function buildPremiumImageReply(imageUrl = '', prompt = '', imageType = 'image') {
   const labels = {
-    logo: '🎨 Your logo — rendered with Ideogram 2.0',
-    banner: '🖼️ Banner — rendered with Ideogram 2.0',
-    icon: '✨ Icon — rendered with Ideogram 2.0',
-    illustration: '🎭 Illustration — rendered with Ideogram 2.0',
-    mockup: '📦 Mockup — rendered with Ideogram 2.0',
-    image: '🖼️ Image — rendered with Ideogram 2.0'
+    logo: '🎨 Your logo — rendered in Premium mode',
+    banner: '🖼️ Banner — rendered in Premium mode',
+    icon: '✨ Icon — rendered in Premium mode',
+    illustration: '🎭 Illustration — rendered in Premium mode',
+    mockup: '📦 Mockup — rendered in Premium mode',
+    image: '🖼️ Image — rendered in Premium mode'
   };
   const label = labels[imageType] || labels.image;
   return `<p><strong>${label}</strong> <span style="font-size:11px;opacity:.6;background:rgba(168,85,247,.2);padding:2px 8px;border-radius:99px;color:#a855f7">✨ Premium</span></p>
@@ -2116,13 +2166,13 @@ export default async function handler(req, res) {
       const prompt = basePrompt
         ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
         : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
-      const ideogramUrl = await generateWithIdeogram(prompt);
       const imageType = detectImageType(prompt);
-      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
+      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType);
+      return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
-      console.error('[IDEOGRAM ERROR]', err?.message);
+      console.error('[PREMIUM IMAGE ERROR]', err?.message);
       return res.status(200).json({
-        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`,
+        reply: `<p>⚠️ Premium generation hit a snag — <strong>try again in a moment</strong>.</p>`,
         detectedPersonality: 'auto'
       });
     }
@@ -2142,13 +2192,13 @@ export default async function handler(req, res) {
       const prompt = basePrompt
         ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
         : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
-      const ideogramUrl = await generateWithIdeogram(prompt);
       const imageType = detectImageType(prompt);
-      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
+      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType);
+      return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
-      console.error('[IDEOGRAM ERROR]', err?.message);
+      console.error('[PREMIUM IMAGE ERROR]', err?.message);
       return res.status(200).json({
-        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`,
+        reply: `<p>⚠️ Premium generation hit a snag — <strong>try again in a moment</strong>.</p>`,
         detectedPersonality: 'auto'
       });
     }
@@ -2160,13 +2210,13 @@ export default async function handler(req, res) {
       const lastMeta = extractLastImageMeta(messages);
       const basePrompt = lastMeta?.prompt || lastUserMessage;
       const prompt = enrichImagePrompt(basePrompt, detectImageType(basePrompt));
-      const ideogramUrl = await generateWithIdeogram(prompt);
       const imageType = detectImageType(prompt);
-      return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
+      const generated = await generateImageWithProviderChain(`${prompt} exact text`, imageType);
+      return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[DIRECT PREMIUM ERROR]', err?.message);
       return res.status(200).json({
-        reply: `<p>⚠️ Premium generation hit a snag — <strong>${err?.message?.includes('API') ? 'check your Ideogram API key in Vercel' : 'try again in a moment'}</strong></p>`,
+        reply: `<p>⚠️ Premium generation hit a snag — <strong>try again in a moment</strong>.</p>`,
         detectedPersonality: 'auto'
       });
     }
@@ -2269,10 +2319,10 @@ export default async function handler(req, res) {
         const prompt = lastMeta?.prompt
           ? enrichImagePrompt(lastMeta.prompt, detectImageType(lastMeta.prompt))
           : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
-        const ideogramUrl = await generateWithIdeogram(prompt);
         const imageType = detectImageType(prompt);
-        return res.status(200).json({ reply: buildPremiumImageReply(ideogramUrl, prompt, imageType), detectedPersonality: 'creative' });
-      } catch (err) { console.error('[IDEOGRAM YES ERROR]', err?.message); }
+        const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType);
+        return res.status(200).json({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
+      } catch (err) { console.error('[PREMIUM YES ERROR]', err?.message); }
     }
   }
 
