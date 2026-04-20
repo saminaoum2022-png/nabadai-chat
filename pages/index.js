@@ -167,7 +167,7 @@ export default function Home() {
 
       <Script
         id="nabad-widget-script"
-        src="/widget.js?v=43"
+        src="/widget.js?v=45"
         strategy="afterInteractive"
       />
 
