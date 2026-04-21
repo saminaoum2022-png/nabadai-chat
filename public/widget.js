@@ -563,34 +563,30 @@
     return TYPING_LABELS;
   }
 
-  function pickNabadReaction(userText = '', assistantText = '') {
+  function shouldNabadReact(userText = '', assistantText = '') {
     const u = toPlainText(userText).toLowerCase();
     const a = toPlainText(assistantText).toLowerCase();
-    if (!u || !a) return '';
+    if (!u || !a) return false;
 
     const genericQuery = /\b(weather|temperature|time|date|repeat|again|translate|spell|who are you|what is this|hello|hi|thanks|thank you)\b/.test(u)
       || /^(\?|what|who|when|where|why|how|can you|could you)\b/.test(u);
-    if (genericQuery) return '';
+    if (genericQuery) return false;
 
     const negativeAssistant = /\b(can't|cannot|not possible|unable|i don't|do not|won't|error|failed|hit a snag|not recommend)\b/.test(a);
-    if (negativeAssistant) return '';
+    if (negativeAssistant) return false;
 
     const positiveAssistant = /\b(exactly|perfect|great|love|strong|smart|good move|right move|well done|nice|spot on|excellent|bold)\b/.test(a)
       || /\b(ممتاز|رائع|فكرة قوية|قرار ذكي)\b/.test(a);
     const userCommitment = /\b(i will|i'll|let's|lets|done|i decided|we should|my name is|my current location is|brand name is|the name of my brand is)\b/.test(u);
     const strategicIntent = /\b(focus|position|pricing|offer|brand|launch|users?|customers?|revenue|growth|market|icp|strategy|plan|validate|build|ship|mvp|sales)\b/.test(u);
 
-    if (!userCommitment && !strategicIntent) return '';
-    if (!positiveAssistant && !userCommitment) return '';
-
-    const variants = ['✓ aligned', '🔥 strong move', '⚡ smart call'];
-    const seed = (u + a).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-    return variants[seed % variants.length];
+    if (!userCommitment && !strategicIntent) return false;
+    if (!positiveAssistant && !userCommitment) return false;
+    return true;
   }
 
   function applyNabadReactionToLastUserBubble(userText = '', assistantText = '') {
-    const label = pickNabadReaction(userText, assistantText);
-    if (!label || !refs.messages) return;
+    if (!shouldNabadReact(userText, assistantText) || !refs.messages) return;
     const userMsgs = refs.messages.querySelectorAll('.nabad-msg.user');
     if (!userMsgs.length) return;
     const lastUserMsg = userMsgs[userMsgs.length - 1];
@@ -600,7 +596,18 @@
 
     const badge = document.createElement('div');
     badge.className = 'nabad-user-reaction-floating';
-    badge.textContent = label;
+    badge.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="nabad-heart-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#22d3ee"/>
+            <stop offset="55%" stop-color="#38bdf8"/>
+            <stop offset="100%" stop-color="#2563eb"/>
+          </linearGradient>
+        </defs>
+        <path d="M12 20.4C11.5 20.1 4.2 15.8 2.7 10.5C1.7 6.9 4.2 4 7.5 4c1.8 0 3.3.8 4.5 2.3C13.2 4.8 14.7 4 16.5 4c3.3 0 5.8 2.9 4.8 6.5c-1.5 5.3-8.8 9.6-9.3 9.9z" fill="url(#nabad-heart-grad)"/>
+      </svg>
+    `;
     bubble.appendChild(badge);
   }
 
@@ -1183,37 +1190,40 @@ function showPersonalityPill(id) {
 
       .nabad-user-reaction-floating {
         position: absolute;
-        left: 10px;
-        bottom: -12px;
-        display: inline-flex;
+        left: 9px;
+        bottom: -13px;
+        width: 26px;
+        height: 26px;
+        display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 4px 9px;
+        justify-content: center;
         border-radius: 999px;
-        font-size: 11px;
-        font-weight: 700;
-        line-height: 1;
-        color: #dbeafe;
-        background: rgba(11,31,87,0.24);
-        border: 1px solid rgba(147,197,253,0.18);
+        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.74), rgba(255,255,255,0.36));
+        border: 1px solid rgba(147,197,253,0.35);
         backdrop-filter: blur(4px);
         -webkit-backdrop-filter: blur(4px);
-        box-shadow: 0 4px 16px rgba(15,23,42,0.14);
+        box-shadow:
+          0 6px 18px rgba(15,23,42,0.18),
+          0 0 0 1px rgba(255,255,255,0.16) inset;
         pointer-events: none;
         transform-origin: left bottom;
-        animation: nabadReactionIn 280ms cubic-bezier(.2,.8,.2,1) both;
+        animation: nabadReactionIn 300ms cubic-bezier(.2,.8,.2,1) both;
+      }
+
+      .nabad-user-reaction-floating svg {
+        width: 14px;
+        height: 14px;
+        filter: drop-shadow(0 0 8px rgba(56,189,248,0.38));
       }
 
       @keyframes nabadReactionIn {
         0% {
           opacity: 0;
-          transform: translateY(4px) scale(0.94);
-          filter: blur(1px);
+          transform: translateY(4px) scale(0.85);
         }
         100% {
           opacity: 1;
           transform: translateY(0) scale(1);
-          filter: blur(0);
         }
       }
 
