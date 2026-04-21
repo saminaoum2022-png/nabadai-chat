@@ -186,7 +186,8 @@
     personalityScore: 0,
     pendingAttachment: null,
     replyTo: null,
-    notificationsEnabled: loadNotificationsEnabled()
+    notificationsEnabled: loadNotificationsEnabled(),
+    typingLabels: null
   };
 
   const refs = {
@@ -540,6 +541,26 @@
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  function isLikelyLiveResearchQuery(text = '') {
+    const t = toPlainText(text).toLowerCase();
+    if (!t) return false;
+    if (/\b(latest|today|current|recent|right now|this week|this month|2026|breaking|news|update)\b/.test(t)) return true;
+    if (/\b(price|pricing|stock|market cap|rate|tax rate|law|regulation|policy|deadline|release date|launch date|election|score)\b/.test(t)) return true;
+    if (/\b(search|look up|google|online|web|internet|source)\b/.test(t)) return true;
+    return false;
+  }
+
+  function getTypingLabelsForText(text = '') {
+    if (isLikelyLiveResearchQuery(text)) {
+      return [
+        'Checking live sources...',
+        'Scanning trusted websites...',
+        'Connecting live insights...'
+      ];
+    }
+    return TYPING_LABELS;
   }
 
   function pickNabadReaction(userText = '', assistantText = '') {
@@ -4924,18 +4945,23 @@ function finishOnboarding() {
   function showTyping(on) {
     refs.typing.classList.toggle('show', on);
     const typingLabel = document.getElementById('nabad-typing-label');
+    const labels = (Array.isArray(state.typingLabels) && state.typingLabels.length)
+      ? state.typingLabels
+      : TYPING_LABELS;
     if (typingLabelTimer) {
       clearInterval(typingLabelTimer);
       typingLabelTimer = null;
     }
-    if (typingLabel) typingLabel.textContent = TYPING_LABELS[0];
+    if (typingLabel) typingLabel.textContent = labels[0];
     if (on) {
       scrollToBottom();
       let idx = 0;
       typingLabelTimer = setInterval(() => {
-        idx = (idx + 1) % TYPING_LABELS.length;
-        if (typingLabel) typingLabel.textContent = TYPING_LABELS[idx];
+        idx = (idx + 1) % labels.length;
+        if (typingLabel) typingLabel.textContent = labels[idx];
       }, 1400);
+    } else {
+      state.typingLabels = null;
     }
   }
 
@@ -4965,6 +4991,7 @@ function finishOnboarding() {
     const logo = document.getElementById('nabad-logo');
     if (logo) logo.classList.add('thinking');
 
+    state.typingLabels = getTypingLabelsForText(text);
     showTyping(true);
 
     // Hide warroom suggestion if visible
@@ -5124,6 +5151,7 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
     micBtn.style.cursor = 'pointer';
   }
   refs.input.focus();
+  state.typingLabels = null;
  }
 }
   // ── WAR ROOM SUGGESTION BANNER ────────────────────────────────
