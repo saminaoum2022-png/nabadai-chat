@@ -65,7 +65,7 @@ export default function AppPage() {
           };
         `}
       </Script>
-      <Script id="nabad-widget-script-app" src="/widget.js?v=49" strategy="afterInteractive" />
+      <Script id="nabad-widget-script-app" src="/widget.js?v=50" strategy="afterInteractive" />
 
       <main className="nabad-app-page">
         <div className="nabad-app-shell">
