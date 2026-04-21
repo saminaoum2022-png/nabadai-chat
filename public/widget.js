@@ -626,7 +626,6 @@
     refs.replyBar.innerHTML = `
       <div class="reply-meta">
         <div class="reply-label">${escapeHtml(buildReplyLabel(target.role))}</div>
-        <div class="reply-snippet">${escapeHtml(target.snippet || '')}</div>
       </div>
       <button type="button" class="reply-cancel" aria-label="Cancel reply">✕</button>
     `;
@@ -652,7 +651,6 @@
     renderReplyBar();
     const inputWrap = document.getElementById('nabad-input-wrap');
     if (inputWrap) inputWrap.style.display = 'flex';
-    if (refs.input) refs.input.focus();
   }
 
   function getPersonalityGreeting(id = 'auto') {
@@ -1804,11 +1802,12 @@ function showPersonalityPill(id) {
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
         border: 1px solid rgba(37,99,235,0.18);
         background: #eef6ff;
-        border-radius: 12px;
-        padding: 8px 10px;
+        border-radius: 10px;
+        padding: 5px 8px;
+        min-height: 28px;
       }
 
       #nabad-reply-bar.show {
@@ -1817,16 +1816,9 @@ function showPersonalityPill(id) {
 
       #nabad-reply-bar .reply-meta { min-width: 0; }
       #nabad-reply-bar .reply-label {
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 800;
         color: #1e3a8a;
-      }
-      #nabad-reply-bar .reply-snippet {
-        font-size: 12px;
-        color: #475569;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
       }
       #nabad-reply-bar .reply-cancel {
         border: none;
@@ -4838,15 +4830,6 @@ function finishOnboarding() {
       btnRow.appendChild(copyBtn);
       btnRow.appendChild(memoryBtn);
       bubble.appendChild(btnRow);
-    } else {
-      const userReplyBtn = buildReplyActionButton(replyTarget);
-      if (userReplyBtn) {
-        const userRow = document.createElement('div');
-        userRow.className = 'nabad-btn-row';
-        userRow.style.justifyContent = 'flex-end';
-        userRow.appendChild(userReplyBtn);
-        bubble.appendChild(userRow);
-      }
     }
 
     if (persist) {
