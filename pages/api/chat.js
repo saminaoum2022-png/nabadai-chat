@@ -659,6 +659,36 @@ async function searchWithTavily(query = '') {
   })).filter(Boolean);
 }
 
+async function searchWithSerpApi(query = '') {
+  const apiKey = process.env.SERPAPI_API_KEY || process.env.SERPAPI_KEY || '';
+  if (!apiKey) return [];
+  const params = new URLSearchParams({
+    engine: 'google',
+    q: cleanText(query, 500),
+    num: '6',
+    api_key: apiKey,
+    gl: cleanText(process.env.NABAD_SEARCH_GL || 'ae', 5),
+    hl: cleanText(process.env.NABAD_SEARCH_HL || 'en', 5)
+  });
+  const response = await fetchWithTimeout(`https://serpapi.com/search.json?${params.toString()}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  }, 12000);
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`SerpApi error ${response.status}: ${err.slice(0, 120)}`);
+  }
+  const data = await readJsonSafe(response);
+  const organic = Array.isArray(data?.organic_results) ? data.organic_results : [];
+  return organic.map((o) => normalizeLiveSource({
+    title: o?.title,
+    url: o?.link,
+    snippet: o?.snippet,
+    source: o?.source,
+    publishedAt: o?.date || o?.rich_snippet?.top?.extensions?.[0] || ''
+  })).filter(Boolean);
+}
+
 async function runLiveResearch(userMessage = '', messages = [], userProfile = '') {
   const queryParts = [
     cleanText(userMessage, 280),
@@ -679,6 +709,14 @@ async function runLiveResearch(userMessage = '', messages = [], userProfile = ''
     provider = sources.length ? 'serper' : provider;
   } catch (err) {
     console.error('[LIVE RESEARCH] serper failed:', err?.message);
+  }
+  if (!sources.length) {
+    try {
+      sources = await searchWithSerpApi(query);
+      provider = sources.length ? 'serpapi' : provider;
+    } catch (err) {
+      console.error('[LIVE RESEARCH] serpapi failed:', err?.message);
+    }
   }
   if (!sources.length) {
     try {
@@ -2749,8 +2787,10 @@ export default async function handler(req, res) {
     return respond({ reply: POSITIONING_REPLY, detectedPersonality: 'auto' });
   }
 
+  const legalNeedsLive = isLegalComplianceRequest(lastUserMessage) && shouldUseLiveResearch(lastUserMessage);
+
   // ── Legal/compliance request (country + industry aware) ──
-  if (isLegalComplianceRequest(lastUserMessage)) {
+  if (isLegalComplianceRequest(lastUserMessage) && !legalNeedsLive) {
     const contextText = `${lastUserMessage} ${userProfile} ${messages.map(m => getMessageText(m.content)).join(' ')}`;
     const country = detectCountryFromContext(contextText) || detectCountryFromContext(detectedLocation || '');
     const industry = detectIndustryFromContext(contextText);
@@ -3020,8 +3060,7 @@ export default async function handler(req, res) {
   const websiteAuditContent = isValidHttpUrl(explicitUrl) ? await fetchWebsiteAuditContent(explicitUrl) : '';
   const liveResearchIntent =
     shouldUseLiveResearch(lastUserMessage) &&
-    !shouldGenerateImage(lastUserMessage, messages) &&
-    !isLegalComplianceRequest(lastUserMessage);
+    !shouldGenerateImage(lastUserMessage, messages);
   const liveResearch = liveResearchIntent
     ? await runLiveResearch(lastUserMessage, messages, userProfile)
     : { used: false, provider: '', sources: [] };
@@ -3089,6 +3128,7 @@ Language/style:
 - Never mention a model training cutoff date or "knowledge cutoff".
 - If fresh web sources are provided in context, use them for current facts and cite uncertainty when sources conflict.
 - If the user asks for current info and no live sources are available, say you cannot verify live sources right now (without mentioning cutoff dates).
+- For legal/regulatory "latest/current/what changed" queries, summarize recent changes first (with practical impact), then list next steps. Do not default to static generic checklists when live sources are available.
 - Keep answers concise, sharp, and human.
 - No markdown. HTML only.
 - Use <p> for normal replies.
