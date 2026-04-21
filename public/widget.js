@@ -1160,7 +1160,7 @@ function showPersonalityPill(id) {
 
       .nabad-user-reaction-floating {
         position: absolute;
-        right: 8px;
+        left: 8px;
         bottom: -11px;
         display: inline-flex;
         align-items: center;
@@ -1177,6 +1177,21 @@ function showPersonalityPill(id) {
         -webkit-backdrop-filter: blur(4px);
         box-shadow: 0 4px 16px rgba(15,23,42,0.14);
         pointer-events: none;
+        transform-origin: left bottom;
+        animation: nabadReactionIn 280ms cubic-bezier(.2,.8,.2,1) both;
+      }
+
+      @keyframes nabadReactionIn {
+        0% {
+          opacity: 0;
+          transform: translateY(4px) scale(0.94);
+          filter: blur(1px);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+          filter: blur(0);
+        }
       }
 
       @keyframes nabadBotAppear {
