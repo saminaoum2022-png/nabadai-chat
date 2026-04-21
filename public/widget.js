@@ -573,28 +573,12 @@
     const userMsgs = refs.messages.querySelectorAll('.nabad-msg.user');
     if (!userMsgs.length) return;
     const lastUserMsg = userMsgs[userMsgs.length - 1];
-    const bubble = lastUserMsg.querySelector('.nabad-bubble');
-    if (!bubble) return;
-    if (bubble.querySelector('.nabad-user-reaction')) return;
+    if (lastUserMsg.querySelector('.nabad-user-reaction-floating')) return;
 
     const badge = document.createElement('div');
-    badge.className = 'nabad-user-reaction';
+    badge.className = 'nabad-user-reaction-floating';
     badge.textContent = label;
-    badge.style.cssText = [
-      'display:inline-flex',
-      'align-items:center',
-      'gap:6px',
-      'margin-top:8px',
-      'padding:4px 9px',
-      'border-radius:999px',
-      'font-size:11px',
-      'font-weight:700',
-      'line-height:1',
-      'color:#dbeafe',
-      'background:rgba(11,31,87,0.32)',
-      'border:1px solid rgba(147,197,253,0.24)'
-    ].join(';');
-    bubble.appendChild(badge);
+    lastUserMsg.appendChild(badge);
   }
 
   function buildReplyLabel(role = 'assistant') {
@@ -1168,10 +1152,31 @@ function showPersonalityPill(id) {
         position: relative;
       }
 
-      .nabad-msg.user  { justify-content: flex-end; }
+      .nabad-msg.user  { justify-content: flex-end; margin-bottom: 20px; }
       .nabad-msg.bot {
         justify-content: flex-start;
         animation: nabadBotAppear 0.35s ease-out both;
+      }
+
+      .nabad-user-reaction-floating {
+        position: absolute;
+        right: 8px;
+        bottom: -11px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        color: #dbeafe;
+        background: rgba(11,31,87,0.24);
+        border: 1px solid rgba(147,197,253,0.18);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        box-shadow: 0 4px 16px rgba(15,23,42,0.14);
+        pointer-events: none;
       }
 
       @keyframes nabadBotAppear {
