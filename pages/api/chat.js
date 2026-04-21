@@ -579,6 +579,151 @@ async function readJsonSafe(response, timeoutMs = 8000) {
   try { return JSON.parse(text); } catch { return null; }
 }
 
+function shouldUseLiveResearch(text = '') {
+  const t = cleanText(text, 1200).toLowerCase();
+  if (!t) return false;
+  if (/\b(latest|today|current|recent|right now|this week|this month|2026|breaking|news|update)\b/.test(t)) return true;
+  if (/\b(price|pricing|stock|market cap|rate|tax rate|law|regulation|policy|deadline|release date|launch date|election|score)\b/.test(t)) return true;
+  if (/\b(search|look up|google|online|web|internet|source|sources)\b/.test(t)) return true;
+  return false;
+}
+
+function normalizeLiveSource(item = {}) {
+  const title = cleanText(item.title || item.name || '', 180);
+  const url = cleanText(item.url || item.link || '', 700);
+  if (!title || !isValidHttpUrl(url)) return null;
+  const snippet = cleanText(item.snippet || item.content || item.description || '', 260);
+  const source = cleanText(item.source || item.site || '', 80);
+  const publishedAt = cleanText(item.publishedAt || item.date || item.published_date || '', 50);
+  return { title, url, snippet, source, publishedAt };
+}
+
+async function searchWithSerper(query = '') {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) return [];
+  const response = await fetchWithTimeout('https://google.serper.dev/search', {
+    method: 'POST',
+    headers: {
+      'X-API-KEY': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      q: cleanText(query, 500),
+      num: 6,
+      gl: cleanText(process.env.NABAD_SEARCH_GL || 'ae', 5),
+      hl: cleanText(process.env.NABAD_SEARCH_HL || 'en', 5)
+    })
+  }, 12000);
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Serper error ${response.status}: ${err.slice(0, 120)}`);
+  }
+  const data = await readJsonSafe(response);
+  const organic = Array.isArray(data?.organic) ? data.organic : [];
+  return organic.map((o) => normalizeLiveSource({
+    title: o?.title,
+    url: o?.link,
+    snippet: o?.snippet,
+    source: o?.source,
+    publishedAt: o?.date
+  })).filter(Boolean);
+}
+
+async function searchWithTavily(query = '') {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return [];
+  const response = await fetchWithTimeout('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query: cleanText(query, 500),
+      search_depth: 'advanced',
+      include_answer: false,
+      include_raw_content: false,
+      max_results: 6
+    })
+  }, 12000);
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Tavily error ${response.status}: ${err.slice(0, 120)}`);
+  }
+  const data = await readJsonSafe(response);
+  const results = Array.isArray(data?.results) ? data.results : [];
+  return results.map((r) => normalizeLiveSource({
+    title: r?.title,
+    url: r?.url,
+    snippet: r?.content,
+    source: r?.source,
+    publishedAt: r?.published_date
+  })).filter(Boolean);
+}
+
+async function runLiveResearch(userMessage = '', messages = [], userProfile = '') {
+  const queryParts = [
+    cleanText(userMessage, 280),
+    cleanText(userProfile, 200),
+    ...messages
+      .filter((m) => m.role === 'user')
+      .slice(-2)
+      .map((m) => cleanText(getMessageText(m.content), 140))
+      .filter(Boolean)
+  ].filter(Boolean);
+  const query = cleanText(queryParts.join(' | '), 500);
+  if (!query) return { used: false, provider: '', sources: [] };
+
+  let sources = [];
+  let provider = '';
+  try {
+    sources = await searchWithSerper(query);
+    provider = sources.length ? 'serper' : provider;
+  } catch (err) {
+    console.error('[LIVE RESEARCH] serper failed:', err?.message);
+  }
+  if (!sources.length) {
+    try {
+      sources = await searchWithTavily(query);
+      provider = sources.length ? 'tavily' : provider;
+    } catch (err) {
+      console.error('[LIVE RESEARCH] tavily failed:', err?.message);
+    }
+  }
+
+  const dedup = [];
+  const seen = new Set();
+  sources.forEach((s) => {
+    const key = String(s?.url || '').toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    dedup.push(s);
+  });
+
+  return {
+    used: dedup.length > 0,
+    provider,
+    sources: dedup.slice(0, 4)
+  };
+}
+
+function buildLiveResearchContext(live = null) {
+  if (!live || !Array.isArray(live.sources) || !live.sources.length) return '';
+  const lines = live.sources.map((s, i) => {
+    const datePart = s.publishedAt ? ` | Date: ${s.publishedAt}` : '';
+    const sourcePart = s.source ? ` | Source: ${s.source}` : '';
+    return `[${i + 1}] ${s.title}${sourcePart}${datePart}\nURL: ${s.url}\nSnippet: ${s.snippet || 'n/a'}`;
+  });
+  return `Live web research (fresh sources, prioritize these for current facts):\n${lines.join('\n\n')}`;
+}
+
+function buildLiveSourcesHtml(live = null) {
+  if (!live || !Array.isArray(live.sources) || !live.sources.length) return '';
+  const items = live.sources.map((s, i) => {
+    const date = s.publishedAt ? ` <span style="color:#64748b">(${escapeHtml(s.publishedAt)})</span>` : '';
+    return `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.title || `Source ${i + 1}`)}</a>${date}</li>`;
+  }).join('');
+  return `<div data-nabad-card="live-sources" style="margin-top:10px;background:#f8fafc;border:1px solid rgba(37,99,235,.12);border-radius:10px;padding:10px 12px"><div style="font-size:11px;color:#64748b;margin-bottom:6px">Live sources checked</div><ul style="margin:0;padding-left:18px;line-height:1.5">${items}</ul></div>`;
+}
+
 // ── Website Audit ─────────────────────────────────────────────────────────────
 async function fetchWebsiteAuditContent(url = '') {
   if (!isValidHttpUrl(url)) return '';
@@ -2873,6 +3018,13 @@ export default async function handler(req, res) {
   // ── Main GPT-4o reply ─────────────────────────────────────────────────────
   const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
   const websiteAuditContent = isValidHttpUrl(explicitUrl) ? await fetchWebsiteAuditContent(explicitUrl) : '';
+  const liveResearchIntent =
+    shouldUseLiveResearch(lastUserMessage) &&
+    !shouldGenerateImage(lastUserMessage, messages) &&
+    !isLegalComplianceRequest(lastUserMessage);
+  const liveResearch = liveResearchIntent
+    ? await runLiveResearch(lastUserMessage, messages, userProfile)
+    : { used: false, provider: '', sources: [] };
 
   const personalityResolution = resolveActivePersonality(selectedPersonality, lastUserMessage);
   const personalityConfig = getPersonalityConfig(personalityResolution.personalityId);
@@ -2934,6 +3086,9 @@ End-to-end scope:
 Language/style:
 - Always reply in the same language as the user's latest message.
 - Do not auto-switch language unless the user explicitly asks.
+- Never mention a model training cutoff date or "knowledge cutoff".
+- If fresh web sources are provided in context, use them for current facts and cite uncertainty when sources conflict.
+- If the user asks for current info and no live sources are available, say you cannot verify live sources right now (without mentioning cutoff dates).
 - Keep answers concise, sharp, and human.
 - No markdown. HTML only.
 - Use <p> for normal replies.
@@ -2998,6 +3153,7 @@ Use this awareness subtly — adjust your tone, urgency, and advice to match whe
   const attachmentContext = parsedAttachment?.parsedText
     ? `Attachment extracted text (truncated):\n${parsedAttachment.parsedText.slice(0, 9000)}`
     : '';
+  const liveResearchContext = buildLiveResearchContext(liveResearch);
 
   const systemPromptParts = [
     `You are NabadAI — not an assistant, not a chatbot, but a rare mind that sits at the intersection of business strategy, human psychology, and real-world execution. You have seen ideas become empires and watched promising businesses collapse from a single blind spot. You think in systems, patterns, and connections that most people miss.
@@ -3021,6 +3177,7 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     memoryContext,
     questionGuardContext,
     locationContext,
+    liveResearchContext,
     websiteAuditContent ? `\n\nWebsite audit content:\n${websiteAuditContent}` : '',
     replyContext,
     attachmentContext,
@@ -3067,6 +3224,7 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     });
 
     const rawReply = completion.choices?.[0]?.message?.content || '';
+    const sourcesFooter = liveResearch?.used ? buildLiveSourcesHtml(liveResearch) : '';
 
     // ── Run all three classifiers in parallel ──────────────────
     const [detectedInfo, suggestWarRoom, personalitySignal] = await Promise.all([
@@ -3082,9 +3240,11 @@ console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
     const learningSignals = inferLearningSignals(lastUserMessage, detectedInfo, userLanguage);
     await persistFounderMemory(detectedInfo, learningSignals);
     return res.status(200).json({
-      reply: ensureHtmlReply(rawReply),
+      reply: `${ensureHtmlReply(rawReply)}${sourcesFooter}`,
       detectedInfo,
       suggestWarRoom,
+      liveResearchUsed: !!liveResearch?.used,
+      liveResearchProvider: liveResearch?.provider || '',
       detectedPersonality: personalitySignal?.id || 'auto',
       detectedPersonalityConfidence: Number(personalitySignal?.confidence ?? 0.35),
       detectedPersonalityReason: personalitySignal?.reason || ''
