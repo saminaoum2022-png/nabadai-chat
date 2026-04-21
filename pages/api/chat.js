@@ -1188,8 +1188,7 @@ function isImageRequest(text = '') {
     || /\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b.{0,30}\b(generate|create|make|draw|design|for me|please)\b/i.test(t)
     || /\b(logo|brandmark|wordmark|icon)\b.{0,40}\b(for|of|for my|for our)\b/i.test(t)
     || /\b(i need|we need|help me with)\b.{0,40}\b(logo|brand identity|brand mark|icon)\b/i.test(t)
-    || /\b(generate|create|make)\b.{0,30}\b(version|style)\b/i.test(t)
-    || /\b(logo)\b/i.test(t);
+    || /\b(generate|create|make)\b.{0,30}\b(version|style)\b/i.test(t);
 }
 function isRegenerationRequest(text = '') {
   return /\b(regenerate|redo|try again|another version|different version|new version)\b.{0,30}\b(image|logo|picture|visual|photo|banner|icon)\b/i.test(text)
@@ -1198,6 +1197,15 @@ function isRegenerationRequest(text = '') {
 function isImageModificationRequest(text = '') {
   return /\b(change|update|modify|make it|make the|adjust|tweak|alter)\b.{0,40}\b(image|logo|picture|visual|banner|icon|color|colour|style|background|font|text|typography)\b/i.test(text)
     || /\b(different|new)\b.{0,20}\b(font|style|color|colour|background)\b/i.test(text);
+}
+
+function isAttachmentImageAnalysisRequest(text = '') {
+  const t = String(text || '');
+  if (!t) return false;
+  const asksAnalysis = /\b(analy[sz]e|analysis|assess|evaluate|review|feedback|opinion|what do you think|describe|what is in|what's in|read this|inspect)\b/i.test(t);
+  const asksGeneration = /\b(generate|create|make|design|draw|build|produce|regenerate|redo|new version)\b/i.test(t);
+  const asksEdit = isImageModificationRequest(t);
+  return asksAnalysis && !asksGeneration && !asksEdit;
 }
 function hasImageStyleSignal(text = '') {
   const t = String(text || '').toLowerCase();
@@ -2891,7 +2899,8 @@ export default async function handler(req, res) {
   }
 
   // ── Ask image style first for better control ──
-  if (shouldAskImageStyleChoice(lastUserMessage, messages)) {
+  const attachmentImageAnalysisIntent = !!(parsedAttachment?.imageDataUrl && isAttachmentImageAnalysisRequest(lastUserMessage));
+  if (shouldAskImageStyleChoice(lastUserMessage, messages) && !attachmentImageAnalysisIntent) {
     return respond({
       reply: buildImageStyleChoiceCard(),
       detectedPersonality: 'creative'
@@ -2900,7 +2909,8 @@ export default async function handler(req, res) {
 
   // ── Standard image generation ──
   const attachmentImageEditIntent = !!(parsedAttachment?.imageDataUrl && /\b(change|edit|modify|make|remove|replace|add|improve|tweak|turn)\b/i.test(lastUserMessage));
-  if (shouldGenerateImage(lastUserMessage, messages) || attachmentImageEditIntent) {
+  const imageGenerationIntent = shouldGenerateImage(lastUserMessage, messages) || attachmentImageEditIntent;
+  if (imageGenerationIntent && !attachmentImageAnalysisIntent) {
     try {
       const imageType = detectImageType(lastUserMessage);
       let imagePrompt;
