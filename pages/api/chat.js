@@ -588,6 +588,19 @@ function shouldUseLiveResearch(text = '') {
   return false;
 }
 
+function computeDynamicMaxTokens(userText = '', base = 700) {
+  const t = cleanText(userText, 1200).toLowerCase();
+  if (!t) return Math.min(base, 520);
+  const likelyShortAnswer =
+    t.length < 90 ||
+    /\b(what is|who is|when is|price|latest|quick|brief|in short|one line)\b/.test(t);
+  if (likelyShortAnswer) return Math.min(base, 420);
+  const likelyLongAnswer =
+    /\b(step by step|detailed|full plan|roadmap|strategy|framework|business plan)\b/.test(t);
+  if (likelyLongAnswer) return Math.max(base, 700);
+  return Math.min(base, 560);
+}
+
 function normalizeLiveSource(item = {}) {
   const title = cleanText(item.title || item.name || '', 180);
   const url = cleanText(item.url || item.link || '', 700);
@@ -3264,7 +3277,8 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
       ...(attachmentUserMessage ? [attachmentUserMessage] : [])
     ];
     const temperature = personalityConfig.temperature || businessMode.temperature || 0.82;
-    const maxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
+    const baseMaxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
+    const maxTokens = computeDynamicMaxTokens(lastUserMessage, baseMaxTokens);
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
