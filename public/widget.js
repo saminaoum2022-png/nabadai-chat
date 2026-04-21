@@ -621,16 +621,19 @@
     if (!target) {
       refs.replyBar.classList.remove('show');
       refs.replyBar.innerHTML = '';
+      syncComposerTop();
       return;
     }
     refs.replyBar.innerHTML = `
       <div class="reply-meta">
         <div class="reply-label">${escapeHtml(buildReplyLabel(target.role))}</div>
+        <div class="reply-snippet">${escapeHtml(target.snippet || '')}</div>
       </div>
       <button type="button" class="reply-cancel" aria-label="Cancel reply">✕</button>
     `;
     refs.replyBar.classList.add('show');
     refs.replyBar.querySelector('.reply-cancel')?.addEventListener('click', clearReplyTarget);
+    syncComposerTop();
   }
 
   function clearReplyTarget() {
@@ -649,8 +652,6 @@
       snippet: cleanText(target.snippet || '', 220)
     };
     renderReplyBar();
-    const inputWrap = document.getElementById('nabad-input-wrap');
-    if (inputWrap) inputWrap.style.display = 'flex';
   }
 
   function getPersonalityGreeting(id = 'auto') {
@@ -1789,6 +1790,8 @@ function showPersonalityPill(id) {
       }
 
       #nabad-input-wrap {
+        display: flex;
+        flex-direction: column;
         padding: 12px 14px 14px;
         padding-bottom: max(14px, env(safe-area-inset-bottom));
         border-top: 1px solid rgba(15,23,42,0.06);
@@ -1797,17 +1800,27 @@ function showPersonalityPill(id) {
         overflow: visible;
       }
 
+      #nabad-composer-top {
+        display: none;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      #nabad-composer-top.show {
+        display: flex;
+      }
+
       #nabad-reply-bar {
         display: none;
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-        margin-bottom: 6px;
         border: 1px solid rgba(37,99,235,0.18);
         background: #eef6ff;
         border-radius: 10px;
-        padding: 5px 8px;
-        min-height: 28px;
+        padding: 7px 8px;
+        min-height: 34px;
       }
 
       #nabad-reply-bar.show {
@@ -1819,6 +1832,14 @@ function showPersonalityPill(id) {
         font-size: 12px;
         font-weight: 800;
         color: #1e3a8a;
+      }
+      #nabad-reply-bar .reply-snippet {
+        font-size: 11px;
+        color: #334155;
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       #nabad-reply-bar .reply-cancel {
         border: none;
@@ -3088,7 +3109,6 @@ function showPersonalityPill(id) {
       }
 
       #nabad-attachment-chip {
-        margin-bottom: 8px;
         display: none;
         align-items: center;
         justify-content: space-between;
@@ -3112,6 +3132,31 @@ function showPersonalityPill(id) {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      #nabad-attachment-chip .nabad-attachment-preview {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+        border: 1px solid rgba(37,99,235,0.12);
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #nabad-attachment-chip .nabad-attachment-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      #nabad-attachment-chip .nabad-attachment-preview svg {
+        width: 14px;
+        height: 14px;
       }
 
       #nabad-attachment-chip .nabad-attachment-clear {
@@ -3701,8 +3746,10 @@ function showPersonalityPill(id) {
         </div>
 
         <div id="nabad-input-wrap">
-          <div id="nabad-attachment-chip" aria-live="polite"></div>
-          <div id="nabad-reply-bar" aria-live="polite"></div>
+          <div id="nabad-composer-top" aria-live="polite">
+            <div id="nabad-attachment-chip"></div>
+            <div id="nabad-reply-bar"></div>
+          </div>
           <div id="nabad-input-row">
             <button id="nabad-attach" type="button" aria-label="Attach file">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
@@ -4526,6 +4573,7 @@ function finishOnboarding() {
       refs.attachmentChip.classList.remove('show');
       refs.attachmentChip.innerHTML = '';
     }
+    syncComposerTop();
     if (refs.fileInput) refs.fileInput.value = '';
   }
 
@@ -4535,14 +4583,28 @@ function finishOnboarding() {
     if (!file) {
       refs.attachmentChip.classList.remove('show');
       refs.attachmentChip.innerHTML = '';
+      syncComposerTop();
       return;
     }
+    const previewHtml = file.kind === 'image' && file.dataUrl
+      ? `<span class="nabad-attachment-preview"><img src="${file.dataUrl}" alt="${escapeHtml(file.name || 'attachment preview')}" /></span>`
+      : `<span class="nabad-attachment-preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>`;
     refs.attachmentChip.innerHTML = `
+      ${previewHtml}
       <span class="nabad-attachment-label">Attached: ${escapeHtml(file.name)} ${file.sizeLabel ? `(${escapeHtml(file.sizeLabel)})` : ''}</span>
       <button type="button" class="nabad-attachment-clear">Remove</button>
     `;
     refs.attachmentChip.classList.add('show');
     refs.attachmentChip.querySelector('.nabad-attachment-clear')?.addEventListener('click', clearPendingAttachment);
+    syncComposerTop();
+  }
+
+  function syncComposerTop() {
+    const top = document.getElementById('nabad-composer-top');
+    if (!top) return;
+    const hasAttachment = !!(refs.attachmentChip && refs.attachmentChip.classList.contains('show'));
+    const hasReply = !!(refs.replyBar && refs.replyBar.classList.contains('show'));
+    top.classList.toggle('show', hasAttachment || hasReply);
   }
 
   async function handleAttachmentSelected(e) {
@@ -4693,7 +4755,6 @@ function finishOnboarding() {
 
   // ── RENDER MESSAGE ────────────────────────────────────────────
   function renderMessage(role, content, persist = true, meta = null) {
-    document.getElementById('nabad-input-wrap').style.display = 'flex';
     const isUser = role === 'user';
     const messageId = cleanText((meta && meta.id) || '', 48) || makeMessageId();
     const replyTo = extractReplyFromContent(content, meta);
