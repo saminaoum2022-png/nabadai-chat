@@ -652,7 +652,7 @@
     renderReplyBar();
     const inputWrap = document.getElementById('nabad-input-wrap');
     if (inputWrap) inputWrap.style.display = 'flex';
-    scrollToBottom();
+    if (refs.input) refs.input.focus();
   }
 
   function getPersonalityGreeting(id = 'auto') {
@@ -4614,6 +4614,8 @@ function finishOnboarding() {
   }
 
   function bindReplyGesture(msgEl, bubble, role, content, id) {
+    // Swipe-to-reply caused layout jumps on touch devices; keep a stable button UX there.
+    if ('ontouchstart' in window) return;
     const snippet = cleanText(toPlainText(content), 180);
     if (!snippet) return;
     const target = { id, role, snippet };
@@ -4687,6 +4689,16 @@ function finishOnboarding() {
     }, { passive: true });
   }
 
+  function buildReplyActionButton(target = null) {
+    if (!target || !target.id) return null;
+    const btn = document.createElement('button');
+    btn.className = 'nabad-copy-btn';
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M20 19v-2a5 5 0 0 0-5-5H4"/></svg>`;
+    btn.title = 'Reply to this message';
+    btn.addEventListener('click', () => setReplyTarget(target));
+    return btn;
+  }
+
   // ── RENDER MESSAGE ────────────────────────────────────────────
   function renderMessage(role, content, persist = true, meta = null) {
     document.getElementById('nabad-input-wrap').style.display = 'flex';
@@ -4725,6 +4737,12 @@ function finishOnboarding() {
     msg.appendChild(bubble);
     refs.messages.appendChild(msg);
     bindReplyGesture(msg, bubble, role, content && typeof content === 'object' ? content.text || '' : content, messageId);
+
+    const replyTarget = {
+      id: messageId,
+      role: isUser ? 'user' : 'assistant',
+      snippet: cleanText(toPlainText(content && typeof content === 'object' ? content.text || '' : content), 180)
+    };
 
     if (!isUser) {
       processAssistantBubble(bubble);
@@ -4815,9 +4833,20 @@ function finishOnboarding() {
       const btnRow = document.createElement('div');
       btnRow.className = 'nabad-btn-row';
       btnRow.appendChild(speakerBtn);
+      const replyBtn = buildReplyActionButton(replyTarget);
+      if (replyBtn) btnRow.appendChild(replyBtn);
       btnRow.appendChild(copyBtn);
       btnRow.appendChild(memoryBtn);
       bubble.appendChild(btnRow);
+    } else {
+      const userReplyBtn = buildReplyActionButton(replyTarget);
+      if (userReplyBtn) {
+        const userRow = document.createElement('div');
+        userRow.className = 'nabad-btn-row';
+        userRow.style.justifyContent = 'flex-end';
+        userRow.appendChild(userReplyBtn);
+        bubble.appendChild(userRow);
+      }
     }
 
     if (persist) {
