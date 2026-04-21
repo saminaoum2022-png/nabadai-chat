@@ -185,6 +185,7 @@
     personalityCount: 0,
     personalityScore: 0,
     pendingAttachment: null,
+    lastImageAttachment: null,
     replyTo: null,
     notificationsEnabled: loadNotificationsEnabled(),
     typingLabels: null
@@ -737,6 +738,14 @@
     const attachedImageEdit =
       !!(attachment && attachment.kind === 'image' && /\b(edit|change|modify|remove|replace|add|improve|tweak)\b/.test(t));
     return asksGeneration || asksImageByNoun || attachedImageEdit;
+  }
+
+  function isImageGenerationIntent(text = '', attachment = null) {
+    const t = String(text || '').toLowerCase();
+    if (!t) return false;
+    if (shouldForceCreativeForImage(text, attachment)) return true;
+    if (/\b(generate|create|make|design|draw|build|produce|regenerate|redo)\b/.test(t) && /\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b/.test(t)) return true;
+    return false;
   }
 
   function forceCreativeModeForImage() {
@@ -4634,6 +4643,10 @@ function finishOnboarding() {
           fr.onerror = reject;
           fr.readAsDataURL(file);
         });
+        state.lastImageAttachment = {
+          ...entry,
+          dataUrl: String(entry.dataUrl || '')
+        };
       } else if (/text|json|csv|markdown|md/i.test(file.type) || /\.(txt|md|json|csv)$/i.test(file.name || '')) {
         entry.kind = 'text';
         const raw = await file.text();
@@ -4993,6 +5006,15 @@ function finishOnboarding() {
         } else {
           return;
         }
+        if (
+          action.startsWith('image-style-') &&
+          state.lastImageAttachment &&
+          state.lastImageAttachment.kind === 'image' &&
+          state.lastImageAttachment.dataUrl
+        ) {
+          state.pendingAttachment = { ...state.lastImageAttachment };
+          renderAttachmentChip();
+        }
         autoGrowTextarea();
         setTimeout(() => sendMessage(), 80);
       });
@@ -5087,9 +5109,10 @@ function finishOnboarding() {
       let contentForApi = text;
 
       if (attachment) {
-        const attachmentPrompt =
-          `${text ? `${text}\n\n` : ''}A file was attached by the user (${attachment.name}). ` +
-          `Analyze it deeply. If this attachment is unrelated to the current business context, say that clearly and briefly.`;
+        const generationIntent = isImageGenerationIntent(text, attachment);
+        const attachmentPrompt = generationIntent
+          ? `${text ? `${text}\n\n` : ''}A file was attached by the user (${attachment.name}). Use it as a visual reference for generation or editing. Keep brand continuity with what is visible in this attachment.`
+          : `${text ? `${text}\n\n` : ''}A file was attached by the user (${attachment.name}). Analyze it deeply. If this attachment is unrelated to the current business context, say that clearly and briefly.`;
 
         if (attachment.kind === 'image' && attachment.dataUrl) {
           contentForApi = [
