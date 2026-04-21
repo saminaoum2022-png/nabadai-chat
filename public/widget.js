@@ -573,12 +573,14 @@
     const userMsgs = refs.messages.querySelectorAll('.nabad-msg.user');
     if (!userMsgs.length) return;
     const lastUserMsg = userMsgs[userMsgs.length - 1];
-    if (lastUserMsg.querySelector('.nabad-user-reaction-floating')) return;
+    const bubble = lastUserMsg.querySelector('.nabad-bubble');
+    if (!bubble) return;
+    if (bubble.querySelector('.nabad-user-reaction-floating')) return;
 
     const badge = document.createElement('div');
     badge.className = 'nabad-user-reaction-floating';
     badge.textContent = label;
-    lastUserMsg.appendChild(badge);
+    bubble.appendChild(badge);
   }
 
   function buildReplyLabel(role = 'assistant') {
@@ -1160,8 +1162,8 @@ function showPersonalityPill(id) {
 
       .nabad-user-reaction-floating {
         position: absolute;
-        left: 8px;
-        bottom: -11px;
+        left: 10px;
+        bottom: -12px;
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -1211,6 +1213,8 @@ function showPersonalityPill(id) {
       }
 
       .nabad-msg.user .nabad-bubble {
+        position: relative;
+        overflow: visible;
         background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
         color: #fff;
         border-bottom-right-radius: 6px;
