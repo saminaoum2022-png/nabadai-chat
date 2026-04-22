@@ -2848,7 +2848,37 @@ function ensureHtmlReply(text = '') {
     .trim();
   if (!raw) return '<p>I hit a snag. Try rephrasing your question.</p>';
   if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
-  return '<p>' + raw.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+  const paragraphs = raw
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!paragraphs.length) return '<p>I hit a snag. Try rephrasing your question.</p>';
+
+  const body = [...paragraphs];
+  const firstPlain = String(body[0] || '').replace(/<[^>]+>/g, '');
+  const split = firstPlain.match(/^([^.!?]{18,180}[.!?])\s+([\s\S]+)$/);
+  if (split) {
+    body[0] = `<strong>${escapeHtml(split[1])}</strong><br>${escapeHtml(split[2])}`;
+  } else {
+    body[0] = escapeHtml(firstPlain).replace(/\n/g, '<br>');
+  }
+
+  for (let i = 1; i < body.length; i += 1) {
+    const p = String(body[i] || '').replace(/<[^>]+>/g, '').trim();
+    body[i] = escapeHtml(p).replace(/\n/g, '<br>');
+  }
+
+  const last = String(body[body.length - 1] || '');
+  const lastPlain = last.replace(/<[^>]+>/g, '').trim();
+  const canItalicizeClosingQuestion =
+    /\?\s*$/.test(lastPlain) &&
+    lastPlain.length <= 180 &&
+    !/\b(next move|strategic move|growth move|offer move)\s*:/i.test(lastPlain);
+  if (canItalicizeClosingQuestion) {
+    body[body.length - 1] = `<em>${escapeHtml(lastPlain)}</em>`;
+  }
+
+  return `<p>${body.join('</p><p>')}</p>`;
 }
 function repairTruncatedReply(text = '') {
   let out = String(text || '').trim();
@@ -2857,11 +2887,11 @@ function repairTruncatedReply(text = '') {
   if (/(next move:|strategic move:|growth move:|offer move:)\s*$/i.test(plain)) {
     out += ' Share one line of context and I will make it specific.';
   } else if (/(plan|steps?)\s*:\s*(?:\d+\.)?\s*$/i.test(plain) || /\b\d+\.\s*$/i.test(plain)) {
-    out += '\nNext move: share one line and I will finish the full steps clearly.';
+    out += '\nShare one line of context and I will finish the full steps clearly.';
   } else if (/[,:;\-–—]\s*$/.test(plain)) {
     out += ' I can make this precise with one more line of context.';
-  } else if (/\b(that|this|which|who|because|when|where|if|so|and|or|but|to|for|with|of|the|a|an)\.?$/i.test(plain)) {
-    out += '\nNext move: give me one concrete example and I will make this exact.';
+  } else if (/\b(that|this|which|who|because|when|where|if|so|and|or|but|to|for|with|of|the|a|an|q)\.?$/i.test(plain)) {
+    out += '\nWhat part do you want to decide first?';
   }
   return out;
 }
@@ -2941,8 +2971,7 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
   out = truncateWords(out, maxWords);
   out = out
     .replace(/\s+([.!?])/g, '$1')
-    .replace(/\s*(\d+\.)\s*/g, '\n$1 ')
-    .replace(/\s*Next move:\s*/i, '\nNext move: ');
+    .replace(/\n{3,}/g, '\n\n');
 
   if (!detailed) {
     const hasListLikeStructure =
@@ -2964,16 +2993,16 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
     out = truncateBySentences(out, maxSentences);
   }
 
-  const hasClosure = /\?\s*$/.test(out) || /\b(next move|strategic move|growth move|offer move)\s*:/i.test(out);
+  const hasClosure = /\?\s*$/.test(out);
   if (!hasClosure) {
     const closureByPersonality = {
-      straight_talk: 'Next move: tell me the one bottleneck you want to fix first.',
-      growth: 'Next move: which metric do you want to move first this week?',
-      offer: 'Next move: want me to turn this into a concrete package with pricing?',
-      branding: 'Next move: want me to sharpen this into one clear positioning line?',
-      creative: 'Next move: want 3 bold versions so we pick the strongest direction?',
-      strategist: 'Next move: which path do you want to commit to first?',
-      auto: 'Next move: what do you want to execute first?'
+      straight_talk: 'What is the one bottleneck you want to fix first?',
+      growth: 'Which metric do you want to move first this week?',
+      offer: 'Want me to turn this into a concrete package with pricing?',
+      branding: 'Want me to sharpen this into one clear positioning line?',
+      creative: 'Want 3 bold versions so we pick the strongest direction?',
+      strategist: 'Which path do you want to commit to first?',
+      auto: 'What do you want to execute first?'
     };
     out = `${out}\n${closureByPersonality[personalityId] || closureByPersonality.auto}`.trim();
   }
@@ -4043,7 +4072,7 @@ Response structure (important):
 - Keep structure clean and readable:
   1) opening line with the core answer
   2) concise body in short lines or 2-4 bullets when useful
-  3) one engaging closure line (question or next move)
+  3) one smooth closing line on a new line (prefer a natural question)
 - Use light emphasis for scanability: <strong>key label</strong>, <em>subtle nuance</em>.
 - Avoid giant paragraph walls, but do not over-compress or cut thought continuity.
 - If user prompt is short, keep answer concise while preserving complete meaning.
