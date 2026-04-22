@@ -1061,6 +1061,49 @@ async function generateWithClaudeText(chatMessages = [], opts = {}) {
   return text;
 }
 
+async function generateWithDeepSeekText(chatMessages = [], opts = {}) {
+  const apiKey = process.env.DEEPSEEK_API_KEY || process.env.DEEPDEEK_API_KEY;
+  if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
+  const model = cleanText(process.env.DEEPSEEK_TEXT_MODEL || 'deepseek-chat', 80);
+  const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0.8;
+  const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 700;
+
+  const messages = (Array.isArray(chatMessages) ? chatMessages : [])
+    .map((m) => {
+      const role = ['system', 'user', 'assistant'].includes(m?.role) ? m.role : 'user';
+      const content = role === 'system'
+        ? String(m?.content || '')
+        : cleanText(getMessageText(m?.content), 12000);
+      return { role, content };
+    })
+    .filter((m) => m.content);
+
+  if (!messages.length) throw new Error('No conversation payload for DeepSeek');
+
+  const response = await fetchWithTimeout('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens
+    })
+  }, 35000);
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`DeepSeek API error: ${response.status} — ${errText.slice(0, 180)}`);
+  }
+  const data = await readJsonSafe(response);
+  const text = cleanText(data?.choices?.[0]?.message?.content || '', 20000);
+  if (!text) throw new Error('No text returned from DeepSeek');
+  return text;
+}
+
 function extractImageUrlFromPayload(payload = null) {
   const p = payload && typeof payload === 'object' ? payload : {};
   const candidates = [
@@ -3715,6 +3758,26 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
             textProviderUsed = 'claude';
           } catch (claudeErr) {
             console.error('[TEXT PROVIDER ERROR] claude:', claudeErr?.message);
+            if (process.env.DEEPSEEK_API_KEY || process.env.DEEPDEEK_API_KEY) {
+              try {
+                rawReply = await generateWithDeepSeekText(chatMessages, { temperature, maxTokens });
+                textProviderUsed = 'deepseek';
+              } catch (deepseekErr) {
+                console.error('[TEXT PROVIDER ERROR] deepseek:', deepseekErr?.message);
+                rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
+                textProviderUsed = 'degraded-fallback';
+              }
+            } else {
+              rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
+              textProviderUsed = 'degraded-fallback';
+            }
+          }
+        } else if (process.env.DEEPSEEK_API_KEY || process.env.DEEPDEEK_API_KEY) {
+          try {
+            rawReply = await generateWithDeepSeekText(chatMessages, { temperature, maxTokens });
+            textProviderUsed = 'deepseek';
+          } catch (deepseekErr) {
+            console.error('[TEXT PROVIDER ERROR] deepseek:', deepseekErr?.message);
             rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
             textProviderUsed = 'degraded-fallback';
           }
