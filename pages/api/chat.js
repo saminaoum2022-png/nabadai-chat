@@ -625,7 +625,9 @@ async function readJsonSafe(response, timeoutMs = 8000) {
 function shouldUseLiveResearch(text = '') {
   const t = cleanText(text, 1200).toLowerCase();
   if (!t) return false;
-  if (/\b(latest|today|current|recent|right now|this week|this month|2026|breaking|news|update)\b/.test(t)) return true;
+  const freshness = /\b(latest|today|current|recent|this week|this month|2026|breaking|news|update)\b/.test(t);
+  const factualDomain = /\b(price|pricing|stock|market cap|rate|tax rate|law|regulation|policy|deadline|release date|launch date|election|score|bitcoin|btc|eth|openai|model)\b/.test(t);
+  if (factualDomain && freshness) return true;
   if (/\b(price|pricing|stock|market cap|rate|tax rate|law|regulation|policy|deadline|release date|launch date|election|score)\b/.test(t)) return true;
   if (/\b(search|look up|google|online|web|internet|source|sources)\b/.test(t)) return true;
   return false;
@@ -636,7 +638,7 @@ function shouldUseLiveResearchByMode(text = '', mode = 'auto') {
   if (normalizedMode !== 'on_demand') return shouldUseLiveResearch(text);
   const t = cleanText(text, 1200).toLowerCase();
   if (!t) return false;
-  if (/\b(search|look up|google|online|web|internet|source|sources|latest|current|today|right now|news|update)\b/.test(t)) return true;
+  if (/\b(search|look up|google|online|web|internet|source|sources|latest|current|today|news|update)\b/.test(t)) return true;
   return false;
 }
 
@@ -2351,8 +2353,13 @@ function hasPricingAnchorContext(messages = [], lastUserMessage = '') {
   const recentUserText = `${userMessages.slice(-3).join(' ')} ${lastUserMessage}`.toLowerCase();
   const hasOffer = /\b(offer|service|package|product|subscription|consulting|agency|saas|chatbot|assistant|app|tool)\b/.test(recentUserText);
   const hasAudience = /\b(client|customer|audience|target|founder|startup|brand|business|team|company|enterprise)\b/.test(recentUserText);
-  const hasOutcome = /\b(outcome|result|goal|benefit|solve|improve|grow|conversion|sales|trust|leads|efficiency|save time|save money|support|assist|help|provide|provides|deliv(?:er|ers|ery)|service|automation|reduce cost|increase|boost)\b/.test(recentUserText);
-  return hasOffer && hasAudience && hasOutcome;
+  const hasOutcome = /\b(outcome|result|goal|benefit|solve|improve|grow|conversion|sales|trust|leads|efficiency|save time|save money|support|assist|help|provide|provides|deliv(?:er|ers|ery)|service|automation|reduce cost|increase|boost|daily|weekly|faster|clarity)\b/.test(recentUserText);
+  const commaSegments = String(lastUserMessage || '')
+    .split(',')
+    .map((s) => cleanText(s, 120).toLowerCase())
+    .filter(Boolean);
+  const hasThreeAnchorLine = commaSegments.length >= 3;
+  return (hasOffer && hasAudience && hasOutcome) || (hasThreeAnchorLine && hasOffer && hasAudience);
 }
 function hasEnoughPricingContext(messages = [], userProfile = '', lastUserMessage = '') {
   const userMessages = (Array.isArray(messages) ? messages : [])
@@ -2721,17 +2728,21 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto') {
   if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
 
   const styleByPersonality = {
-    strategist: { maxWords: 150, maxEmojis: 2 },
-    growth: { maxWords: 120, maxEmojis: 2 },
-    branding: { maxWords: 100, maxEmojis: 2 },
-    offer: { maxWords: 130, maxEmojis: 2 },
-    creative: { maxWords: 90, maxEmojis: 2 },
-    straight_talk: { maxWords: 60, maxEmojis: 1 },
-    auto: { maxWords: 150, maxEmojis: 3 }
+    strategist: { maxWords: 110, maxEmojis: 2 },
+    growth: { maxWords: 95, maxEmojis: 2 },
+    branding: { maxWords: 85, maxEmojis: 2 },
+    offer: { maxWords: 105, maxEmojis: 2 },
+    creative: { maxWords: 75, maxEmojis: 2 },
+    straight_talk: { maxWords: 45, maxEmojis: 1 },
+    auto: { maxWords: 110, maxEmojis: 2 }
   };
   const cfg = styleByPersonality[personalityId] || styleByPersonality.auto;
   let out = limitEmojiUsage(raw, cfg.maxEmojis);
   out = truncateWords(out, cfg.maxWords);
+  out = out
+    .replace(/\s+([.!?])/g, '$1')
+    .replace(/\s*(\d+\.)\s*/g, '\n$1 ')
+    .replace(/\s*Next move:\s*/i, '\nNext move: ');
 
   if (personalityId === 'creative' || personalityId === 'straight_talk') {
     out = out.replace(/^[\s>*-]+/gm, '');
@@ -3490,7 +3501,9 @@ export default async function handler(req, res) {
 
   // ── Pricing Table ──
   const pricingCardRequestedNow = isPricingTableRequest(lastUserMessage) && cardModeRequested;
-  const pricingCardFollowupReady = pricingCardAnchorPromptRecently(messages, 8) && hasPricingAnchorContext(messages, lastUserMessage);
+  const pricingCardFollowupReady =
+    pricingCardAnchorPromptRecently(messages, 8) &&
+    (hasPricingAnchorContext(messages, lastUserMessage) || cleanText(lastUserMessage, 280).split(',').length >= 3);
   if (pricingCardRequestedNow || pricingCardFollowupReady) {
     if (pricingCardRequestedNow && !hasEnoughPricingContext(messages, userProfile, lastUserMessage)) {
       return respond({
