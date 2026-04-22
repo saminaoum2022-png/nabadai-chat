@@ -249,13 +249,19 @@ function parseMemoryCommand(userMessage = '', replyTo = null) {
   const lower = text.toLowerCase();
   if (!text) return null;
 
-  const trailingSaveMatch = text.match(/^(.+?)\s+(?:then\s+)?(?:remember|save|store|add)\s+this(?:\s+to\s+memory)?$/i);
+  // Only save when user is explicit about memory intent.
+  const hasExplicitMemoryTarget = /\b(memory|remember this)\b/i.test(text);
+  const trailingSaveMatch = hasExplicitMemoryTarget
+    ? text.match(/^(.+?)\s+(?:then\s+)?(?:remember|save|store|add)\s+this(?:\s+to\s+memory)?$/i)
+    : null;
   if (trailingSaveMatch) {
     const note = cleanText(trailingSaveMatch[1] || '', 420);
     if (note) return { type: 'save_note', note };
   }
 
-  const saveMatch = text.match(/\b(?:remember|save|store|add)\b(?:\s+this)?(?:\s+to\s+memory)?\s*[:\-]?\s*(.*)$/i);
+  const saveMatch = hasExplicitMemoryTarget
+    ? text.match(/\b(?:remember|save|store|add)\b(?:\s+this)?(?:\s+to\s+memory)?\s*[:\-]?\s*(.*)$/i)
+    : null;
   if (saveMatch && /\b(?:remember|save|store|add)\b/.test(lower)) {
     const payload = cleanText(saveMatch[1] || '', 400);
     const note = payload || cleanText(replyTo?.snippet || '', 240);
@@ -1690,6 +1696,13 @@ function hasBusinessContext(text = '') {
 function isLegalComplianceRequest(text = '') {
   return /\b(legal|law|regulation|regulations|license|licence|permit|permits|compliance|contract|contracts|tax|vat|corporate tax|labor law|employment law|paperwork|documents|visa|residency|incorporat|register company|trade license|gdpr|data privacy|terms and conditions|privacy policy)\b/i.test(text);
 }
+function shouldShowLegalChecklistCard(text = '') {
+  const t = String(text || '').toLowerCase();
+  const legalTopic = isLegalComplianceRequest(t);
+  if (!legalTopic) return false;
+  const explicitChecklistIntent = /\b(checklist|starter pack|required docs|required documents|which papers|what papers|requirements|steps|step by step|what do i need to file|how to register|how to incorporate|legal setup|company setup)\b/.test(t);
+  return explicitChecklistIntent;
+}
 function detectIndustryFromContext(text = '') {
   const t = text.toLowerCase();
   if (/\b(ecommerce|shopify|online store|d2c|retail)\b/.test(t)) return 'ecommerce';
@@ -1806,7 +1819,7 @@ function buildLegalChecklistCard(country = '', industry = 'general') {
 </div>`;
 }
 function shouldGateIdeaGeneration(text = '', messages = [], userProfile = '') {
-  const asksForIdeas = /\b(idea|ideas|brainstorm|brainstorming|what should i build|what business should i start|what should i do next|give me options|suggest)\b/i.test(text);
+  const asksForIdeas = /\b(give me ideas|share ideas|suggest ideas|brainstorm|brainstorming|what should i build|what business should i start|what should i do next|give me options|suggest\b)\b/i.test(text);
   if (!asksForIdeas) return false;
   const recentlyAskedAnchor = messages.slice(-8).some((m) =>
     m.role === 'assistant' &&
@@ -1826,15 +1839,25 @@ function buildIdeaGateQuestion(text = '', userProfile = '') {
   const hasGoal = /\b(revenue|sales|clients?|leads?|launch|scale|grow|profit|mrr|arr)\b/.test(t);
 
   if (!hasAudience) {
-    return `<p>Before ideas, give me one precise target user so I avoid random suggestions.</p><p><strong>Who is the first customer you want to win?</strong></p>`;
+    return `<p>To avoid random ideas, give me one target user first. <strong>Who exactly is your first customer?</strong></p>`;
   }
   if (!hasOffer) {
-    return `<p>Quick anchor before I generate ideas:</p><p><strong>What are you actually selling first?</strong></p>`;
+    return `<p>One anchor before ideas: <strong>what is the first offer you want to sell?</strong></p>`;
   }
   if (!hasGoal) {
-    return `<p>Quick anchor before I generate ideas:</p><p><strong>What result do you want in the next 90 days?</strong></p>`;
+    return `<p>One anchor before ideas: <strong>what 90-day result do you want most?</strong></p>`;
   }
   return `<p>Give me one line with your customer and your 90-day goal, then I’ll generate sharp ideas.</p>`;
+}
+
+function isWebsiteReviewRequest(text = '') {
+  const t = String(text || '').toLowerCase();
+  return /\b(review|audit|analy[sz]e|assess|check|evaluate|opinion|feedback)\b/.test(t)
+    && /\b(url|website|site|landing page|landing|webpage|link)\b/.test(t);
+}
+function wantsStructuredCardFormat(text = '') {
+  const t = String(text || '').toLowerCase();
+  return /\b(card|scorecard|table|matrix|checklist|roadmap|step.?by.?step|template|formatted|format as)\b/.test(t);
 }
 function hasRichBusinessContext(messages = []) {
   const userMsgs = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content).toLowerCase());
@@ -2811,7 +2834,7 @@ export default async function handler(req, res) {
   const legalNeedsLive = isLegalComplianceRequest(lastUserMessage) && shouldUseLiveResearch(lastUserMessage);
 
   // ── Legal/compliance request (country + industry aware) ──
-  if (isLegalComplianceRequest(lastUserMessage) && !legalNeedsLive) {
+  if (shouldShowLegalChecklistCard(lastUserMessage) && !legalNeedsLive) {
     const contextText = `${lastUserMessage} ${userProfile} ${messages.map(m => getMessageText(m.content)).join(' ')}`;
     const country = detectCountryFromContext(contextText) || detectCountryFromContext(detectedLocation || '');
     const industry = detectIndustryFromContext(contextText);
@@ -2952,52 +2975,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── YES-intent router ──
+  // ── YES-intent router (keep only premium image confirmation) ──
   if (YES_PATTERN.test(lastUserMessage.trim())) {
     const lastOffer = getLastOffer(messages);
-
-    if (lastOffer === 'offer') {
-      try {
-        const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
-        return respond({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
-      } catch (err) { console.error('[OFFER CONFIRM ERROR]', err?.message); }
-    }
-
-    if (lastOffer === 'snapshot' && snapshotAlreadyOffered(messages) && hasRichBusinessContext(messages)) {
-      try {
-        const snapshotData = await generateBusinessSnapshot(messages, detectedLocation, openai, userProfile);
-        return respond({ reply: buildSnapshotCard(snapshotData, detectedLocation), detectedPersonality: 'strategist' });
-      } catch (err) { console.error('[SNAPSHOT CONFIRM ERROR]', err?.message); }
-    }
-
-    if (lastOffer === 'action-plan') {
-      try {
-        const planData = await generateActionPlan(messages, detectedLocation, openai);
-        return respond({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
-      } catch (err) { console.error('[ACTION PLAN CONFIRM ERROR]', err?.message); }
-    }
-
-    if (lastOffer === 'score') {
-      try {
-        const scoreData = await generateNabadScore(messages, openai);
-        return respond({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
-      } catch (err) { console.error('[SCORE CONFIRM ERROR]', err?.message); }
-    }
-
-    if (lastOffer === 'pricing') {
-      try {
-        const pricingData = await generatePricingTable(messages, detectedLocation, openai);
-        return respond({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
-      } catch (err) { console.error('[PRICING CONFIRM ERROR]', err?.message); }
-    }
-
-    if (lastOffer === 'matrix') {
-      try {
-        const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
-        return respond({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
-      } catch (err) { console.error('[MATRIX CONFIRM ERROR]', err?.message); }
-    }
-
     if (lastOffer === 'premium-image' && upgradeCardRecentlyShown(messages, 2)) {
       try {
         const lastMeta = extractLastImageMeta(messages);
@@ -3011,8 +2991,10 @@ export default async function handler(req, res) {
     }
   }
 
+  const cardModeRequested = wantsStructuredCardFormat(lastUserMessage);
+
   // ── Nabad Score ──
-  if (isIdeaScoringRequest(lastUserMessage)) {
+  if (isIdeaScoringRequest(lastUserMessage) && cardModeRequested) {
     try {
       const scoreData = await generateNabadScore(messages, openai);
       return respond({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
@@ -3020,7 +3002,7 @@ export default async function handler(req, res) {
   }
 
   // ── Pricing Table ──
-  if (isPricingTableRequest(lastUserMessage)) {
+  if (isPricingTableRequest(lastUserMessage) && cardModeRequested) {
     try {
       const pricingData = await generatePricingTable(messages, detectedLocation, openai);
       return respond({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
@@ -3028,7 +3010,7 @@ export default async function handler(req, res) {
   }
 
   // ── Offer Card ──
-  if (isOfferCardRequest(lastUserMessage)) {
+  if (isOfferCardRequest(lastUserMessage) && cardModeRequested) {
     try {
       const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
       return respond({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
@@ -3036,7 +3018,7 @@ export default async function handler(req, res) {
   }
 
   // ── Positioning Matrix ──
-  if (isPositioningMatrixRequest(lastUserMessage)) {
+  if (isPositioningMatrixRequest(lastUserMessage) && cardModeRequested) {
     try {
       const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
       return respond({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
@@ -3044,7 +3026,7 @@ export default async function handler(req, res) {
   }
 
   // ── Action Plan ──
-  if (isActionPlanRequest(lastUserMessage)) {
+  if (isActionPlanRequest(lastUserMessage) && cardModeRequested) {
     try {
       const planData = await generateActionPlan(messages, detectedLocation, openai);
       return respond({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
@@ -3080,6 +3062,12 @@ export default async function handler(req, res) {
 
   // ── Main GPT-4o reply ─────────────────────────────────────────────────────
   const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
+  if (isWebsiteReviewRequest(lastUserMessage) && !explicitUrl) {
+    return respond({
+      reply: '<p>Share the exact URL and I will review it in a safe way: clarity, trust signals, conversion risk, and legal/privacy red flags.</p>',
+      detectedPersonality: 'strategist'
+    }, { persist: false });
+  }
   const websiteAuditContent = isValidHttpUrl(explicitUrl) ? await fetchWebsiteAuditContent(explicitUrl) : '';
   const liveResearchIntent =
     shouldUseLiveResearch(lastUserMessage) &&
@@ -3152,6 +3140,7 @@ Language/style:
 - If fresh web sources are provided in context, use them for current facts and cite uncertainty when sources conflict.
 - If the user asks for current info and no live sources are available, say you cannot verify live sources right now (without mentioning cutoff dates).
 - For legal/regulatory "latest/current/what changed" queries, summarize recent changes first (with practical impact), then list next steps. Do not default to static generic checklists when live sources are available.
+- If a URL/website is provided, give a protective audit: trust/safety risks, conversion friction, legal/privacy gaps, and concrete fixes. Be specific and non-alarmist.
 - Keep answers concise, sharp, and human.
 - No markdown. HTML only.
 - Use <p> for normal replies.
