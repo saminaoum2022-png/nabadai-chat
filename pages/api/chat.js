@@ -422,6 +422,10 @@ function getMessageText(content) {
     const textPart = content.find(p => p.type === 'text');
     return textPart ? textPart.text : '';
   }
+  if (content && typeof content === 'object') {
+    if (typeof content.text === 'string') return content.text;
+    return '';
+  }
   return '';
 }
 function cleanText(val = '', maxLen = 300) {
@@ -936,6 +940,58 @@ async function generateWithGeminiImage(prompt = '', imageType = 'image') {
     return `data:${mime};base64,${b64}`;
   }
   throw new Error('No image bytes returned from Gemini');
+}
+
+async function generateWithGeminiText(chatMessages = [], opts = {}) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+  const model = cleanText(process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', 80);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0.8;
+  const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 700;
+
+  const messages = Array.isArray(chatMessages) ? chatMessages : [];
+  const systemMsg = messages.find((m) => m.role === 'system');
+  const convoText = messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => `${String(m.role || 'user').toUpperCase()}: ${getMessageText(m.content)}`)
+    .join('\n')
+    .slice(0, 30000);
+  const payloadText = [
+    systemMsg?.content ? `SYSTEM INSTRUCTIONS:\n${String(systemMsg.content)}` : '',
+    `CONVERSATION:\n${convoText}`,
+    'Reply as ASSISTANT to the latest user message. Keep continuity and follow the system instructions.'
+  ].filter(Boolean).join('\n\n');
+
+  const response = await fetchWithTimeout(endpoint, {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: payloadText }] }],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens
+      }
+    })
+  }, 35000);
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini text API error: ${response.status} — ${errText.slice(0, 140)}`);
+  }
+
+  const data = await readJsonSafe(response);
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const text = parts
+    .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+  if (!text) throw new Error('No text returned from Gemini');
+  return text;
 }
 
 function extractImageUrlFromPayload(payload = null) {
@@ -3000,12 +3056,17 @@ export default async function handler(req, res) {
     role: ['user', 'assistant', 'system'].includes(m.role) ? m.role : 'user',
     content: typeof m.content === 'string' ? m.content.slice(0, 4000) : m.content
   }));
+  const parsedAttachment = await parseAttachmentPayload(attachment);
 
   const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-  if (!lastUserMsg) return res.status(400).json({ error: 'No user message found' });
-  let lastUserMessage = cleanText(getMessageText(lastUserMsg.content), 1200);
+  let lastUserMessage = cleanText(lastUserMsg ? getMessageText(lastUserMsg.content) : '', 1200);
+  if (!lastUserMessage && parsedAttachment?.summaryText) {
+    lastUserMessage = cleanText(parsedAttachment.summaryText, 1200);
+  }
+  if (!lastUserMessage && parsedAttachment) {
+    lastUserMessage = cleanText(`Please analyze this attached ${parsedAttachment.kind || 'file'}.`, 1200);
+  }
   if (!lastUserMessage) return res.status(400).json({ error: 'Empty message' });
-  const parsedAttachment = await parseAttachmentPayload(attachment);
   if (parsedAttachment?.summaryText) {
     lastUserMessage = cleanText(`${lastUserMessage}\n${parsedAttachment.summaryText}`, 1700);
   }
@@ -3560,14 +3621,26 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     const baseMaxTokens = personalityConfig.maxTokens || businessMode.maxTokens || 700;
     const maxTokens = computeDynamicMaxTokens(lastUserMessage, baseMaxTokens);
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: chatMessages,
-      temperature,
-      max_tokens: maxTokens
-    });
-
-    const rawReply = completion.choices?.[0]?.message?.content || '';
+    let rawReply = '';
+    let textProviderUsed = 'openai';
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: chatMessages,
+        temperature,
+        max_tokens: maxTokens
+      });
+      rawReply = completion.choices?.[0]?.message?.content || '';
+      textProviderUsed = 'openai';
+    } catch (openaiErr) {
+      console.error('[TEXT PROVIDER ERROR] openai:', openaiErr?.message);
+      if (!process.env.GEMINI_API_KEY) {
+        throw openaiErr;
+      }
+      rawReply = await generateWithGeminiText(chatMessages, { temperature, maxTokens });
+      textProviderUsed = 'gemini';
+    }
+    console.log('[TEXT PROVIDER USED]', textProviderUsed);
     const sourcesFooter = liveResearch?.used ? buildLiveSourcesHtml(liveResearch) : '';
     const websiteCheckedFooter = (websiteAuditRequested && explicitUrl && websiteAuditContent)
       ? buildWebsiteCheckedHtml(explicitUrl, websiteAuditContent)
