@@ -1,5 +1,3 @@
-import OpenAI from 'openai';
-
 export const config = {
   api: {
     bodyParser: false,
@@ -7,7 +5,70 @@ export const config = {
   }
 };
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function cleanText(value = '', max = 6000) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+async function readJsonSafe(response) {
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+async function transcribeWithGemini(audioBuffer, mimeType = 'audio/webm', preferredLanguage = '') {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+
+  const model = process.env.GEMINI_TRANSCRIBE_MODEL || 'gemini-2.5-flash-lite';
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const b64 = audioBuffer.toString('base64');
+  const languageHint = preferredLanguage === 'ar' ? 'Arabic' : preferredLanguage === 'en' ? 'English' : 'same language as speaker';
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text: `Transcribe this audio exactly in ${languageHint}. Return plain text only, no translation, no explanation, no punctuation changes unless clearly spoken.`
+            },
+            {
+              inlineData: {
+                mimeType,
+                data: b64
+              }
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 600
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini transcription error: ${response.status} — ${errText.slice(0, 180)}`);
+  }
+
+  const data = await readJsonSafe(response);
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const text = parts
+    .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+    .join('\n')
+    .trim();
+  return cleanText(text, 4000);
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -41,9 +102,7 @@ export default async function handler(req, res) {
         const headerEnd = part.indexOf('\r\n\r\n');
         if (headerEnd === -1) continue;
         const textValue = part.slice(headerEnd + 4, part.lastIndexOf('\r\n')).trim().toLowerCase();
-        if (textValue === 'en' || textValue === 'ar') {
-          preferredLanguage = textValue;
-        }
+        if (textValue === 'en' || textValue === 'ar') preferredLanguage = textValue;
       }
     }
 
@@ -52,22 +111,8 @@ export default async function handler(req, res) {
     }
 
     const mimeType = filename.includes('mp4') ? 'audio/mp4' : 'audio/webm';
-    const audioFile = new File([audioBuffer], filename, { type: mimeType });
-
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      response_format: 'text',
-      ...(preferredLanguage ? { language: preferredLanguage } : {}),
-      ...(preferredLanguage === 'en'
-        ? { prompt: 'Transcribe exactly in English. Do not translate to Arabic.' }
-        : {}),
-      ...(preferredLanguage === 'ar'
-        ? { prompt: 'انسخ الكلام كما هو بالعربية فقط بدون ترجمة للإنجليزية.' }
-        : {})
-    });
-
-    return res.status(200).json({ text: transcription });
+    const transcript = await transcribeWithGemini(audioBuffer, mimeType, preferredLanguage);
+    return res.status(200).json({ text: transcript });
   } catch (err) {
     console.error('[TRANSCRIBE ERROR]', err?.message);
     return res.status(500).json({ error: 'Transcription failed', detail: err?.message });
