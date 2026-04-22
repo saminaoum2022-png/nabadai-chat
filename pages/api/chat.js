@@ -1191,7 +1191,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     if (hasIdeogram) providers.push('ideogram');
     if (hasReplicate) providers.push('replicate');
     providers.push('pollinations');
-  } else if (preferred === 'gemini' || preferred === 'nanobanana' || preferred === 'nano-banana') {
+  } else if (preferred === 'gemini' || preferred === 'nanobanana' || preferred === 'nano-banana' || preferred === 'nano_banana' || preferred === 'nano banana') {
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
