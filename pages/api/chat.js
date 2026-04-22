@@ -2702,7 +2702,52 @@ function upgradeCardRecentlyShown(messages = [], lookback = 4) {
   );
 }
 
-async function detectMeaningfulInfo(userMessage, openai) {
+async function runTaskWithProviderFallback(taskMessages = [], openaiClient = null, preferredProvider = 'openai', opts = {}) {
+  const messages = Array.isArray(taskMessages) ? taskMessages : [];
+  const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0;
+  const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 180;
+  const normalized = cleanText(preferredProvider || 'openai', 24).toLowerCase();
+  const order = normalized === 'gemini'
+    ? ['gemini', 'groq', 'openai']
+    : normalized === 'groq'
+      ? ['groq', 'gemini', 'openai']
+      : ['openai', 'gemini', 'groq'];
+
+  let lastErr = null;
+  for (const provider of order) {
+    try {
+      if (provider === 'openai') {
+        if (!openaiClient) continue;
+        const completion = await openaiClient.chat.completions.create({
+          model: 'gpt-4o',
+          temperature,
+          max_tokens: maxTokens,
+          messages
+        });
+        const text = String(completion?.choices?.[0]?.message?.content || '').trim();
+        if (text) return text;
+        throw new Error('No text returned from OpenAI');
+      }
+      if (provider === 'gemini') {
+        if (!process.env.GEMINI_API_KEY) continue;
+        const text = await generateWithGeminiText(messages, { temperature, maxTokens });
+        if (text) return text;
+        throw new Error('No text returned from Gemini');
+      }
+      if (provider === 'groq') {
+        if (!process.env.GROQ_API_KEY) continue;
+        const text = await generateWithGroqText(messages, { temperature, maxTokens });
+        if (text) return text;
+        throw new Error('No text returned from Groq');
+      }
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('No provider available for task');
+}
+
+async function detectMeaningfulInfo(userMessage, openai, preferredProvider = 'openai') {
   const lite = detectMeaningfulInfoLite(userMessage);
   const mergeDetected = (primary = {}, fallback = {}) => {
     const out = {};
@@ -2720,19 +2765,16 @@ async function detectMeaningfulInfo(userMessage, openai) {
 
   try {
     // Step 1 — quick yes/no check
-    const check = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const checkMessages = [
+      {
+        role: 'system',
+        content: `You are a classifier. Reply only "yes" or "no". Does this message contain ANY of the following about the user: their name, business name, location, city, country, what they sell, revenue, income, challenge, problem, skill, idea, industry, team size, pricing, or anything personal about their work or life situation? Be generous — if in doubt say "yes". Message: "${userMessage}"`
+      }
+    ];
+    const answer = (await runTaskWithProviderFallback(checkMessages, openai, preferredProvider, {
       temperature: 0,
-      max_tokens: 5,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a classifier. Reply only "yes" or "no". Does this message contain ANY of the following about the user: their name, business name, location, city, country, what they sell, revenue, income, challenge, problem, skill, idea, industry, team size, pricing, or anything personal about their work or life situation? Be generous — if in doubt say "yes". Message: "${userMessage}"`
-        }
-      ]
-    });
-
-    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase() || '';
+      maxTokens: 8
+    })).trim().toLowerCase();
     console.log('[NABAD DEBUG] Step1 answer:', answer);
     const looksYes = /^y(es)?\b/.test(answer) || /\byes\b/.test(answer);
     if (!looksYes) {
@@ -2740,11 +2782,7 @@ async function detectMeaningfulInfo(userMessage, openai) {
     }
 
     // Step 2 — extract the actual data
-    const extract = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      temperature: 0,
-      max_tokens: 300,
-      messages: [
+    const extractMessages = [
         {
           role: 'system',
           content: `You are a smart data extractor. Extract any personal or business information from the user message into a JSON object.
@@ -2767,10 +2805,11 @@ Return ONLY a JSON object. If truly nothing found return {}.`
           role: 'user',
           content: userMessage
         }
-      ]
+      ];
+    const raw = await runTaskWithProviderFallback(extractMessages, openai, preferredProvider, {
+      temperature: 0,
+      maxTokens: 300
     });
-
-    const raw = extract.choices?.[0]?.message?.content?.trim() || '{}';
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return Object.keys(lite).length ? lite : null;
 
@@ -2868,7 +2907,7 @@ User message: "${userMessage}"`
 }
 
 // ── Personality Classifier ────────────────────────────────────────────────────
-async function classifyPersonality(userMessage = '', currentPersonality = 'auto', recentMessages = [], openaiClient) {
+async function classifyPersonality(userMessage = '', currentPersonality = 'auto', recentMessages = [], openaiClient, preferredProvider = 'openai') {
   const fallback = { id: 'auto', confidence: 0.35, reason: 'fallback' };
   try {
     const recent = recentMessages
@@ -2878,14 +2917,10 @@ async function classifyPersonality(userMessage = '', currentPersonality = 'auto'
       .filter(Boolean)
       .join(' || ');
 
-    const resp = await openaiClient.chat.completions.create({
-      model: 'gpt-4o',
-      temperature: 0,
-      max_tokens: 80,
-      messages: [
-        {
-          role: 'system',
-          content: `Classify the user's intent for personality routing.
+    const taskMessages = [
+      {
+        role: 'system',
+        content: `Classify the user's intent for personality routing.
 Return ONLY strict JSON:
 {"personality":"strategist|growth|branding|offer|creative|straight_talk|auto","confidence":0.0-1.0,"reason":"short"}
 
@@ -2907,11 +2942,12 @@ Personality definitions:
 Current mode: ${currentPersonality}
 Recent user context: "${recent || 'none'}"
 Current user message: "${cleanText(userMessage, 500)}"`
-        }
-      ]
+      }
+    ];
+    const raw = await runTaskWithProviderFallback(taskMessages, openaiClient, preferredProvider, {
+      temperature: 0,
+      maxTokens: 80
     });
-
-    const raw = resp.choices?.[0]?.message?.content?.trim() || '';
     const parsed = tryParseJsonBlock(raw) || {};
     const valid = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'];
     const id = valid.includes(parsed.personality) ? parsed.personality : 'auto';
@@ -3748,9 +3784,9 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
 
     // ── Run all three classifiers in parallel ──────────────────
     const [detectedInfo, suggestWarRoom, personalitySignal] = await Promise.all([
-      detectMeaningfulInfo(lastUserMessage, openai).catch(() => null),
+      detectMeaningfulInfo(lastUserMessage, openai, textProviderUsed).catch(() => null),
       detectWarRoom(lastUserMessage, messages, userProfile || '', openai).catch(() => false),
-      classifyPersonality(lastUserMessage, selectedPersonality, messages, openai)
+      classifyPersonality(lastUserMessage, selectedPersonality, messages, openai, textProviderUsed)
         .catch(() => ({ id: 'auto', confidence: 0.35, reason: 'fallback' }))
     ]);
 
