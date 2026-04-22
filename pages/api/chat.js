@@ -1372,13 +1372,27 @@ function imageContextActive(messages = [], lookback = 10) {
 function isImageContinuationRequest(text = '', messages = []) {
   const t = String(text || '').toLowerCase();
   const asksGenerate = /\b(generate|create|make|design|draw|regenerate|redo)\b/.test(t);
+  const hasVisualTarget = /\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b/.test(t);
+  const refersPreviousVisual = /\b(it|this|that|same one|again|another|new version|variation)\b/.test(t);
   if (!asksGenerate) return false;
-  if (imageContextActive(messages)) return true;
+  if (imageContextActive(messages) && hasVisualTarget) return true;
+  if (imageContextActive(messages) && refersPreviousVisual && /\b(regenerate|redo|recreate|another|new version|variation)\b/.test(t)) return true;
   if (/\bfor (it|this|that)\b/.test(t) && /\b(name is|brand name|company name|its name|his name)\b/.test(t)) return true;
   if (/\bbrand|branding|identity|visual\b/.test(t) && /\bname is|called\b/.test(t)) return true;
   return false;
 }
 function shouldGenerateImage(text = '', messages = []) {
+  const t = String(text || '').toLowerCase();
+  const structuredCardIntent =
+    isPricingTableRequest(t) ||
+    isOfferCardRequest(t) ||
+    isActionPlanRequest(t) ||
+    isPositioningMatrixRequest(t);
+  const explicitVisualRequest =
+    /\b(generate|create|make|design|draw|build|produce|regenerate|redo)\b/.test(t) &&
+    /\b(image|photo|picture|logo image|mockup|illustration|banner|visual|graphic|icon)\b/.test(t);
+  if (structuredCardIntent && !explicitVisualRequest) return false;
+
   if (isImageRequest(text)) return true;
   if (isImageContinuationRequest(text, messages)) return true;
   if (/\bgenerate\b/i.test(text) && imageContextActive(messages)) return true;
@@ -2066,7 +2080,11 @@ function isPricingTableRequest(text = '') {
     || /\b(create|build|show|give|make|design)\b.{0,30}\b(pricing|price plan|packages?)\b/i.test(text);
 }
 function hasEnoughPricingContext(messages = [], userProfile = '', lastUserMessage = '') {
-  const text = `${messages.map(m => getMessageText(m.content)).join(' ')} ${userProfile} ${lastUserMessage}`.toLowerCase();
+  const userOnly = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m.role === 'user')
+    .map((m) => getMessageText(m.content))
+    .join(' ');
+  const text = `${userOnly} ${userProfile} ${lastUserMessage}`.toLowerCase();
   const hasOffer = /\b(offer|service|package|product|subscription|consulting|agency|saas|design|branding|marketing)\b/.test(text);
   const hasAudience = /\b(client|customer|audience|target|founder|startup|brand|business)\b/.test(text);
   const hasOutcome = /\b(result|deliverable|includes|value|transformation|goal|problem|challenge)\b/.test(text);
