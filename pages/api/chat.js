@@ -2860,6 +2860,8 @@ function repairTruncatedReply(text = '') {
     out += '\nNext move: share one line and I will finish the full steps clearly.';
   } else if (/[,:;\-–—]\s*$/.test(plain)) {
     out += ' I can make this precise with one more line of context.';
+  } else if (/\b(that|this|which|who|because|when|where|if|so|and|or|but|to|for|with|of|the|a|an)\.?$/i.test(plain)) {
+    out += '\nNext move: give me one concrete example and I will make this exact.';
   }
   return out;
 }
@@ -2878,7 +2880,12 @@ function truncateWords(text = '', maxWords = 140) {
   if (!raw) return raw;
   const words = raw.split(/\s+/);
   if (words.length <= maxWords) return raw;
-  return `${words.slice(0, maxWords).join(' ').replace(/[,:;\-–—]+$/, '')}.`;
+  const clipped = words.slice(0, maxWords).join(' ').trim();
+  const lastPunct = Math.max(clipped.lastIndexOf('.'), clipped.lastIndexOf('!'), clipped.lastIndexOf('?'));
+  if (lastPunct > Math.floor(clipped.length * 0.55)) {
+    return clipped.slice(0, lastPunct + 1).trim();
+  }
+  return `${clipped.replace(/[,:;\-–—]+$/, '').trim()}.`;
 }
 
 function truncateBySentences(text = '', maxSentences = 4) {
@@ -2915,19 +2922,19 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
   const shortUserPrompt = cleanText(userMessage, 300).split(/\s+/).filter(Boolean).length <= 12;
 
   const styleByPersonality = {
-    strategist: { maxWords: 52, maxEmojis: 2, maxSentences: 4 },
-    growth: { maxWords: 48, maxEmojis: 2, maxSentences: 4 },
-    branding: { maxWords: 45, maxEmojis: 2, maxSentences: 4 },
-    offer: { maxWords: 50, maxEmojis: 2, maxSentences: 4 },
-    creative: { maxWords: 42, maxEmojis: 2, maxSentences: 3 },
-    straight_talk: { maxWords: 26, maxEmojis: 1, maxSentences: 2 },
-    auto: { maxWords: 50, maxEmojis: 2, maxSentences: 4 }
+    strategist: { maxWords: 120, maxEmojis: 2, maxSentences: 6 },
+    growth: { maxWords: 110, maxEmojis: 2, maxSentences: 6 },
+    branding: { maxWords: 105, maxEmojis: 2, maxSentences: 6 },
+    offer: { maxWords: 120, maxEmojis: 2, maxSentences: 6 },
+    creative: { maxWords: 95, maxEmojis: 2, maxSentences: 5 },
+    straight_talk: { maxWords: 65, maxEmojis: 1, maxSentences: 4 },
+    auto: { maxWords: 115, maxEmojis: 2, maxSentences: 6 }
   };
   const base = styleByPersonality[personalityId] || styleByPersonality.auto;
-  let maxWords = base.maxWords + (detailed ? 55 : 0) - (shortUserPrompt && !detailed ? 10 : 0);
+  let maxWords = base.maxWords + (detailed ? 80 : 0) - (shortUserPrompt && !detailed ? 12 : 0);
   if (maxWords < 28) maxWords = 28;
   const maxSentences = detailed
-    ? Math.min(8, (base.maxSentences || 4) + 3)
+    ? Math.min(10, (base.maxSentences || 4) + 4)
     : Math.max(2, (base.maxSentences || 4) - (shortUserPrompt ? 1 : 0));
 
   let out = limitEmojiUsage(normalized, base.maxEmojis);
@@ -2947,14 +2954,28 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
         .map((l) => l.trim())
         .filter(Boolean);
       const clippedLines = lines
-        .slice(0, 5)
-        .map((l) => truncateWords(l, personalityId === 'straight_talk' ? 14 : 18));
+        .slice(0, 7)
+        .map((l) => truncateWords(l, personalityId === 'straight_talk' ? 18 : 28));
       out = clippedLines.join('\n').trim();
     } else {
       out = truncateBySentences(out, maxSentences);
     }
   } else {
     out = truncateBySentences(out, maxSentences);
+  }
+
+  const hasClosure = /\?\s*$/.test(out) || /\b(next move|strategic move|growth move|offer move)\s*:/i.test(out);
+  if (!hasClosure) {
+    const closureByPersonality = {
+      straight_talk: 'Next move: tell me the one bottleneck you want to fix first.',
+      growth: 'Next move: which metric do you want to move first this week?',
+      offer: 'Next move: want me to turn this into a concrete package with pricing?',
+      branding: 'Next move: want me to sharpen this into one clear positioning line?',
+      creative: 'Next move: want 3 bold versions so we pick the strongest direction?',
+      strategist: 'Next move: which path do you want to commit to first?',
+      auto: 'Next move: what do you want to execute first?'
+    };
+    out = `${out}\n${closureByPersonality[personalityId] || closureByPersonality.auto}`.trim();
   }
 
   if (personalityId === 'creative' || personalityId === 'straight_talk') {
@@ -4019,14 +4040,13 @@ Language/style:
 - Avoid filler openers and avoid repeating the user's words back.
 
 Response structure (important):
-- Default to compact flow:
-  1) one short decision line
-  2) 2-4 concise points
-  3) one short "Next move" line only when needed
-- Keep most replies between 2 and 5 lines unless user explicitly asks for depth.
-- Use light emphasis for scanability: <strong>for key labels</strong>, <em>for one subtle nuance</em>.
-- Break dense thoughts into short readable lines; avoid long paragraph blocks.
-- If user prompt is short, answer short.
+- Keep structure clean and readable:
+  1) opening line with the core answer
+  2) concise body in short lines or 2-4 bullets when useful
+  3) one engaging closure line (question or next move)
+- Use light emphasis for scanability: <strong>key label</strong>, <em>subtle nuance</em>.
+- Avoid giant paragraph walls, but do not over-compress or cut thought continuity.
+- If user prompt is short, keep answer concise while preserving complete meaning.
 `;
 
   const isWarRoom = body?.warRoom === true;
