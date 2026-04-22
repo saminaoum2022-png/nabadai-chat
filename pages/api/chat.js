@@ -2045,6 +2045,13 @@ function hasRichBusinessContext(messages = []) {
 function locationAlreadyAsked(messages = []) {
   return messages.some(m => m.role === 'assistant' && /where are you based|what city|which country|your location|what market are you in/i.test(getMessageText(m.content)));
 }
+function pricingCurrencyAlreadyAsked(messages = []) {
+  return messages.some((m) => {
+    if (m.role !== 'assistant') return false;
+    const t = getMessageText(m.content).toLowerCase();
+    return t.includes('preferred currency') || t.includes('aed/usd/sar');
+  });
+}
 
 // ── Business Snapshot ─────────────────────────────────────────────────────────
 function snapshotAlreadyOffered(messages = []) {
@@ -2197,7 +2204,7 @@ function hasPricingAnchorContext(messages = [], lastUserMessage = '') {
   const recentUserText = `${userMessages.slice(-3).join(' ')} ${lastUserMessage}`.toLowerCase();
   const hasOffer = /\b(offer|service|package|product|subscription|consulting|agency|saas|chatbot|assistant|app|tool)\b/.test(recentUserText);
   const hasAudience = /\b(client|customer|audience|target|founder|startup|brand|business|team|company|enterprise)\b/.test(recentUserText);
-  const hasOutcome = /\b(outcome|result|goal|benefit|solve|improve|grow|conversion|sales|trust|leads|efficiency)\b/.test(recentUserText);
+  const hasOutcome = /\b(outcome|result|goal|benefit|solve|improve|grow|conversion|sales|trust|leads|efficiency|save time|save money|support|assist|help|provide|automation)\b/.test(recentUserText);
   return hasOffer && hasAudience && hasOutcome;
 }
 function hasEnoughPricingContext(messages = [], userProfile = '', lastUserMessage = '') {
@@ -3011,7 +3018,11 @@ export default async function handler(req, res) {
   const storedProfile = memoryToProfileString(storedFounderMemory || {});
   const userProfile = cleanText([incomingUserProfile, storedProfile].filter(Boolean).join(' | '), 950);
 
-  const detectedLocation = extractLocationFromMessages(messages) || (storedFounderMemory?.country || '');
+  const detectedLocation =
+    extractLocationFromMessages(messages) ||
+    storedFounderMemory?.country ||
+    storedFounderMemory?.location ||
+    '';
   const profileHasLocation = userProfile
     ? /\b(in|from|based in|located in|city|country)\b/i.test(userProfile)
     : false;
@@ -3288,17 +3299,39 @@ export default async function handler(req, res) {
     }, { persist: false });
   }
 
-  // ── Location ask ──
   const userMsgCount = messages.filter(m => m.role === 'user').length;
+
+  // ── Pricing market/currency ask ──
+  const hasExplicitCurrencySignal = /\b(aed|usd|sar|egp|eur|gbp|dirham|riyal|dollar|euro|pound)\b/i.test(`${lastUserMessage} ${userProfile}`);
+  if (
+    userMsgCount >= 2 &&
+    isPricingTableRequest(lastUserMessage) &&
+    !detectedLocation &&
+    !profileHasLocation &&
+    !pricingCurrencyAlreadyAsked(messages) &&
+    !hasExplicitCurrencySignal &&
+    !isEmotional &&
+    !YES_PATTERN.test(lastUserMessage.trim()) &&
+    !shouldGenerateImage(lastUserMessage, messages)
+  ) {
+    return respond({
+      reply: `<p>Quick one so I price this correctly: should I use your market currency? You can reply with country or just currency (example: <strong>UAE</strong> or <strong>AED</strong>).</p>`,
+      detectedPersonality: 'offer'
+    }, { persist: false });
+  }
+
+  // ── Location ask ──
   if (
     userMsgCount >= 2 &&
     hasBusinessContext(lastUserMessage) &&
     !detectedLocation &&
     !profileHasLocation &&
     !locationAlreadyAsked(messages) &&
+    !isPricingTableRequest(lastUserMessage) &&
     !isEmotional &&
     !YES_PATTERN.test(lastUserMessage.trim()) &&
-    !shouldGenerateImage(lastUserMessage, messages)
+    !shouldGenerateImage(lastUserMessage, messages) &&
+    !pricingCardAnchorPromptRecently(messages, 10)
   ) {
     return respond({
       reply: `<p>Quick one so I can make this market-accurate: <strong>which country are you operating in?</strong></p>`,
