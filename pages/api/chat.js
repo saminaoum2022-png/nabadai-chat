@@ -3052,17 +3052,21 @@ function detectMeaningfulInfoLite(userMessage = '') {
   return out;
 }
 
-async function detectWarRoom(userMessage, recentMessages, userProfile, openai) {
+async function detectWarRoom(userMessage, recentMessages, userProfile, openai, preferredProvider = 'gemini', debugTrace = null) {
+  const quick = cleanText(userMessage || '', 400).toLowerCase();
+  const likelyWarRoom =
+    /\b(should i|x or y|option a|option b|which one|tradeoff|dilemma|high[-\s]?stakes|big decision|shut down|co-founder conflict|fire someone|invest|funding decision|multiple perspectives|debate)\b/.test(quick);
+  if (!likelyWarRoom) {
+    if (debugTrace && typeof debugTrace === 'object') debugTrace.warRoom = 'skipped';
+    return false;
+  }
+
   try {
     const context = recentMessages.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n');
-    const check = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      temperature: 0,
-      max_tokens: 5,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a classifier. Reply only "yes" or "no".
+    const checkResult = await runTaskWithProviderFallback([
+      {
+        role: 'system',
+        content: `You are a classifier. Reply only "yes" or "no".
 
 Should this message trigger a War Room (multi-perspective debate)?
 
@@ -3082,12 +3086,21 @@ Say "no" for:
 Be STRICT. Default to "no" unless it is unmistakably a high-stakes decision with two sides.
 
 User message: "${userMessage}"`
-        }
-      ]
+      }
+    ], openai, preferredProvider, {
+      temperature: 0,
+      maxTokens: 8,
+      returnMeta: true
     });
-    const answer = check.choices?.[0]?.message?.content?.trim().toLowerCase();
+    if (debugTrace && typeof debugTrace === 'object') {
+      debugTrace.warRoom = checkResult?.provider || preferredProvider;
+    }
+    const answer = String(checkResult?.text || '').trim().toLowerCase();
     return answer === 'yes';
   } catch {
+    if (debugTrace && typeof debugTrace === 'object') {
+      debugTrace.warRoom = 'failed';
+    }
     return false;
   }
 }
@@ -3379,7 +3392,13 @@ export default async function handler(req, res) {
     role: ['user', 'assistant', 'system'].includes(m.role) ? m.role : 'user',
     content: typeof m.content === 'string' ? m.content.slice(0, 4000) : m.content
   }));
-  const parsedAttachment = await parseAttachmentPayload(attachment);
+  let parsedAttachment = null;
+  try {
+    parsedAttachment = await parseAttachmentPayload(attachment);
+  } catch (attachmentErr) {
+    console.error('[ATTACHMENT PARSE ERROR]', attachmentErr?.message);
+    parsedAttachment = null;
+  }
 
   const lastUserMsg = messages.filter(m => m.role === 'user').pop();
   let lastUserMessage = cleanText(lastUserMsg ? getMessageText(lastUserMsg.content) : '', 1200);
@@ -3426,7 +3445,11 @@ export default async function handler(req, res) {
   };
   const respond = async (payload, { persist = true, detectedInfo = null, learningSignals = null } = {}) => {
     if (persist) {
-      await persistFounderMemory(detectedInfo, learningSignals);
+      try {
+        await persistFounderMemory(detectedInfo, learningSignals);
+      } catch (persistErr) {
+        console.error('[MEMORY PERSIST ERROR]', persistErr?.message);
+      }
     }
     return res.status(200).json(payload);
   };
@@ -3999,10 +4022,9 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
       : '';
 
     // ── Run all three classifiers in parallel ──────────────────
-    providerTrace.warRoom = 'openai';
     const [detectedInfo, suggestWarRoom, personalitySignal] = await Promise.all([
       detectMeaningfulInfo(lastUserMessage, openai, textProviderUsed, providerTrace).catch(() => null),
-      detectWarRoom(lastUserMessage, messages, userProfile || '', openai).catch(() => false),
+      detectWarRoom(lastUserMessage, messages, userProfile || '', openai, textProviderUsed, providerTrace).catch(() => false),
       classifyPersonality(lastUserMessage, selectedPersonality, messages, openai, textProviderUsed, providerTrace)
         .catch(() => ({ id: 'auto', confidence: 0.35, reason: 'fallback' }))
     ]);
@@ -4029,7 +4051,13 @@ console.log('[PROVIDER TRACE]', JSON.stringify(providerTrace));
 
   } catch (err) {
     console.error('[GPT ERROR]', err?.message);
-    return res.status(500).json({ error: 'AI service temporarily unavailable. Please try again.' });
+    return res.status(200).json({
+      reply: '<p>Quick glitch on my side. I am back now. Send one short line and I will continue from the same context.</p>',
+      detectedPersonality: 'auto',
+      providerTrace: {
+        mainText: 'error-fallback'
+      }
+    });
   }
 }
 
