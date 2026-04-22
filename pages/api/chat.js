@@ -2394,7 +2394,79 @@ function isPricingDataUsable(data = {}) {
   }
   return true;
 }
-async function generatePricingTable(messages = [], location = '', openaiClient) {
+function pickCurrencyFromLocation(location = '') {
+  const loc = String(location || '').toLowerCase();
+  if (/\b(uae|dubai|abu dhabi|sharjah)\b/.test(loc)) return 'AED';
+  if (/\b(ksa|saudi|riyadh|jeddah)\b/.test(loc)) return 'SAR';
+  if (/\b(egypt|cairo|alexandria)\b/.test(loc)) return 'EGP';
+  if (/\b(uk|london|united kingdom)\b/.test(loc)) return 'GBP';
+  if (/\b(us|usa|united states|new york|california)\b/.test(loc)) return 'USD';
+  return 'USD';
+}
+
+function buildFallbackPricingData(messages = [], lastUserMessage = '', location = '', userProfile = '') {
+  const userMsgs = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m.role === 'user')
+    .map((m) => cleanText(getMessageText(m.content), 260));
+  const candidateLine =
+    [cleanText(lastUserMessage, 260), ...userMsgs.slice(-3).reverse()]
+      .find((t) => t && t.split(',').length >= 3) || '';
+
+  const parts = candidateLine.split(',').map((p) => cleanText(p, 90)).filter(Boolean);
+  const offerSeed = parts[0] || 'NabadAI Service';
+  const audienceSeed = parts[1] || 'Founders and business teams';
+  const outcomeSeed = parts[2] || 'Save time and improve strategic decisions';
+  const currency = pickCurrencyFromLocation(location || userProfile);
+
+  return {
+    title: `${offerSeed} Pricing`,
+    subtitle: `Built for ${audienceSeed}`,
+    currency,
+    tiers: [
+      {
+        name: 'Starter',
+        price: currency === 'AED' ? '299' : '99',
+        period: 'month',
+        description: 'Fast launch and core support',
+        features: [
+          `Core support for ${audienceSeed}`,
+          `${outcomeSeed} with weekly guidance`,
+          'Priority chat support'
+        ],
+        cta: 'Get Started',
+        highlighted: false
+      },
+      {
+        name: 'Growth',
+        price: currency === 'AED' ? '799' : '249',
+        period: 'month',
+        description: 'Best for teams scaling execution',
+        features: [
+          'Everything in Starter',
+          'Advanced strategy and offer optimization',
+          'Bi-weekly review and action plan'
+        ],
+        cta: 'Most Popular',
+        highlighted: true
+      },
+      {
+        name: 'Scale',
+        price: currency === 'AED' ? '1499' : '499',
+        period: 'month',
+        description: 'Full strategic partnership layer',
+        features: [
+          'Everything in Growth',
+          'Custom workflows and decision support',
+          'Founder-level priority response'
+        ],
+        cta: "Let's Scale",
+        highlighted: false
+      }
+    ]
+  };
+}
+
+async function generatePricingTable(messages = [], location = '', openaiClient, preferredProvider = 'gemini', debugTrace = null) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
   const prompt = `Create a professional pricing table JSON for this business:
 {
@@ -2412,11 +2484,18 @@ Rules:
 - Every feature must be concrete and specific to the business context.
 - If context is weak, infer cautiously but keep items realistic and useful.
 Use realistic pricing for their market. Location: ${location || 'not specified'}. Context: ${context.slice(0, 1500)}`;
-  const resp = await openaiClient.chat.completions.create({
-    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
-    max_tokens: 800, temperature: 0.75
+  const result = await runTaskWithProviderFallback([
+    { role: 'system', content: 'Return only valid JSON for pricing card data. No markdown, no explanations.' },
+    { role: 'user', content: prompt }
+  ], openaiClient, preferredProvider, {
+    temperature: 0.6,
+    maxTokens: 900,
+    returnMeta: true
   });
-  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+  if (debugTrace && typeof debugTrace === 'object') {
+    debugTrace.pricingTable = result?.provider || preferredProvider;
+  }
+  return tryParseJsonBlock(String(result?.text || '')) || {};
 }
 function buildPricingTableCard(data = {}) {
   const esc = escapeHtml;
@@ -2722,27 +2801,45 @@ function truncateWords(text = '', maxWords = 140) {
   return `${words.slice(0, maxWords).join(' ').replace(/[,:;\-–—]+$/, '')}.`;
 }
 
-function enforcePersonalityVoice(text = '', personalityId = 'auto') {
+function isDetailedReplyRequest(userMessage = '') {
+  const t = cleanText(userMessage, 600).toLowerCase();
+  if (!t) return false;
+  return /\b(detailed|in detail|full plan|step by step|roadmap|framework|deep dive|comprehensive|full strategy|break it down)\b/.test(t);
+}
+
+function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage = '') {
   const raw = String(text || '').trim();
   if (!raw) return raw;
-  if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
+  const normalized = /<[a-z][\s\S]*>/i.test(raw)
+    ? raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    : raw;
+  const detailed = isDetailedReplyRequest(userMessage);
+  const shortUserPrompt = cleanText(userMessage, 300).split(/\s+/).filter(Boolean).length <= 12;
 
   const styleByPersonality = {
-    strategist: { maxWords: 110, maxEmojis: 2 },
-    growth: { maxWords: 95, maxEmojis: 2 },
-    branding: { maxWords: 85, maxEmojis: 2 },
-    offer: { maxWords: 105, maxEmojis: 2 },
-    creative: { maxWords: 75, maxEmojis: 2 },
-    straight_talk: { maxWords: 45, maxEmojis: 1 },
-    auto: { maxWords: 110, maxEmojis: 2 }
+    strategist: { maxWords: 70, maxEmojis: 2 },
+    growth: { maxWords: 65, maxEmojis: 2 },
+    branding: { maxWords: 60, maxEmojis: 2 },
+    offer: { maxWords: 70, maxEmojis: 2 },
+    creative: { maxWords: 55, maxEmojis: 2 },
+    straight_talk: { maxWords: 35, maxEmojis: 1 },
+    auto: { maxWords: 70, maxEmojis: 2 }
   };
-  const cfg = styleByPersonality[personalityId] || styleByPersonality.auto;
-  let out = limitEmojiUsage(raw, cfg.maxEmojis);
-  out = truncateWords(out, cfg.maxWords);
+  const base = styleByPersonality[personalityId] || styleByPersonality.auto;
+  let maxWords = base.maxWords + (detailed ? 45 : 0) - (shortUserPrompt && !detailed ? 10 : 0);
+  if (maxWords < 28) maxWords = 28;
+
+  let out = limitEmojiUsage(normalized, base.maxEmojis);
+  out = truncateWords(out, maxWords);
   out = out
     .replace(/\s+([.!?])/g, '$1')
     .replace(/\s*(\d+\.)\s*/g, '\n$1 ')
     .replace(/\s*Next move:\s*/i, '\nNext move: ');
+
+  if (!detailed) {
+    const sentences = out.match(/[^.!?]+[.!?]?/g) || [out];
+    out = sentences.slice(0, 4).join(' ').trim();
+  }
 
   if (personalityId === 'creative' || personalityId === 'straight_talk') {
     out = out.replace(/^[\s>*-]+/gm, '');
@@ -2780,6 +2877,7 @@ async function runTaskWithProviderFallback(taskMessages = [], openaiClient = nul
   const messages = Array.isArray(taskMessages) ? taskMessages : [];
   const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0;
   const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 180;
+  const returnMeta = opts?.returnMeta === true;
   const normalized = cleanText(preferredProvider || 'openai', 24).toLowerCase();
   const order = normalized === 'gemini'
     ? ['gemini', 'groq', 'openai']
@@ -2799,19 +2897,19 @@ async function runTaskWithProviderFallback(taskMessages = [], openaiClient = nul
           messages
         });
         const text = String(completion?.choices?.[0]?.message?.content || '').trim();
-        if (text) return text;
+        if (text) return returnMeta ? { text, provider: 'openai' } : text;
         throw new Error('No text returned from OpenAI');
       }
       if (provider === 'gemini') {
         if (!process.env.GEMINI_API_KEY) continue;
         const text = await generateWithGeminiText(messages, { temperature, maxTokens });
-        if (text) return text;
+        if (text) return returnMeta ? { text, provider: 'gemini' } : text;
         throw new Error('No text returned from Gemini');
       }
       if (provider === 'groq') {
         if (!process.env.GROQ_API_KEY) continue;
         const text = await generateWithGroqText(messages, { temperature, maxTokens });
-        if (text) return text;
+        if (text) return returnMeta ? { text, provider: 'groq' } : text;
         throw new Error('No text returned from Groq');
       }
     } catch (err) {
@@ -2821,7 +2919,7 @@ async function runTaskWithProviderFallback(taskMessages = [], openaiClient = nul
   throw lastErr || new Error('No provider available for task');
 }
 
-async function detectMeaningfulInfo(userMessage, openai, preferredProvider = 'openai') {
+async function detectMeaningfulInfo(userMessage, openai, preferredProvider = 'openai', debugTrace = null) {
   const lite = detectMeaningfulInfoLite(userMessage);
   const mergeDetected = (primary = {}, fallback = {}) => {
     const out = {};
@@ -2845,13 +2943,20 @@ async function detectMeaningfulInfo(userMessage, openai, preferredProvider = 'op
         content: `You are a classifier. Reply only "yes" or "no". Does this message contain ANY of the following about the user: their name, business name, location, city, country, what they sell, revenue, income, challenge, problem, skill, idea, industry, team size, pricing, or anything personal about their work or life situation? Be generous — if in doubt say "yes". Message: "${userMessage}"`
       }
     ];
-    const answer = (await runTaskWithProviderFallback(checkMessages, openai, preferredProvider, {
+    const checkResult = await runTaskWithProviderFallback(checkMessages, openai, preferredProvider, {
       temperature: 0,
-      maxTokens: 8
-    })).trim().toLowerCase();
+      maxTokens: 8,
+      returnMeta: true
+    });
+    const answer = String(checkResult?.text || '').trim().toLowerCase();
+    const providersUsed = [];
+    if (checkResult?.provider) providersUsed.push(checkResult.provider);
     console.log('[NABAD DEBUG] Step1 answer:', answer);
     const looksYes = /^y(es)?\b/.test(answer) || /\byes\b/.test(answer);
     if (!looksYes) {
+      if (debugTrace && typeof debugTrace === 'object') {
+        debugTrace.detectMeaningfulInfo = checkResult?.provider || preferredProvider;
+      }
       return Object.keys(lite).length ? lite : null;
     }
 
@@ -2880,10 +2985,17 @@ Return ONLY a JSON object. If truly nothing found return {}.`
           content: userMessage
         }
       ];
-    const raw = await runTaskWithProviderFallback(extractMessages, openai, preferredProvider, {
+    const extractResult = await runTaskWithProviderFallback(extractMessages, openai, preferredProvider, {
       temperature: 0,
-      maxTokens: 300
+      maxTokens: 300,
+      returnMeta: true
     });
+    const raw = String(extractResult?.text || '{}');
+    if (extractResult?.provider) providersUsed.push(extractResult.provider);
+    if (debugTrace && typeof debugTrace === 'object') {
+      const uniq = Array.from(new Set(providersUsed.filter(Boolean)));
+      debugTrace.detectMeaningfulInfo = uniq.join('->') || preferredProvider;
+    }
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return Object.keys(lite).length ? lite : null;
 
@@ -2981,7 +3093,7 @@ User message: "${userMessage}"`
 }
 
 // ── Personality Classifier ────────────────────────────────────────────────────
-async function classifyPersonality(userMessage = '', currentPersonality = 'auto', recentMessages = [], openaiClient, preferredProvider = 'openai') {
+async function classifyPersonality(userMessage = '', currentPersonality = 'auto', recentMessages = [], openaiClient, preferredProvider = 'openai', debugTrace = null) {
   const fallback = { id: 'auto', confidence: 0.35, reason: 'fallback' };
   try {
     const recent = recentMessages
@@ -3018,10 +3130,15 @@ Recent user context: "${recent || 'none'}"
 Current user message: "${cleanText(userMessage, 500)}"`
       }
     ];
-    const raw = await runTaskWithProviderFallback(taskMessages, openaiClient, preferredProvider, {
+    const classifyResult = await runTaskWithProviderFallback(taskMessages, openaiClient, preferredProvider, {
       temperature: 0,
-      maxTokens: 80
+      maxTokens: 80,
+      returnMeta: true
     });
+    const raw = String(classifyResult?.text || '');
+    if (debugTrace && typeof debugTrace === 'object') {
+      debugTrace.classifyPersonality = classifyResult?.provider || preferredProvider;
+    }
     const parsed = tryParseJsonBlock(raw) || {};
     const valid = ['strategist', 'growth', 'branding', 'offer', 'creative', 'straight_talk', 'auto'];
     const id = valid.includes(parsed.personality) ? parsed.personality : 'auto';
@@ -3080,6 +3197,19 @@ export default async function handler(req, res) {
   const liveResearchModeRaw = cleanText(body?.liveResearchMode || 'auto', 24).toLowerCase();
   const liveResearchMode = liveResearchModeRaw === 'on_demand' ? 'on_demand' : 'auto';
   const attachment = body?.attachment && typeof body.attachment === 'object' ? body.attachment : null;
+  const providerTrace = {
+    mainText: '',
+    detectMeaningfulInfo: '',
+    classifyPersonality: '',
+    warRoom: '',
+    pricingTable: '',
+    scoreCard: '',
+    offerCard: '',
+    positioningMatrix: '',
+    actionPlan: '',
+    imagePrompt: '',
+    imageGeneration: ''
+  };
 
   if (memoryAction) {
     if (!memoryKey) return res.status(400).json({ error: 'Missing memoryKey.' });
@@ -3463,6 +3593,7 @@ export default async function handler(req, res) {
       }
       imagePrompt = enrichImagePrompt(imagePrompt, imageType);
       const generated = await generateImageWithProviderChain(imagePrompt, imageType, { preferred: imageProvider });
+      providerTrace.imageGeneration = generated?.provider || '';
       return respond({
         reply: buildImageReplyHtml(generated.url, imagePrompt, imageType, generated.provider),
         detectedPersonality: 'creative'
@@ -3484,6 +3615,7 @@ export default async function handler(req, res) {
           : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
         const imageType = detectImageType(prompt);
         const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
+        providerTrace.imageGeneration = generated?.provider || '';
         return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
       } catch (err) { console.error('[PREMIUM YES ERROR]', err?.message); }
     }
@@ -3494,6 +3626,7 @@ export default async function handler(req, res) {
   // ── Nabad Score ──
   if (isIdeaScoringRequest(lastUserMessage) && cardModeRequested) {
     try {
+      providerTrace.scoreCard = 'openai';
       const scoreData = await generateNabadScore(messages, openai);
       return respond({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
     } catch (err) { console.error('[SCORE ERROR]', err?.message); }
@@ -3512,20 +3645,24 @@ export default async function handler(req, res) {
       }, { persist: false });
     }
     try {
-      const pricingData = await generatePricingTable(messages, detectedLocation, openai);
+      const pricingProvider = process.env.GEMINI_API_KEY ? 'gemini' : 'openai';
+      const pricingData = await generatePricingTable(messages, detectedLocation, openai, pricingProvider, providerTrace);
       if (!isPricingDataUsable(pricingData)) {
-        return respond({
-          reply: '<p>I skipped the pricing card because the generated data looked generic.</p><p>Share your offer name + target client + top 3 deliverables, and I’ll generate a sharp, non-generic pricing card.</p>',
-          detectedPersonality: 'offer'
-        }, { persist: false });
+        const fallbackData = buildFallbackPricingData(messages, lastUserMessage, detectedLocation, userProfile);
+        return respond({ reply: buildPricingTableCard(fallbackData), detectedPersonality: 'offer' });
       }
       return respond({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
-    } catch (err) { console.error('[PRICING ERROR]', err?.message); }
+    } catch (err) {
+      console.error('[PRICING ERROR]', err?.message);
+      const fallbackData = buildFallbackPricingData(messages, lastUserMessage, detectedLocation, userProfile);
+      return respond({ reply: buildPricingTableCard(fallbackData), detectedPersonality: 'offer' });
+    }
   }
 
   // ── Offer Card ──
   if (isOfferCardRequest(lastUserMessage) && cardModeRequested) {
     try {
+      providerTrace.offerCard = 'openai';
       const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
       return respond({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
     } catch (err) { console.error('[OFFER ERROR]', err?.message); }
@@ -3534,6 +3671,7 @@ export default async function handler(req, res) {
   // ── Positioning Matrix ──
   if (isPositioningMatrixRequest(lastUserMessage) && cardModeRequested) {
     try {
+      providerTrace.positioningMatrix = 'openai';
       const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
       return respond({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
     } catch (err) { console.error('[MATRIX ERROR]', err?.message); }
@@ -3542,6 +3680,7 @@ export default async function handler(req, res) {
   // ── Action Plan ──
   if (isActionPlanRequest(lastUserMessage) && cardModeRequested) {
     try {
+      providerTrace.actionPlan = 'openai';
       const planData = await generateActionPlan(messages, detectedLocation, openai);
       return respond({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
     } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message); }
@@ -3852,6 +3991,7 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
       rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
       textProviderUsed = 'degraded-fallback';
     }
+    providerTrace.mainText = textProviderUsed;
     console.log('[TEXT PROVIDER USED]', textProviderUsed);
     const sourcesFooter = liveResearch?.used ? buildLiveSourcesHtml(liveResearch) : '';
     const websiteCheckedFooter = (websiteAuditRequested && explicitUrl && websiteAuditContent)
@@ -3859,19 +3999,21 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
       : '';
 
     // ── Run all three classifiers in parallel ──────────────────
+    providerTrace.warRoom = 'openai';
     const [detectedInfo, suggestWarRoom, personalitySignal] = await Promise.all([
-      detectMeaningfulInfo(lastUserMessage, openai, textProviderUsed).catch(() => null),
+      detectMeaningfulInfo(lastUserMessage, openai, textProviderUsed, providerTrace).catch(() => null),
       detectWarRoom(lastUserMessage, messages, userProfile || '', openai).catch(() => false),
-      classifyPersonality(lastUserMessage, selectedPersonality, messages, openai, textProviderUsed)
+      classifyPersonality(lastUserMessage, selectedPersonality, messages, openai, textProviderUsed, providerTrace)
         .catch(() => ({ id: 'auto', confidence: 0.35, reason: 'fallback' }))
     ]);
 
 console.log('[NABAD DEBUG] detectedInfo:', JSON.stringify(detectedInfo));
 console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
+console.log('[PROVIDER TRACE]', JSON.stringify(providerTrace));
 
     const learningSignals = inferLearningSignals(lastUserMessage, detectedInfo, userLanguage);
     await persistFounderMemory(detectedInfo, learningSignals);
-    const styledReply = enforcePersonalityVoice(rawReply, personalityResolution.personalityId);
+    const styledReply = enforcePersonalityVoice(rawReply, personalityResolution.personalityId, lastUserMessage);
     const safeReply = repairTruncatedReply(styledReply);
     return res.status(200).json({
       reply: `${ensureHtmlReply(safeReply)}${websiteCheckedFooter}${sourcesFooter}`,
@@ -3879,6 +4021,7 @@ console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
       suggestWarRoom,
       liveResearchUsed: !!liveResearch?.used,
       liveResearchProvider: liveResearch?.provider || '',
+      providerTrace,
       detectedPersonality: personalitySignal?.id || 'auto',
       detectedPersonalityConfidence: Number(personalitySignal?.confidence ?? 0.35),
       detectedPersonalityReason: personalitySignal?.reason || ''
