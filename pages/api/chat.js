@@ -565,9 +565,41 @@ function normalizeList(val) {
 function isValidHttpUrl(str = '') {
   try { const u = new URL(str); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; }
 }
+function normalizeUrlCandidate(raw = '') {
+  const input = cleanText(String(raw || ''), 500)
+    .replace(/[)\],.;:!?]+$/g, '')
+    .trim();
+  if (!input) return '';
+
+  if (isValidHttpUrl(input)) return input;
+  if (/^www\./i.test(input)) {
+    const prefixed = `https://${input}`;
+    return isValidHttpUrl(prefixed) ? prefixed : '';
+  }
+  if (/^[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)+([\/?#][^\s]*)?$/i.test(input) && !/\s/.test(input)) {
+    const prefixed = `https://${input}`;
+    return isValidHttpUrl(prefixed) ? prefixed : '';
+  }
+  return '';
+}
 function extractFirstUrl(text = '') {
-  const m = text.match(/https?:\/\/[^\s"'>)]+/);
-  return m ? m[0] : '';
+  const source = String(text || '');
+  const http = source.match(/https?:\/\/[^\s"'>)]+/i);
+  if (http?.[0]) return normalizeUrlCandidate(http[0]);
+  const www = source.match(/\bwww\.[^\s"'>)]+/i);
+  if (www?.[0]) return normalizeUrlCandidate(www[0]);
+  const bare = source.match(/\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)+(?:\/[^\s"'>)]*)?/i);
+  return bare?.[0] ? normalizeUrlCandidate(bare[0]) : '';
+}
+function extractRecentUrlFromMessages(messages = []) {
+  const list = Array.isArray(messages) ? messages : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const msg = list[i];
+    if (!msg || msg.role !== 'user') continue;
+    const found = extractFirstUrl(getMessageText(msg.content));
+    if (found) return found;
+  }
+  return '';
 }
 
 // ── Fetch Helpers ─────────────────────────────────────────────────────────────
@@ -780,17 +812,38 @@ function buildLiveSourcesHtml(live = null) {
   }).join('');
   return `<div data-nabad-card="live-sources" style="margin-top:10px;background:#f8fafc;border:1px solid rgba(37,99,235,.12);border-radius:10px;padding:10px 12px"><div style="font-size:11px;color:#64748b;margin-bottom:6px">Live sources checked</div><ul style="margin:0;padding-left:18px;line-height:1.5">${items}</ul></div>`;
 }
+function buildWebsiteCheckedHtml(url = '', content = '') {
+  if (!url || !content) return '';
+  const checkedAt = new Date().toISOString().replace('T', ' ').slice(0, 16);
+  const evidenceSize = cleanText(content, 8000).length;
+  return `<div data-nabad-card="website-checked" style="margin-top:10px;background:#f0f9ff;border:1px solid rgba(14,116,144,.22);border-radius:10px;padding:10px 12px">
+    <div style="font-size:11px;color:#0f766e;font-weight:700;margin-bottom:4px">Live website checked</div>
+    <div style="font-size:12px;color:#334155">URL: <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></div>
+    <div style="font-size:11px;color:#64748b;margin-top:3px">Checked at: ${escapeHtml(checkedAt)} UTC · Evidence size: ${evidenceSize} chars</div>
+  </div>`;
+}
 
 // ── Website Audit ─────────────────────────────────────────────────────────────
 async function fetchWebsiteAuditContent(url = '') {
   if (!isValidHttpUrl(url)) return '';
+  const trimmed = cleanText(url, 500);
+  const encoded = encodeURIComponent(trimmed);
+  const attempts = [
+    `https://r.jina.ai/${trimmed}`,
+    `https://r.jina.ai/http://${trimmed.replace(/^https?:\/\//i, '')}`,
+    `https://r.jina.ai/https://${trimmed.replace(/^https?:\/\//i, '')}`,
+    `https://r.jina.ai/${encoded}`
+  ];
   try {
-    const res = await fetchWithTimeout(`https://r.jina.ai/${encodeURIComponent(url)}`, {
-      headers: { Accept: 'text/plain', 'User-Agent': 'NabadBot/1.0' }
-    }, 12000);
-    if (!res.ok) return '';
-    const text = await res.text();
-    return text.slice(0, 3000);
+    for (const target of attempts) {
+      const res = await fetchWithTimeout(target, {
+        headers: { Accept: 'text/plain', 'User-Agent': 'NabadBot/1.0' }
+      }, 12000);
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (cleanText(text, 1200).length > 180) return text.slice(0, 4200);
+    }
+    return '';
   } catch { return ''; }
 }
 
@@ -1852,8 +1905,10 @@ function buildIdeaGateQuestion(text = '', userProfile = '') {
 
 function isWebsiteReviewRequest(text = '') {
   const t = String(text || '').toLowerCase();
-  return /\b(review|audit|analy[sz]e|assess|check|evaluate|opinion|feedback)\b/.test(t)
-    && /\b(url|website|site|landing page|landing|webpage|link)\b/.test(t);
+  return (
+    /\b(review|audit|analy[sz]e|assess|check|evaluate|opinion|feedback)\b/.test(t)
+      && /\b(url|website|site|landing page|landing|webpage|link)\b/.test(t)
+  ) || /\b(check|review|audit|analy[sz]e)\s+(https?:\/\/|www\.|[a-z0-9][a-z0-9-]*\.[a-z]{2,})/i.test(t);
 }
 function wantsStructuredCardFormat(text = '') {
   const t = String(text || '').toLowerCase();
@@ -2010,6 +2065,31 @@ function isPricingTableRequest(text = '') {
   return /\b(pricing table|price table|pricing plan|pricing tier|tier(ed)? pricing|package price|service price|how much (should|do|to) (i |we )?charge|price my (service|offer|package|product))\b/i.test(text)
     || /\b(create|build|show|give|make|design)\b.{0,30}\b(pricing|price plan|packages?)\b/i.test(text);
 }
+function hasEnoughPricingContext(messages = [], userProfile = '', lastUserMessage = '') {
+  const text = `${messages.map(m => getMessageText(m.content)).join(' ')} ${userProfile} ${lastUserMessage}`.toLowerCase();
+  const hasOffer = /\b(offer|service|package|product|subscription|consulting|agency|saas|design|branding|marketing)\b/.test(text);
+  const hasAudience = /\b(client|customer|audience|target|founder|startup|brand|business)\b/.test(text);
+  const hasOutcome = /\b(result|deliverable|includes|value|transformation|goal|problem|challenge)\b/.test(text);
+  return hasOffer && (hasAudience || hasOutcome);
+}
+function hasPlaceholderText(value = '') {
+  const t = cleanText(String(value || ''), 240);
+  if (!t) return true;
+  return /\b(feature\s*\d+|deliverable\s*\d+|bonus\s*\d+|lorem ipsum|tbd|n\/a)\b/i.test(t);
+}
+function isPricingDataUsable(data = {}) {
+  const tiers = Array.isArray(data?.tiers) ? data.tiers : [];
+  if (tiers.length < 2) return false;
+  for (const tier of tiers) {
+    const name = cleanText(tier?.name || '', 80);
+    const price = cleanText(String(tier?.price || ''), 80);
+    const features = normalizeList(tier?.features || []);
+    if (!name || !price || !features.length) return false;
+    if (hasPlaceholderText(name) || hasPlaceholderText(tier?.description || '')) return false;
+    if (features.some((f) => hasPlaceholderText(f))) return false;
+  }
+  return true;
+}
 async function generatePricingTable(messages = [], location = '', openaiClient) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
   const prompt = `Create a professional pricing table JSON for this business:
@@ -2023,6 +2103,10 @@ async function generatePricingTable(messages = [], location = '', openaiClient) 
     {"name": "Scale", "price": "2500", "period": "month", "description": "Full-service solution", "features": ["Everything in Growth", "Feature 7", "Feature 8", "Feature 9", "Feature 10"], "cta": "Let's Scale", "highlighted": false}
   ]
 }
+Rules:
+- Never use placeholders like "Feature 1", "Feature 2", or generic filler.
+- Every feature must be concrete and specific to the business context.
+- If context is weak, infer cautiously but keep items realistic and useful.
 Use realistic pricing for their market. Location: ${location || 'not specified'}. Context: ${context.slice(0, 1500)}`;
   const resp = await openaiClient.chat.completions.create({
     model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
@@ -3003,8 +3087,20 @@ export default async function handler(req, res) {
 
   // ── Pricing Table ──
   if (isPricingTableRequest(lastUserMessage) && cardModeRequested) {
+    if (!hasEnoughPricingContext(messages, userProfile, lastUserMessage)) {
+      return respond({
+        reply: '<p>I can build a premium pricing card, but I need 3 anchors first: what exactly you sell, who the ideal buyer is, and one key outcome you deliver.</p><p>Send them in one line and I will generate the full card.</p>',
+        detectedPersonality: 'offer'
+      }, { persist: false });
+    }
     try {
       const pricingData = await generatePricingTable(messages, detectedLocation, openai);
+      if (!isPricingDataUsable(pricingData)) {
+        return respond({
+          reply: '<p>I skipped the pricing card because the generated data looked generic.</p><p>Share your offer name + target client + top 3 deliverables, and I’ll generate a sharp, non-generic pricing card.</p>',
+          detectedPersonality: 'offer'
+        }, { persist: false });
+      }
       return respond({ reply: buildPricingTableCard(pricingData), detectedPersonality: 'offer' });
     } catch (err) { console.error('[PRICING ERROR]', err?.message); }
   }
@@ -3061,14 +3157,23 @@ export default async function handler(req, res) {
   }
 
   // ── Main GPT-4o reply ─────────────────────────────────────────────────────
-  const explicitUrl = cleanText(body.url || body.website || '', 500) || extractFirstUrl(lastUserMessage);
+  const explicitUrl = normalizeUrlCandidate(body.url || body.website || '')
+    || extractFirstUrl(lastUserMessage)
+    || extractRecentUrlFromMessages(messages);
   if (isWebsiteReviewRequest(lastUserMessage) && !explicitUrl) {
     return respond({
       reply: '<p>Share the exact URL and I will review it in a safe way: clarity, trust signals, conversion risk, and legal/privacy red flags.</p>',
       detectedPersonality: 'strategist'
     }, { persist: false });
   }
+  const websiteAuditRequested = isWebsiteReviewRequest(lastUserMessage);
   const websiteAuditContent = isValidHttpUrl(explicitUrl) ? await fetchWebsiteAuditContent(explicitUrl) : '';
+  if (websiteAuditRequested && explicitUrl && !websiteAuditContent) {
+    return respond({
+      reply: `<p>I couldn't safely fetch readable content from <strong>${escapeHtml(explicitUrl)}</strong> yet. This usually happens with anti-bot protection, private routes, or blocked rendering.</p><p>Send a public page URL (or paste the page copy/screenshot), and I’ll give you a specific, evidence-based audit.</p>`,
+      detectedPersonality: 'strategist'
+    }, { persist: false });
+  }
   const liveResearchIntent =
     shouldUseLiveResearch(lastUserMessage) &&
     !shouldGenerateImage(lastUserMessage, messages);
@@ -3141,6 +3246,8 @@ Language/style:
 - If the user asks for current info and no live sources are available, say you cannot verify live sources right now (without mentioning cutoff dates).
 - For legal/regulatory "latest/current/what changed" queries, summarize recent changes first (with practical impact), then list next steps. Do not default to static generic checklists when live sources are available.
 - If a URL/website is provided, give a protective audit: trust/safety risks, conversion friction, legal/privacy gaps, and concrete fixes. Be specific and non-alarmist.
+- If you have website audit content, anchor every finding to concrete page evidence (quote or reference exact sections/elements). Avoid generic advice that could apply to any website.
+- If website content is missing, do not hallucinate audit details. Ask for a reachable URL or page text.
 - Keep answers concise, sharp, and human.
 - No markdown. HTML only.
 - Use <p> for normal replies.
@@ -3278,6 +3385,9 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
 
     const rawReply = completion.choices?.[0]?.message?.content || '';
     const sourcesFooter = liveResearch?.used ? buildLiveSourcesHtml(liveResearch) : '';
+    const websiteCheckedFooter = (websiteAuditRequested && explicitUrl && websiteAuditContent)
+      ? buildWebsiteCheckedHtml(explicitUrl, websiteAuditContent)
+      : '';
 
     // ── Run all three classifiers in parallel ──────────────────
     const [detectedInfo, suggestWarRoom, personalitySignal] = await Promise.all([
@@ -3293,7 +3403,7 @@ console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
     const learningSignals = inferLearningSignals(lastUserMessage, detectedInfo, userLanguage);
     await persistFounderMemory(detectedInfo, learningSignals);
     return res.status(200).json({
-      reply: `${ensureHtmlReply(rawReply)}${sourcesFooter}`,
+      reply: `${ensureHtmlReply(rawReply)}${websiteCheckedFooter}${sourcesFooter}`,
       detectedInfo,
       suggestWarRoom,
       liveResearchUsed: !!liveResearch?.used,
