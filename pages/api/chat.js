@@ -864,10 +864,11 @@ async function fetchWebsiteAuditContent(url = '') {
 }
 
 // ── Ideogram 2.0 Integration ──────────────────────────────────────────────────
-async function generateWithIdeogram(prompt = '') {
+async function generateWithIdeogram(prompt = '', imageType = 'image') {
   const apiKey = process.env.IDEOGRAM_API_KEY;
   if (!apiKey) throw new Error('IDEOGRAM_API_KEY not set');
   const cleanPrompt = sanitizePromptText(prompt).slice(0, 900);
+  const textCritical = imageType === 'logo' || /\b(wordmark|exact text|brand text|logo text|spelling|typography|text)\b/i.test(cleanPrompt);
   const response = await fetchWithTimeout('https://api.ideogram.ai/generate', {
     method: 'POST',
     headers: {
@@ -878,7 +879,7 @@ async function generateWithIdeogram(prompt = '') {
       image_request: {
         prompt: cleanPrompt,
         model: 'V_2',
-        magic_prompt_option: 'AUTO',
+        magic_prompt_option: textCritical ? 'OFF' : 'AUTO',
         style_type: 'DESIGN',
         aspect_ratio: 'ASPECT_1_1'
       }
@@ -1429,7 +1430,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
         return { provider, url };
       }
       if (provider === 'ideogram') {
-        const url = await generateWithIdeogram(imagePrompt);
+        const url = await generateWithIdeogram(imagePrompt, imageType);
         console.log('[IMAGE PROVIDER USED]', provider);
         return { provider, url };
       }
@@ -1576,7 +1577,7 @@ function detectImageType(text = '') {
 function enrichImagePrompt(rawPrompt = '', type = 'image') {
   const base = sanitizePromptText(rawPrompt);
   const suffixes = {
-    logo: ', clean vector logo, minimal, professional, white background, sharp edges',
+    logo: ', clean vector logo, minimal, professional, white background, sharp edges, keep exact brand text only, do not invent words, no random letters',
     banner: ', wide format banner, professional design, vibrant colors',
     icon: ', flat icon design, simple, clean, scalable',
     illustration: ', digital illustration, detailed, vibrant',
@@ -1658,19 +1659,72 @@ function buildStockPhotoHtml(prompt = '') {
   const unsplashUrl = `https://source.unsplash.com/1024x768/?${kw}`;
   return `<div class="nabad-image-wrap"><img src="${unsplashUrl}" alt="${escapeHtml(prompt.slice(0, 80))}" class="nabad-gen-image" loading="lazy" /><p class="nabad-image-caption">Stock photo</p></div>`;
 }
+
+function extractBrandHintFromMessages(messages = []) {
+  const list = Array.isArray(messages) ? messages : [];
+  const userMessages = list
+    .filter((m) => m?.role === 'user')
+    .map((m) => cleanText(getMessageText(m.content), 300))
+    .filter(Boolean);
+
+  for (let i = userMessages.length - 1; i >= Math.max(0, userMessages.length - 8); i--) {
+    const t = userMessages[i];
+    const match =
+      t.match(/\b(?:brand name is|project name is|name is|called)\s+([a-zA-Z0-9][a-zA-Z0-9\s\-_]{1,40})\b/i) ||
+      t.match(/\bfor\s+([a-zA-Z0-9][a-zA-Z0-9\s\-_]{1,32})\s*(?:logo|brand|wordmark)\b/i);
+    if (match?.[1]) return cleanText(match[1], 42);
+  }
+
+  const joined = userMessages.slice(-8).join(' ').toLowerCase();
+  if (/\bnabadai\b/.test(joined)) return 'NabadAI';
+  if (/\bnabad\b/.test(joined)) return 'Nabad';
+  return '';
+}
+
+function enforceLogoTextAnchor(promptText = '', userText = '', messages = []) {
+  const request = cleanText(userText, 500);
+  const prompt = cleanText(promptText, 900) || request;
+  const imageType = detectImageType(`${prompt} ${request}`);
+  if (imageType !== 'logo') return prompt;
+
+  const explicit =
+    request.match(/\b(?:brand name is|project name is|name is|called)\s+([a-zA-Z0-9][a-zA-Z0-9\s\-_]{1,40})\b/i) ||
+    request.match(/"([^"]{2,40})"/);
+  const brand = cleanText(explicit?.[1] || extractBrandHintFromMessages(messages) || 'NabadAI', 42);
+  const hasTextAnchor = /\b(exact\s*(brand|logo|wordmark)?\s*text|logo text|wordmark text|brand text)\b/i.test(prompt);
+  return hasTextAnchor
+    ? prompt
+    : cleanText(`${prompt}, exact logo text: ${brand}, no other words`, 900);
+}
+
 async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiClient) {
+  const brandHint = extractBrandHintFromMessages(messages) || 'NabadAI';
   try {
-    const historyContext = messages.slice(-4).map(m => `${m.role}: ${getMessageText(m.content).slice(0, 200)}`).join('\n');
+    const historyContext = messages
+      .filter((m) => m?.role === 'user')
+      .slice(-4)
+      .map((m) => `user: ${getMessageText(m.content).slice(0, 220)}`)
+      .join('\n');
     const resp = await openaiClient.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: 'You are an expert AI image prompt writer. Given a user request and conversation history, write a vivid, detailed image generation prompt (max 120 words). Focus on visual details, style, lighting, composition. Include exact brand names or text that must appear in the image. No quotation marks.' },
-        { role: 'user', content: `Conversation:\n${historyContext}\n\nUser request: ${userText}\n\nWrite the image prompt:` }
+        {
+          role: 'system',
+          content: `You are an expert AI image prompt writer. Write one vivid image prompt (max 90 words).
+Rules:
+- Never invent brand names or words.
+- If the request is for a logo and brand text is missing, use this fallback brand text exactly: ${brandHint}
+- Return prompt text only.`
+        },
+        { role: 'user', content: `Recent user context:\n${historyContext}\n\nUser request: ${userText}\n\nWrite the final image prompt:` }
       ],
       max_tokens: 180, temperature: 0.8
     });
-    return resp.choices?.[0]?.message?.content?.trim() || userText;
-  } catch { return userText; }
+    const modelPrompt = resp.choices?.[0]?.message?.content?.trim() || userText;
+    return enforceLogoTextAnchor(modelPrompt, userText, messages);
+  } catch {
+    return enforceLogoTextAnchor(userText, userText, messages);
+  }
 }
 async function buildImageEditPromptFromAttachment(userText = '', imageDataUrl = '', messages = [], openaiClient) {
   try {
@@ -3633,6 +3687,7 @@ export default async function handler(req, res) {
         imagePrompt = await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
       }
       imagePrompt = enrichImagePrompt(imagePrompt, imageType);
+      imagePrompt = enforceLogoTextAnchor(imagePrompt, lastUserMessage, messages);
       const generated = await generateImageWithProviderChain(imagePrompt, imageType, { preferred: imageProvider });
       providerTrace.imageGeneration = generated?.provider || '';
       return respond({
