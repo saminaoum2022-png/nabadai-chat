@@ -735,7 +735,9 @@
     const asksGeneration =
       /\b(generate|create|make|design|draw|build|produce|regenerate|redo)\b/.test(t) &&
       /\b(image|photo|picture|logo|icon|illustration|banner|visual|graphic|mockup)\b/.test(t);
-    const asksImageByNoun = /\b(logo|mockup|brand mark|wordmark|icon)\b/.test(t);
+    const asksImageByNoun =
+      /\b(logo|mockup|brand mark|wordmark|icon)\b/.test(t) &&
+      /\b(generate|create|make|design|draw|build|produce|regenerate|redo|for me|please|another|new version)\b/.test(t);
     const attachedImageEdit =
       !!(attachment && attachment.kind === 'image' && /\b(edit|change|modify|remove|replace|add|improve|tweak)\b/.test(t));
     return asksGeneration || asksImageByNoun || attachedImageEdit;
@@ -820,6 +822,7 @@
   }
 
 function showPersonalityPill(id) {
+  if (id === 'auto') return;
   const c = PERSONALITY_COLORS[id];
   if (!c) return;
 
@@ -5079,12 +5082,21 @@ function finishOnboarding() {
     const replyTo = state.replyTo;
     if (!text && !attachment) return;
 
-    const temporaryCreativeFromAuto = state.autoDetectMode && shouldForceCreativeForImage(text, attachment);
-    if (temporaryCreativeFromAuto) {
-      state.temporaryCreativeLock = true;
-    }
     if (shouldForceCreativeForImage(text, attachment)) {
-      forceCreativeModeForImage();
+      if (state.autoDetectMode) {
+        const prev = state.personality;
+        if (prev !== 'creative') {
+          state.personality = 'creative';
+          state.personalityBuffer = null;
+          state.personalityCount = 0;
+          state.personalityScore = 0;
+          setInputPlaceholder();
+          updatePersonalityBadge();
+          applyPersonalityColor('creative', true);
+        }
+      } else {
+        forceCreativeModeForImage();
+      }
     }
 
     refs.input.value = '';
@@ -5204,20 +5216,6 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
         showWarRoomSuggestion(data.suggestWarRoom);
       }
 
-      if (state.temporaryCreativeLock) {
-        state.temporaryCreativeLock = false;
-        state.autoDetectMode = true;
-        state.personality = 'auto';
-        state.personalityBuffer = null;
-        state.personalityCount = 0;
-        state.personalityScore = 0;
-        savePersonality('auto');
-        saveAutoDetect(true);
-        setInputPlaceholder();
-        updatePersonalityBadge();
-        applyPersonalityColor('auto', true);
-      }
-
       // ── Smarter personality switching (confidence + stickiness) ──
       if (state.autoDetectMode) {
         const detected = String(data.detectedPersonality || 'auto');
@@ -5260,16 +5258,6 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
       }
 
     } catch (err) {
-      if (state.temporaryCreativeLock) {
-        state.temporaryCreativeLock = false;
-        state.autoDetectMode = true;
-        state.personality = 'auto';
-        savePersonality('auto');
-        saveAutoDetect(true);
-        setInputPlaceholder();
-        updatePersonalityBadge();
-        applyPersonalityColor('auto', false);
-      }
       showTyping(false);
       if (logo) logo.classList.remove('thinking');
       console.error('[NABAD] sendMessage error:', err);
