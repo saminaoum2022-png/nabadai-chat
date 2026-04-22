@@ -72,6 +72,7 @@
     messages:    `${CONFIG.storageNamespace}:messages`,
     personality: `${CONFIG.storageNamespace}:personality`,
     imageProvider: `${CONFIG.storageNamespace}:imageProvider`,
+    liveResearchMode: `${CONFIG.storageNamespace}:liveResearchMode`,
     userProfile: `${CONFIG.storageNamespace}:userProfile`,
     onboarded:   `${CONFIG.storageNamespace}:onboarded`,
     memoryKey:   `${CONFIG.storageNamespace}:memoryKey`,
@@ -219,6 +220,7 @@
     personalityChosen: !!loadPersonality(),
     autoDetectMode: loadAutoDetect(),
     imageProvider: loadImageProvider(),
+    liveResearchMode: loadLiveResearchMode(),
     onboarded: loadOnboarded(),
     userProfile: loadUserProfile(),
     claimedAccount: loadAccountClaim(),
@@ -345,6 +347,22 @@
     try {
       const v = String(value || 'auto').toLowerCase();
       localStorage.setItem(STORAGE_KEYS.imageProvider, v);
+    } catch {}
+  }
+
+  function loadLiveResearchMode() {
+    try {
+      const raw = (localStorage.getItem(STORAGE_KEYS.liveResearchMode) || '').toLowerCase().trim();
+      return raw === 'on_demand' ? 'on_demand' : 'auto';
+    } catch {
+      return 'auto';
+    }
+  }
+
+  function saveLiveResearchMode(value = 'auto') {
+    try {
+      const mode = String(value || 'auto').toLowerCase();
+      localStorage.setItem(STORAGE_KEYS.liveResearchMode, mode === 'on_demand' ? 'on_demand' : 'auto');
     } catch {}
   }
 
@@ -5535,6 +5553,7 @@ function finishOnboarding() {
           messages:    outboundMessages,
           personality: state.autoDetectMode ? 'auto' : state.personality,
           imageProvider: state.imageProvider || 'auto',
+          liveResearchMode: state.liveResearchMode || 'auto',
           userProfile: profile,
           memoryKey: getMemoryKey(),
           attachment: attachmentPayload,
@@ -5937,6 +5956,20 @@ function openSettingsPage() {
             </select>
           </div>
 
+          <div class="nabad-toggle-wrap" style="margin-top:10px;">
+            <div class="nabad-toggle-left">
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.auto}</div>
+              <div>
+                <div class="nabad-settings-row-label">Live Research</div>
+                <div class="nabad-settings-row-desc">Auto = smarter web checks. Off = only when you ask explicitly.</div>
+              </div>
+            </div>
+            <label class="nabad-toggle">
+              <input type="checkbox" id="nabad-live-research-toggle" ${state.liveResearchMode !== 'on_demand' ? 'checked' : ''} />
+              <span class="nabad-toggle-slider"></span>
+            </label>
+          </div>
+
         </div>
       </div>
 
@@ -6053,6 +6086,7 @@ function openSettingsPage() {
   const autoToggle = page.querySelector('#nabad-auto-toggle');
   const personalityGrid = page.querySelector('#nabad-settings-personality-grid');
   const imageProviderSelect = page.querySelector('#nabad-image-provider-select');
+  const liveResearchToggle = page.querySelector('#nabad-live-research-toggle');
   const notificationsToggle = page.querySelector('#nabad-notifications-toggle');
   const notificationsStatus = page.querySelector('#nabad-notifications-status');
 
@@ -6083,6 +6117,14 @@ function openSettingsPage() {
       const next = (imageProviderSelect.value || 'auto').toLowerCase();
       state.imageProvider = ['auto', 'openai', 'gemini', 'nanobanana', 'ideogram', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
       saveImageProvider(state.imageProvider);
+    });
+  }
+
+  if (liveResearchToggle) {
+    liveResearchToggle.checked = state.liveResearchMode !== 'on_demand';
+    liveResearchToggle.addEventListener('change', () => {
+      state.liveResearchMode = liveResearchToggle.checked ? 'auto' : 'on_demand';
+      saveLiveResearchMode(state.liveResearchMode);
     });
   }
 
