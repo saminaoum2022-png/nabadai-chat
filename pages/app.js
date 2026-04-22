@@ -20,6 +20,8 @@ export default function AppPage() {
     { id: 'auto', label: 'Let Nabad choose' },
     { id: 'openai', label: 'OpenAI' },
     { id: 'gemini', label: 'Gemini' },
+    { id: 'nanobanana', label: 'Nano Banana (Gemini)' },
+    { id: 'ideogram', label: 'Ideogram' },
     { id: 'replicate', label: 'Replicate' },
     { id: 'pollinations', label: 'Draft (Free)' }
   ]), []);
@@ -66,7 +68,7 @@ export default function AppPage() {
           };
         `}
       </Script>
-      <Script id="nabad-widget-script-app" src="/widget.js?v=59" strategy="afterInteractive" />
+      <Script id="nabad-widget-script-app" src="/widget.js?v=61" strategy="afterInteractive" />
 
       <main className="nabad-app-page">
         <div className="nabad-app-shell">
