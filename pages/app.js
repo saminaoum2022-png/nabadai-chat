@@ -14,7 +14,7 @@ const PERSONALITIES = [
 
 export default function AppPage() {
   const [activePersonality, setActivePersonality] = useState('auto');
-  const [imageProvider, setImageProvider] = useState('auto');
+  const [imageProvider, setImageProvider] = useState('gemini');
 
   const providerOptions = useMemo(() => ([
     { id: 'auto', label: 'Let Nabad choose' },
@@ -30,9 +30,9 @@ export default function AppPage() {
     if (typeof window === 'undefined') return;
     try {
       const savedPersonality = (localStorage.getItem('nabad_widget_v5:personality') || 'auto').toLowerCase();
-      const savedProvider = (localStorage.getItem('nabad_widget_v5:imageProvider') || 'auto').toLowerCase();
+      const savedProvider = (localStorage.getItem('nabad_widget_v5:imageProvider') || 'gemini').toLowerCase();
       setActivePersonality(PERSONALITIES.some((p) => p.id === savedPersonality) ? savedPersonality : 'auto');
-      setImageProvider(providerOptions.some((p) => p.id === savedProvider) ? savedProvider : 'auto');
+      setImageProvider(providerOptions.some((p) => p.id === savedProvider) ? savedProvider : 'gemini');
     } catch {}
   }, [providerOptions]);
 
@@ -68,7 +68,7 @@ export default function AppPage() {
           };
         `}
       </Script>
-      <Script id="nabad-widget-script-app" src="/widget.js?v=62" strategy="afterInteractive" />
+      <Script id="nabad-widget-script-app" src="/widget.js?v=63" strategy="afterInteractive" />
 
       <main className="nabad-app-page">
         <div className="nabad-app-shell">
