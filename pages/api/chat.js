@@ -2030,7 +2030,7 @@ function isWebsiteReviewRequest(text = '') {
 }
 function wantsStructuredCardFormat(text = '') {
   const t = String(text || '').toLowerCase();
-  return /\b(card|scorecard|table|matrix|checklist|roadmap|step.?by.?step|template|formatted|format as)\b/.test(t);
+  return /\b(card|scorecard|table|matrix|checklist|roadmap|step.?by.?step|template|formatted|format as|pricing|price card)\b/.test(t);
 }
 function hasRichBusinessContext(messages = []) {
   const userMsgs = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content).toLowerCase());
@@ -2180,8 +2180,25 @@ function buildScoreCard(data = {}) {
 
 // ── Pricing Table ─────────────────────────────────────────────────────────────
 function isPricingTableRequest(text = '') {
-  return /\b(pricing table|price table|pricing plan|pricing tier|tier(ed)? pricing|package price|service price|how much (should|do|to) (i |we )?charge|price my (service|offer|package|product))\b/i.test(text)
+  return /\b(pricing table|price table|pricing card|price card|pricing plan|pricing tier|tier(ed)? pricing|package price|service price|how much (should|do|to) (i |we )?charge|price my (service|offer|package|product))\b/i.test(text)
     || /\b(create|build|show|give|make|design)\b.{0,30}\b(pricing|price plan|packages?)\b/i.test(text);
+}
+function pricingCardAnchorPromptRecently(messages = [], lookback = 8) {
+  return messages.slice(-lookback).some((m) => {
+    if (m.role !== 'assistant') return false;
+    const text = getMessageText(m.content).toLowerCase();
+    return text.includes('i can build a premium pricing card') && text.includes('i need 3 anchors');
+  });
+}
+function hasPricingAnchorContext(messages = [], lastUserMessage = '') {
+  const userMessages = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m.role === 'user')
+    .map((m) => getMessageText(m.content));
+  const recentUserText = `${userMessages.slice(-3).join(' ')} ${lastUserMessage}`.toLowerCase();
+  const hasOffer = /\b(offer|service|package|product|subscription|consulting|agency|saas|chatbot|assistant|app|tool)\b/.test(recentUserText);
+  const hasAudience = /\b(client|customer|audience|target|founder|startup|brand|business|team|company|enterprise)\b/.test(recentUserText);
+  const hasOutcome = /\b(outcome|result|goal|benefit|solve|improve|grow|conversion|sales|trust|leads|efficiency)\b/.test(recentUserText);
+  return hasOffer && hasAudience && hasOutcome;
 }
 function hasEnoughPricingContext(messages = [], userProfile = '', lastUserMessage = '') {
   const userMessages = (Array.isArray(messages) ? messages : [])
@@ -2196,7 +2213,7 @@ function hasEnoughPricingContext(messages = [], userProfile = '', lastUserMessag
   const hasDeliverables = /\b(include|includes|deliverable|feature|what you get|scope|support|review|strategy|logo|kit|guide)\b/.test(recentUserText);
   const hasPriceSignal = /\b(aed|usd|sar|egp|price|pricing|per month|per year|\/month|\/year|\$\s*\d|\d+\s*(aed|usd|sar|egp))\b/.test(`${recentUserText} ${lastUserMessage.toLowerCase()}`);
 
-  return hasOffer && hasPriceSignal && (hasAudience || hasDeliverables);
+  return hasOffer && (hasPriceSignal || hasPricingAnchorContext(messages, lastUserMessage)) && (hasAudience || hasDeliverables);
 }
 function hasPlaceholderText(value = '') {
   const t = cleanText(String(value || ''), 240);
@@ -3217,8 +3234,10 @@ export default async function handler(req, res) {
   }
 
   // ── Pricing Table ──
-  if (isPricingTableRequest(lastUserMessage) && cardModeRequested) {
-    if (!hasEnoughPricingContext(messages, userProfile, lastUserMessage)) {
+  const pricingCardRequestedNow = isPricingTableRequest(lastUserMessage) && cardModeRequested;
+  const pricingCardFollowupReady = pricingCardAnchorPromptRecently(messages, 8) && hasPricingAnchorContext(messages, lastUserMessage);
+  if (pricingCardRequestedNow || pricingCardFollowupReady) {
+    if (pricingCardRequestedNow && !hasEnoughPricingContext(messages, userProfile, lastUserMessage)) {
       return respond({
         reply: '<p>I can build a premium pricing card, but I need 3 anchors first: what exactly you sell, who the ideal buyer is, and one key outcome you deliver.</p><p>Send them in one line and I will generate the full card.</p>',
         detectedPersonality: 'offer'
