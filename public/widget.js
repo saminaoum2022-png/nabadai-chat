@@ -322,7 +322,7 @@
   function loadImageProvider() {
     try {
       const raw = (localStorage.getItem(STORAGE_KEYS.imageProvider) || '').toLowerCase().trim();
-      const valid = ['auto', 'openai', 'gemini', 'pollinations', 'replicate'];
+      const valid = ['auto', 'openai', 'gemini', 'nanobanana', 'ideogram', 'pollinations', 'replicate'];
       return valid.includes(raw) ? raw : 'auto';
     } catch {
       return 'auto';
@@ -3928,7 +3928,7 @@ function showPersonalityPill(id) {
                 <path d="M21.44 11.05l-8.49 8.49a5 5 0 0 1-7.07-7.07l8.49-8.49a3.5 3.5 0 0 1 4.95 4.95L9.76 18.5a2 2 0 0 1-2.83-2.83l8.13-8.13"/>
               </svg>
             </button>
-            <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..."></textarea>
+            <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..." enterkeyhint="send" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="true"></textarea>
             <button id="nabad-mic" type="button" aria-label="Voice note">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="9" y="2" width="6" height="12" rx="3"/>
@@ -3944,7 +3944,7 @@ function showPersonalityPill(id) {
               </svg>
             </button>
           </div>
-          <input id="nabad-file-input" type="file" hidden accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx" />
+          <input id="nabad-file-input" type="file" hidden tabindex="-1" aria-hidden="true" accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx" />
         </div>
       </div>
 
@@ -5226,18 +5226,46 @@ function finishOnboarding() {
       button{display:none!important}
       @media print{body{padding:0;background:#fff}.wrap{max-width:none}}
     </style></head><body><div class="wrap">${cardEl.outerHTML}</div></body></html>`;
-    const win = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=900');
-    if (!win) {
-      alert('Popup blocked. Please allow popups to export PDF.');
+    let win = null;
+    try {
+      win = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=900');
+    } catch {
+      win = null;
+    }
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => {
+        win.print();
+      }, 300);
       return;
     }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.focus();
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '-9999px';
+    iframe.style.bottom = '0';
+    iframe.style.width = '1px';
+    iframe.style.height = '1px';
+    iframe.style.opacity = '0';
+    iframe.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(iframe);
+    const frameDoc = iframe.contentWindow?.document;
+    if (!frameDoc || !iframe.contentWindow) {
+      iframe.remove();
+      alert('Could not open print preview. Try allowing popups for this site.');
+      return;
+    }
+    frameDoc.open();
+    frameDoc.write(html);
+    frameDoc.close();
+    iframe.contentWindow.focus();
     setTimeout(() => {
-      win.print();
-    }, 300);
+      iframe.contentWindow?.print();
+      setTimeout(() => iframe.remove(), 1500);
+    }, 250);
   }
 
   // ── PROCESS ASSISTANT BUBBLE (cards, images, score bars) ─────
@@ -5902,6 +5930,8 @@ function openSettingsPage() {
               <option value="auto" ${state.imageProvider === 'auto' ? 'selected' : ''}>Let Nabad choose</option>
               <option value="openai" ${state.imageProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
               <option value="gemini" ${state.imageProvider === 'gemini' ? 'selected' : ''}>Gemini</option>
+              <option value="nanobanana" ${state.imageProvider === 'nanobanana' ? 'selected' : ''}>Nano Banana (Gemini)</option>
+              <option value="ideogram" ${state.imageProvider === 'ideogram' ? 'selected' : ''}>Ideogram</option>
               <option value="replicate" ${state.imageProvider === 'replicate' ? 'selected' : ''}>Replicate</option>
               <option value="pollinations" ${state.imageProvider === 'pollinations' ? 'selected' : ''}>Draft (Free)</option>
             </select>
@@ -6051,7 +6081,7 @@ function openSettingsPage() {
   if (imageProviderSelect) {
     imageProviderSelect.addEventListener('change', () => {
       const next = (imageProviderSelect.value || 'auto').toLowerCase();
-      state.imageProvider = ['auto', 'openai', 'gemini', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
+      state.imageProvider = ['auto', 'openai', 'gemini', 'nanobanana', 'ideogram', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
       saveImageProvider(state.imageProvider);
     });
   }
@@ -7043,7 +7073,7 @@ function setSendState(stateLabel) {
     window.__NABAD_SET_PERSONALITY__ = (id) => setActivePersonality(String(id || 'auto'));
     window.__NABAD_SET_IMAGE_PROVIDER__ = (provider) => {
       const next = String(provider || 'auto').toLowerCase();
-      state.imageProvider = ['auto', 'openai', 'gemini', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
+      state.imageProvider = ['auto', 'openai', 'gemini', 'nanobanana', 'ideogram', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
       saveImageProvider(state.imageProvider);
     };
     window.__NABAD_NEW_CHAT__ = () => newChat();
