@@ -153,6 +153,50 @@
       { key: 'timeCommitment',  label: 'How much time can you commit per week?',     placeholder: 'e.g. 10 hours, full time, evenings only' }
     ]
   };
+  const ACTION_CHIPS_BY_PERSONALITY = {
+    strategist: [
+      'Build a 90-day roadmap for my business',
+      'Create a competitor gap matrix for my market',
+      'Score this idea and give me one next move',
+      'Turn my concept into a go-to-market plan'
+    ],
+    growth: [
+      'Build me a weekly growth experiment plan',
+      'Diagnose my funnel and fix weak conversion points',
+      'Create a channel strategy by budget',
+      'Give me KPI targets for the next 30 days'
+    ],
+    branding: [
+      'Write my brand positioning statement',
+      'Create a messaging guide and tone of voice',
+      'Audit my website trust signals and clarity',
+      'Define my ICP and value proposition'
+    ],
+    offer: [
+      'Build a pricing card for my offer',
+      'Design a Good-Better-Best package stack',
+      'Create objection handling for this offer',
+      'Build a profitable offer structure with margins'
+    ],
+    creative: [
+      'Generate 3 logo directions for my brand',
+      'Create ad visual concepts for this campaign',
+      'Rewrite my headline in 10 bold ways',
+      'Design a brand style direction board'
+    ],
+    straight_talk: [
+      'Tell me the real bottleneck in my business',
+      'What should I stop doing immediately?',
+      'Give me the fastest path to first revenue',
+      'Give me a blunt action plan for this week'
+    ],
+    auto: [
+      'Guide me to the best next move for my business',
+      'Build my pricing card from this offer idea',
+      'Analyze my website and tell me what to fix first',
+      'Generate a logo concept for my brand'
+    ]
+  };
 
   const SETTINGS_ICONS = {
     auto: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><path d="M12 18v3"/><path d="M4.93 4.93l2.12 2.12"/><path d="M16.95 16.95l2.12 2.12"/><path d="M3 12h3"/><path d="M18 12h3"/><path d="M4.93 19.07l2.12-2.12"/><path d="M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="3.5"/></svg>`,
@@ -192,19 +236,38 @@
     temporaryCreativeLock: false,
     replyTo: null,
     notificationsEnabled: loadNotificationsEnabled(),
-    typingLabels: null
+    typingLabels: null,
+    quickActionsPinned: false
   };
 
   const refs = {
     root: null, launcher: null, panel: null,
     messages: null, input: null, send: null,
     attach: null, fileInput: null, attachmentChip: null, replyBar: null,
+    quickActions: null,
     badge: null, typing: null,
     lightbox: null, lightboxImg: null,
     lightboxSave: null, lightboxOpen: null, lightboxClose: null
   };
 
   let currentLightboxSrc = '';
+  async function downloadImageFromUrl(url, filename = 'nabad-generated-image.png') {
+    if (!url) return;
+    try {
+      const r = await fetch(url);
+      const b = await r.blob();
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 1500);
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
 
   // ── STORAGE ──────────────────────────────────────────────────
   function loadMessages() {
@@ -731,6 +794,46 @@
       auto:          'Ask Nabad anything...'
     };
     refs.input.placeholder = map[state.personality] || 'Ask Nabad anything...';
+    renderQuickActions();
+  }
+
+  function getQuickActionPersonality() {
+    if (state.autoDetectMode && state.personality === 'auto') return 'auto';
+    return state.personality || 'auto';
+  }
+
+  function shouldCollapseQuickActions() {
+    const userCount = state.messages.filter((m) => m.role === 'user').length;
+    return userCount >= 6 && !state.quickActionsPinned;
+  }
+
+  function renderQuickActions() {
+    if (!refs.quickActions) return;
+    if (!state.onboarded) {
+      refs.quickActions.classList.add('hidden');
+      refs.quickActions.innerHTML = '';
+      return;
+    }
+
+    const personality = getQuickActionPersonality();
+    const chips = ACTION_CHIPS_BY_PERSONALITY[personality] || ACTION_CHIPS_BY_PERSONALITY.auto;
+
+    if (shouldCollapseQuickActions()) {
+      refs.quickActions.classList.remove('hidden');
+      refs.quickActions.innerHTML = `
+        <button type="button" class="nabad-action-chip primary" data-nabad-quick-action="reopen">✨ Actions</button>
+      `;
+      return;
+    }
+
+    const visibleChips = chips.slice(0, 4).map((text) => (
+      `<button type="button" class="nabad-action-chip" data-nabad-quick-action="prompt" data-prompt="${escapeHtml(text)}">${escapeHtml(text)}</button>`
+    )).join('');
+    refs.quickActions.classList.remove('hidden');
+    refs.quickActions.innerHTML = `
+      ${visibleChips}
+      <button type="button" class="nabad-action-chip primary" data-nabad-quick-action="collapse">Hide</button>
+    `;
   }
 
   function shouldForceCreativeForImage(text = '', attachment = null) {
@@ -1814,6 +1917,58 @@ function showPersonalityPill(id) {
         background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, #f8fbff 100%);
         width: 100%;
         overflow: visible;
+      }
+      #nabad-quick-actions {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: thin;
+        padding: 0 2px 6px;
+        margin-bottom: 6px;
+      }
+      #nabad-quick-actions.hidden {
+        display: none;
+      }
+      #nabad-quick-actions::-webkit-scrollbar {
+        height: 6px;
+      }
+      #nabad-quick-actions::-webkit-scrollbar-thumb {
+        background: rgba(37,99,235,.24);
+        border-radius: 999px;
+      }
+      .nabad-action-chip {
+        border: 1px solid rgba(37,99,235,.18);
+        background: rgba(255,255,255,.95);
+        color: #1e3a8a;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        padding: 7px 11px;
+        cursor: pointer;
+        box-shadow: 0 6px 16px rgba(37,99,235,.08);
+      }
+      .nabad-action-chip.primary {
+        color: #fff;
+        border-color: transparent;
+        background: linear-gradient(135deg,#2563eb,#06b6d4);
+      }
+      .nabad-inline-image-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      .nabad-inline-image-save {
+        align-self: flex-start;
+        border: 1px solid rgba(37,99,235,.2);
+        background: rgba(255,255,255,.96);
+        color: #1e3a8a;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
       }
 
       #nabad-composer-top {
@@ -3766,6 +3921,7 @@ function showPersonalityPill(id) {
             <div id="nabad-attachment-chip"></div>
             <div id="nabad-reply-bar"></div>
           </div>
+          <div id="nabad-quick-actions"></div>
           <div id="nabad-input-row">
             <button id="nabad-attach" type="button" aria-label="Attach file">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
@@ -3821,6 +3977,7 @@ function showPersonalityPill(id) {
     refs.fileInput     = root.querySelector('#nabad-file-input');
     refs.attachmentChip = root.querySelector('#nabad-attachment-chip');
     refs.replyBar      = root.querySelector('#nabad-reply-bar');
+    refs.quickActions  = root.querySelector('#nabad-quick-actions');
     refs.badge         = root.querySelector('#nabad-selected-personality');
     refs.typing        = root.querySelector('#nabad-typing');
     refs.lightbox      = root.querySelector('#nabad-lightbox');
@@ -3868,6 +4025,28 @@ function showPersonalityPill(id) {
     });
 
     refs.input.addEventListener('input', autoGrowTextarea);
+    refs.quickActions?.addEventListener('click', (e) => {
+      const btn = e.target?.closest?.('[data-nabad-quick-action]');
+      if (!btn || !refs.input) return;
+      const action = btn.getAttribute('data-nabad-quick-action');
+      if (action === 'reopen') {
+        state.quickActionsPinned = true;
+        renderQuickActions();
+        return;
+      }
+      if (action === 'collapse') {
+        state.quickActionsPinned = false;
+        renderQuickActions();
+        return;
+      }
+      if (action === 'prompt') {
+        const prompt = cleanText(btn.getAttribute('data-prompt') || '', 300);
+        if (!prompt) return;
+        refs.input.value = prompt;
+        autoGrowTextarea();
+        refs.input.focus();
+      }
+    });
 
     refs.lightboxClose.addEventListener('click', closeImageLightbox);
     refs.lightbox.addEventListener('click', e => {
@@ -3882,17 +4061,7 @@ function showPersonalityPill(id) {
 
     refs.lightboxSave.addEventListener('click', async () => {
       if (!currentLightboxSrc) return;
-      try {
-        const r = await fetch(currentLightboxSrc);
-        const b = await r.blob();
-        const u = URL.createObjectURL(b);
-        const a = document.createElement('a');
-        a.href = u; a.download = 'nabad-generated-image.png';
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(u), 1500);
-      } catch {
-        window.open(currentLightboxSrc, '_blank', 'noopener,noreferrer');
-      }
+      await downloadImageFromUrl(currentLightboxSrc, 'nabad-generated-image.png');
     });
 
     refs.lightboxOpen.addEventListener('click', () => {
@@ -4925,6 +5094,7 @@ function finishOnboarding() {
       saveMessages();
     }
 
+    renderQuickActions();
     scrollToBottom();
     return bubble;
   }
@@ -4999,6 +5169,49 @@ function finishOnboarding() {
     URL.revokeObjectURL(url);
   }
 
+  function exportPricingCardWord(cardEl) {
+    if (!cardEl) return;
+    const title = cleanText(cardEl.querySelector('[data-pricing-title]')?.textContent || 'Pricing Table', 120);
+    const rows = extractPricingRows(cardEl);
+    if (!rows.length) {
+      alert('No pricing tiers found to export.');
+      return;
+    }
+    const rowHtml = rows.map((r) => `
+      <tr>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.rawPrice)}</td>
+        <td>${escapeHtml(r.period)}</td>
+        <td>${escapeHtml(r.desc)}</td>
+        <td>${escapeHtml(r.features.join(', '))}</td>
+      </tr>
+    `).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
+      <style>
+        body{font-family:Calibri,Arial,sans-serif;color:#0f172a;padding:24px}
+        h1{font-size:22px;margin:0 0 10px}
+        table{width:100%;border-collapse:collapse}
+        th,td{border:1px solid #cbd5e1;padding:8px 10px;font-size:12px;vertical-align:top}
+        th{background:#eff6ff;text-align:left}
+      </style>
+    </head><body>
+      <h1>${escapeHtml(title)}</h1>
+      <table>
+        <thead><tr><th>Plan</th><th>Price</th><th>Period</th><th>Description</th><th>Features</th></tr></thead>
+        <tbody>${rowHtml}</tbody>
+      </table>
+    </body></html>`;
+    const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'pricing-table'}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function exportPricingCardPdf(cardEl) {
     if (!cardEl) return;
     const title = cleanText(cardEl.querySelector('[data-pricing-title]')?.textContent || 'Pricing Table', 120);
@@ -5054,8 +5267,21 @@ function finishOnboarding() {
         realImg.alt   = prompt || 'Generated image';
         realImg.title = 'Click to enlarge';
         realImg.addEventListener('click', () => openImageLightbox(src));
+        const wrap = document.createElement('div');
+        wrap.className = 'nabad-inline-image-wrap';
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'nabad-inline-image-save';
+        saveBtn.textContent = 'Save image';
+        saveBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          downloadImageFromUrl(src, 'nabad-generated-image.png');
+        });
+        wrap.appendChild(realImg);
+        wrap.appendChild(saveBtn);
         clearPlaceholderTimer(placeholder);
-        placeholder.replaceWith(realImg);
+        placeholder.replaceWith(wrap);
         scrollToBottom();
       };
       realImg.onerror = () => {
@@ -5108,6 +5334,10 @@ function finishOnboarding() {
         } else if (action === 'pricing-export-csv') {
           const cardEl = btn.closest('[data-nabad-card="pricing"]');
           exportPricingCardCsv(cardEl);
+          return;
+        } else if (action === 'pricing-export-docx') {
+          const cardEl = btn.closest('[data-nabad-card="pricing"]');
+          exportPricingCardWord(cardEl);
           return;
         } else if (action === 'onboard-business' || action === 'onboard-idea' || action === 'onboard-figuring') {
           const path = action.replace('onboard-', '');
