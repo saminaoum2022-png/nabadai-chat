@@ -631,6 +631,15 @@ function shouldUseLiveResearch(text = '') {
   return false;
 }
 
+function shouldUseLiveResearchByMode(text = '', mode = 'auto') {
+  const normalizedMode = cleanText(mode, 24).toLowerCase();
+  if (normalizedMode !== 'on_demand') return shouldUseLiveResearch(text);
+  const t = cleanText(text, 1200).toLowerCase();
+  if (!t) return false;
+  if (/\b(search|look up|google|online|web|internet|source|sources|latest|current|today|right now|news|update)\b/.test(t)) return true;
+  return false;
+}
+
 function computeDynamicMaxTokens(userText = '', base = 700) {
   const t = cleanText(userText, 1200).toLowerCase();
   if (!t) return Math.min(base, 620);
@@ -2958,6 +2967,8 @@ export default async function handler(req, res) {
       }
     : null;
   const imageProvider = cleanText(body?.imageProvider || '', 24).toLowerCase();
+  const liveResearchModeRaw = cleanText(body?.liveResearchMode || 'auto', 24).toLowerCase();
+  const liveResearchMode = liveResearchModeRaw === 'on_demand' ? 'on_demand' : 'auto';
   const attachment = body?.attachment && typeof body.attachment === 'object' ? body.attachment : null;
 
   if (memoryAction) {
@@ -3208,7 +3219,7 @@ export default async function handler(req, res) {
     return respond({ reply: POSITIONING_REPLY, detectedPersonality: 'auto' });
   }
 
-  const legalNeedsLive = isLegalComplianceRequest(lastUserMessage) && shouldUseLiveResearch(lastUserMessage);
+  const legalNeedsLive = isLegalComplianceRequest(lastUserMessage) && shouldUseLiveResearchByMode(lastUserMessage, liveResearchMode);
 
   // ── Legal/compliance request (country + industry aware) ──
   if (shouldShowLegalChecklistCard(lastUserMessage) && !legalNeedsLive) {
@@ -3492,7 +3503,7 @@ export default async function handler(req, res) {
     }, { persist: false });
   }
   const liveResearchIntent =
-    shouldUseLiveResearch(lastUserMessage) &&
+    shouldUseLiveResearchByMode(lastUserMessage, liveResearchMode) &&
     !shouldGenerateImage(lastUserMessage, messages);
   const liveResearch = liveResearchIntent
     ? await runLiveResearch(lastUserMessage, messages, userProfile)
