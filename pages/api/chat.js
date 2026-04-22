@@ -948,8 +948,7 @@ async function generateWithGeminiText(chatMessages = [], opts = {}) {
   const preferredModel = cleanText(process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', 80);
   const modelCandidates = Array.from(new Set([
     preferredModel,
-    'gemini-2.5-flash',
-    'gemini-2.0-flash'
+    'gemini-2.5-flash'
   ])).filter(Boolean);
   const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0.8;
   const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 700;
@@ -1016,7 +1015,7 @@ async function generateWithGeminiText(chatMessages = [], opts = {}) {
 async function generateWithGroqText(chatMessages = [], opts = {}) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY not set');
-  const model = cleanText(process.env.GROQ_TEXT_MODEL || 'llama-3.1-70b-versatile', 120);
+  const model = cleanText(process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile', 120);
   const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0.8;
   const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 700;
 
