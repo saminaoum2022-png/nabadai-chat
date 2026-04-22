@@ -633,15 +633,15 @@ function shouldUseLiveResearch(text = '') {
 
 function computeDynamicMaxTokens(userText = '', base = 700) {
   const t = cleanText(userText, 1200).toLowerCase();
-  if (!t) return Math.min(base, 520);
+  if (!t) return Math.min(base, 620);
   const likelyShortAnswer =
     t.length < 90 ||
     /\b(what is|who is|when is|price|latest|quick|brief|in short|one line)\b/.test(t);
-  if (likelyShortAnswer) return Math.min(base, 420);
+  if (likelyShortAnswer) return Math.min(base, 560);
   const likelyLongAnswer =
     /\b(step by step|detailed|full plan|roadmap|strategy|framework|business plan)\b/.test(t);
-  if (likelyLongAnswer) return Math.max(base, 700);
-  return Math.min(base, 560);
+  if (likelyLongAnswer) return Math.max(base, 780);
+  return Math.min(base, 660);
 }
 
 function normalizeLiveSource(item = {}) {
@@ -2656,6 +2656,17 @@ function ensureHtmlReply(text = '') {
   if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
   return '<p>' + raw.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
 }
+function repairTruncatedReply(text = '') {
+  let out = String(text || '').trim();
+  if (!out) return out;
+  const plain = out.replace(/<[^>]+>/g, '').trim();
+  if (/(next move:|strategic move:|growth move:|offer move:)\s*$/i.test(plain)) {
+    out += ' Share one line of context and I will make it specific.';
+  } else if (/[,:;\-–—]\s*$/.test(plain)) {
+    out += ' I can make this precise with one more line of context.';
+  }
+  return out;
+}
 
 // ── YES-intent router helper ──────────────────────────────────────────────────
 const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|yea|sounds good|let's go|let's do it|do that|go for it)[\s!.]*$/i;
@@ -3737,8 +3748,9 @@ console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
 
     const learningSignals = inferLearningSignals(lastUserMessage, detectedInfo, userLanguage);
     await persistFounderMemory(detectedInfo, learningSignals);
+    const safeReply = repairTruncatedReply(rawReply);
     return res.status(200).json({
-      reply: `${ensureHtmlReply(rawReply)}${websiteCheckedFooter}${sourcesFooter}`,
+      reply: `${ensureHtmlReply(safeReply)}${websiteCheckedFooter}${sourcesFooter}`,
       detectedInfo,
       suggestWarRoom,
       liveResearchUsed: !!liveResearch?.used,
