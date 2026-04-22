@@ -1326,8 +1326,9 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
   const preferredOverride = cleanText(options?.preferred || '', 24).toLowerCase();
   const preferred = preferredOverride || cleanText(process.env.NABAD_IMAGE_PROVIDER || 'auto', 24).toLowerCase();
   const forcedMode = cleanText(process.env.NABAD_IMAGE_MODE || 'balanced', 24).toLowerCase();
+  const allowOpenAI = options?.allowOpenAI !== false;
   const providers = [];
-  const hasOpenAIImage = !!process.env.OPENAI_API_KEY;
+  const hasOpenAIImage = !!process.env.OPENAI_API_KEY && allowOpenAI;
   const hasGeminiImage = !!process.env.GEMINI_API_KEY;
   const hasGenspark = !!process.env.GENSPARK_API_KEY;
   const hasIdeogram = !!process.env.IDEOGRAM_API_KEY;
@@ -1697,7 +1698,7 @@ function enforceLogoTextAnchor(promptText = '', userText = '', messages = []) {
     : cleanText(`${prompt}, exact logo text: ${brand}, no other words`, 900);
 }
 
-async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiClient) {
+async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiClient, preferredProvider = 'gemini', allowOpenAI = false) {
   const brandHint = extractBrandHintFromMessages(messages) || 'NabadAI';
   try {
     const historyContext = messages
@@ -1705,28 +1706,30 @@ async function buildImagePromptWithOpenAI(userText = '', messages = [], openaiCl
       .slice(-4)
       .map((m) => `user: ${getMessageText(m.content).slice(0, 220)}`)
       .join('\n');
-    const resp = await openaiClient.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert AI image prompt writer. Write one vivid image prompt (max 90 words).
+    const result = await runTaskWithProviderFallback([
+      {
+        role: 'system',
+        content: `You are an expert AI image prompt writer. Write one vivid image prompt (max 90 words).
 Rules:
 - Never invent brand names or words.
 - If the request is for a logo and brand text is missing, use this fallback brand text exactly: ${brandHint}
 - Return prompt text only.`
-        },
-        { role: 'user', content: `Recent user context:\n${historyContext}\n\nUser request: ${userText}\n\nWrite the final image prompt:` }
-      ],
-      max_tokens: 180, temperature: 0.8
+      },
+      { role: 'user', content: `Recent user context:\n${historyContext}\n\nUser request: ${userText}\n\nWrite the final image prompt:` }
+    ], openaiClient, preferredProvider, {
+      maxTokens: 180,
+      temperature: 0.8,
+      returnMeta: true,
+      allowOpenAI
     });
-    const modelPrompt = resp.choices?.[0]?.message?.content?.trim() || userText;
+    const modelPrompt = String(result?.text || '').trim() || userText;
     return enforceLogoTextAnchor(modelPrompt, userText, messages);
   } catch {
     return enforceLogoTextAnchor(userText, userText, messages);
   }
 }
-async function buildImageEditPromptFromAttachment(userText = '', imageDataUrl = '', messages = [], openaiClient) {
+async function buildImageEditPromptFromAttachment(userText = '', imageDataUrl = '', messages = [], openaiClient, allowOpenAI = false) {
+  if (!allowOpenAI) return userText;
   try {
     const historyContext = messages.slice(-4).map(m => `${m.role}: ${getMessageText(m.content).slice(0, 200)}`).join('\n');
     const resp = await openaiClient.chat.completions.create({
@@ -2267,7 +2270,7 @@ function shouldOfferSnapshot(messages = []) {
   return hasRichBusinessContext(messages);
 }
 
-async function generateBusinessSnapshot(messages = [], location = '', openaiClient, userProfile = '') {
+async function generateBusinessSnapshot(messages = [], location = '', openaiClient, userProfile = '', preferredProvider = 'gemini', allowOpenAI = false) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
   const profileContext = userProfile ? `User onboarding profile:\n${userProfile}\n\n` : '';
   const prompt = `${profileContext}Based on this business conversation, create a concise Business Snapshot JSON with these exact fields:
@@ -2283,11 +2286,16 @@ async function generateBusinessSnapshot(messages = [], location = '', openaiClie
 Context: ${context.slice(0, 2000)}
 Location: ${location || 'not specified'}`;
 
-  const resp = await openaiClient.chat.completions.create({
-    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
-    max_tokens: 600, temperature: 0.7
+  const result = await runTaskWithProviderFallback([
+    { role: 'system', content: 'Return only valid JSON. No markdown.' },
+    { role: 'user', content: prompt }
+  ], openaiClient, preferredProvider, {
+    maxTokens: 600,
+    temperature: 0.7,
+    returnMeta: true,
+    allowOpenAI
   });
-  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+  return tryParseJsonBlock(String(result?.text || '')) || {};
 }
 
 function buildSnapshotCard(data = {}, location = '') {
@@ -2322,7 +2330,7 @@ function isIdeaScoringRequest(text = '') {
     || /\b(score|rate|rating|rank|grade)\b.{0,40}\b(idea|concept|business|startup)\b/.test(t)
     || /\b(give me|show me|create|build)\b.{0,40}\b(score|rating|score card|scorecard)\b/.test(t);
 }
-async function generateNabadScore(messages = [], openaiClient) {
+async function generateNabadScore(messages = [], openaiClient, preferredProvider = 'gemini', allowOpenAI = false) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
   const prompt = `Analyse this business idea and return a JSON Nabad Score:
 {
@@ -2341,11 +2349,16 @@ async function generateNabadScore(messages = [], openaiClient) {
   "recommendation": "what to do next"
 }
 Context: ${context.slice(0, 2000)}`;
-  const resp = await openaiClient.chat.completions.create({
-    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
-    max_tokens: 700, temperature: 0.7
+  const result = await runTaskWithProviderFallback([
+    { role: 'system', content: 'Return only valid JSON. No markdown.' },
+    { role: 'user', content: prompt }
+  ], openaiClient, preferredProvider, {
+    maxTokens: 700,
+    temperature: 0.7,
+    returnMeta: true,
+    allowOpenAI
   });
-  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+  return tryParseJsonBlock(String(result?.text || '')) || {};
 }
 function buildScoreCard(data = {}) {
   const esc = escapeHtml;
@@ -2520,7 +2533,7 @@ function buildFallbackPricingData(messages = [], lastUserMessage = '', location 
   };
 }
 
-async function generatePricingTable(messages = [], location = '', openaiClient, preferredProvider = 'gemini', debugTrace = null) {
+async function generatePricingTable(messages = [], location = '', openaiClient, preferredProvider = 'gemini', debugTrace = null, allowOpenAI = false) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
   const prompt = `Create a professional pricing table JSON for this business:
 {
@@ -2544,7 +2557,8 @@ Use realistic pricing for their market. Location: ${location || 'not specified'}
   ], openaiClient, preferredProvider, {
     temperature: 0.6,
     maxTokens: 900,
-    returnMeta: true
+    returnMeta: true,
+    allowOpenAI
   });
   if (debugTrace && typeof debugTrace === 'object') {
     debugTrace.pricingTable = result?.provider || preferredProvider;
@@ -2590,7 +2604,7 @@ function isOfferCardRequest(text = '') {
     || /\b(build|create|design|make)\b.{0,30}\b(flagship|signature|premium)\b.{0,30}\b(offer|package|service)\b/i.test(text);
 }
 
-async function generateOfferCard(messages = [], location = '', openaiClient, userProfile = '') {
+async function generateOfferCard(messages = [], location = '', openaiClient, userProfile = '', preferredProvider = 'gemini', allowOpenAI = false) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
   const profileContext = userProfile ? `User onboarding profile:\n${userProfile}\n\n` : '';
   const prompt = `${profileContext}You MUST return valid JSON only. No explanation. No markdown wrapping. No code blocks. No backticks. Just the raw JSON object with real values filled in based on the business context below.
@@ -2615,17 +2629,17 @@ Return ONLY this JSON structure:
 Business context: ${context.slice(0, 1500)}
 Location: ${location || 'not specified'}`;
 
-  const resp = await openaiClient.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: 'You are a JSON generator. Return only valid JSON. No markdown. No explanation. No code blocks. No backticks.' },
-      { role: 'user', content: prompt }
-    ],
-    max_tokens: 800,
-    temperature: 0.7
+  const result = await runTaskWithProviderFallback([
+    { role: 'system', content: 'You are a JSON generator. Return only valid JSON. No markdown. No explanation. No code blocks. No backticks.' },
+    { role: 'user', content: prompt }
+  ], openaiClient, preferredProvider, {
+    maxTokens: 800,
+    temperature: 0.7,
+    returnMeta: true,
+    allowOpenAI
   });
 
-  const raw = resp.choices?.[0]?.message?.content?.trim() || '';
+  const raw = String(result?.text || '').trim();
   const parsed = tryParseJsonBlock(raw);
 
   if (!parsed || !parsed.offerName) {
@@ -2685,7 +2699,7 @@ function isPositioningMatrixRequest(text = '') {
   return /\b(positioning matrix|competitive matrix|position (me|us|my brand)|compare (me|us) to|vs\b.{0,50}\b(competitor|agency|freelancer|brand)|market position|where do (i|we) sit|differentiat(e|ion) map)\b/i.test(text)
     || /\b(show|create|build|make|generate)\b.{0,30}\b(positioning|competitive|market|matrix)\b/i.test(text);
 }
-async function generatePositioningMatrix(messages = [], location = '', openaiClient) {
+async function generatePositioningMatrix(messages = [], location = '', openaiClient, preferredProvider = 'gemini', allowOpenAI = false) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
   const prompt = `Create a positioning matrix JSON for this business:
 {
@@ -2702,11 +2716,16 @@ async function generatePositioningMatrix(messages = [], location = '', openaiCli
   "recommendation": "What to do to strengthen your position"
 }
 Context: ${context.slice(0, 1500)}`;
-  const resp = await openaiClient.chat.completions.create({
-    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
-    max_tokens: 700, temperature: 0.75
+  const result = await runTaskWithProviderFallback([
+    { role: 'system', content: 'Return only valid JSON. No markdown.' },
+    { role: 'user', content: prompt }
+  ], openaiClient, preferredProvider, {
+    maxTokens: 700,
+    temperature: 0.75,
+    returnMeta: true,
+    allowOpenAI
   });
-  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+  return tryParseJsonBlock(String(result?.text || '')) || {};
 }
 function buildPositioningMatrixCard(data = {}) {
   const esc = escapeHtml;
@@ -2748,7 +2767,7 @@ function isActionPlanRequest(text = '') {
     || /\b(action plan|roadmap|step.?by.?step plan|weekly plan|monthly plan)\b/i.test(text)
     || /\b(what (should|do) i do (next|first|now)|next steps|where (do i|to) start)\b.{0,30}\b(plan|roadmap|steps)\b/i.test(text);
 }
-async function generateActionPlan(messages = [], location = '', openaiClient) {
+async function generateActionPlan(messages = [], location = '', openaiClient, preferredProvider = 'gemini', allowOpenAI = false) {
   const context = messages.filter(m => m.role === 'user').map(m => getMessageText(m.content)).join('\n');
   const prompt = `Create a 30-day action plan JSON for this business goal:
 {
@@ -2780,11 +2799,16 @@ async function generateActionPlan(messages = [], location = '', openaiClient) {
   "keyResources": ["Resource 1", "Resource 2"]
 }
 Context: ${context.slice(0, 1500)}. Location: ${location || 'not specified'}.`;
-  const resp = await openaiClient.chat.completions.create({
-    model: 'gpt-4o', messages: [{ role: 'user', content: prompt }],
-    max_tokens: 900, temperature: 0.75
+  const result = await runTaskWithProviderFallback([
+    { role: 'system', content: 'Return only valid JSON. No markdown.' },
+    { role: 'user', content: prompt }
+  ], openaiClient, preferredProvider, {
+    maxTokens: 900,
+    temperature: 0.75,
+    returnMeta: true,
+    allowOpenAI
   });
-  return tryParseJsonBlock(resp.choices[0].message.content) || {};
+  return tryParseJsonBlock(String(result?.text || '')) || {};
 }
 function buildActionPlanCard(data = {}) {
   const esc = escapeHtml;
@@ -2950,6 +2974,7 @@ async function runTaskWithProviderFallback(taskMessages = [], openaiClient = nul
   const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0;
   const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 180;
   const returnMeta = opts?.returnMeta === true;
+  const allowOpenAI = opts?.allowOpenAI !== false;
   const normalized = cleanText(preferredProvider || 'openai', 24).toLowerCase();
   const order = normalized === 'gemini'
     ? ['gemini', 'groq', 'openai']
@@ -2961,6 +2986,7 @@ async function runTaskWithProviderFallback(taskMessages = [], openaiClient = nul
   for (const provider of order) {
     try {
       if (provider === 'openai') {
+        if (!allowOpenAI) continue;
         if (!openaiClient) continue;
         const completion = await openaiClient.chat.completions.create({
           model: 'gpt-4o',
@@ -2991,7 +3017,45 @@ async function runTaskWithProviderFallback(taskMessages = [], openaiClient = nul
   throw lastErr || new Error('No provider available for task');
 }
 
-async function detectMeaningfulInfo(userMessage, openai, preferredProvider = 'openai', debugTrace = null) {
+async function withSoftTimeout(taskPromise, ms = 1200, fallbackValue = null) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      taskPromise,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(fallbackValue), Math.max(200, Number(ms) || 1200));
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function quickClassifyPersonality(userMessage = '', currentPersonality = 'auto') {
+  const t = cleanText(userMessage, 500).toLowerCase();
+  if (!t) return { id: 'auto', confidence: 0.35, reason: 'quick-empty' };
+  if (/\b(price|pricing|package|offer|subscription|tier|monetiz)\b/.test(t)) {
+    return { id: 'offer', confidence: 0.78, reason: 'quick-offer' };
+  }
+  if (/\b(logo|brand|naming|identity|positioning statement|tagline)\b/.test(t)) {
+    return { id: 'branding', confidence: 0.78, reason: 'quick-branding' };
+  }
+  if (/\b(growth|lead|conversion|traffic|funnel|campaign|ads|retention)\b/.test(t)) {
+    return { id: 'growth', confidence: 0.76, reason: 'quick-growth' };
+  }
+  if (/\b(strategy|roadmap|market|pivot|moat|competition|plan)\b/.test(t)) {
+    return { id: 'strategist', confidence: 0.74, reason: 'quick-strategy' };
+  }
+  if (/\b(blunt|brutal|straight|reality check|be direct)\b/.test(t)) {
+    return { id: 'straight_talk', confidence: 0.82, reason: 'quick-straight' };
+  }
+  if (/\b(creative|concept|crazy idea|visual direction|brainstorm)\b/.test(t)) {
+    return { id: 'creative', confidence: 0.72, reason: 'quick-creative' };
+  }
+  return { id: currentPersonality === 'auto' ? 'auto' : currentPersonality, confidence: 0.42, reason: 'quick-fallback' };
+}
+
+async function detectMeaningfulInfo(userMessage, openai, preferredProvider = 'openai', debugTrace = null, allowOpenAI = false) {
   const lite = detectMeaningfulInfoLite(userMessage);
   const mergeDetected = (primary = {}, fallback = {}) => {
     const out = {};
@@ -3018,7 +3082,8 @@ async function detectMeaningfulInfo(userMessage, openai, preferredProvider = 'op
     const checkResult = await runTaskWithProviderFallback(checkMessages, openai, preferredProvider, {
       temperature: 0,
       maxTokens: 8,
-      returnMeta: true
+      returnMeta: true,
+      allowOpenAI
     });
     const answer = String(checkResult?.text || '').trim().toLowerCase();
     const providersUsed = [];
@@ -3060,7 +3125,8 @@ Return ONLY a JSON object. If truly nothing found return {}.`
     const extractResult = await runTaskWithProviderFallback(extractMessages, openai, preferredProvider, {
       temperature: 0,
       maxTokens: 300,
-      returnMeta: true
+      returnMeta: true,
+      allowOpenAI
     });
     const raw = String(extractResult?.text || '{}');
     if (extractResult?.provider) providersUsed.push(extractResult.provider);
@@ -3124,7 +3190,7 @@ function detectMeaningfulInfoLite(userMessage = '') {
   return out;
 }
 
-async function detectWarRoom(userMessage, recentMessages, userProfile, openai, preferredProvider = 'gemini', debugTrace = null) {
+async function detectWarRoom(userMessage, recentMessages, userProfile, openai, preferredProvider = 'gemini', debugTrace = null, allowOpenAI = false) {
   const quick = cleanText(userMessage || '', 400).toLowerCase();
   const likelyWarRoom =
     /\b(should i|x or y|option a|option b|which one|tradeoff|dilemma|high[-\s]?stakes|big decision|shut down|co-founder conflict|fire someone|invest|funding decision|multiple perspectives|debate)\b/.test(quick);
@@ -3162,7 +3228,8 @@ User message: "${userMessage}"`
     ], openai, preferredProvider, {
       temperature: 0,
       maxTokens: 8,
-      returnMeta: true
+      returnMeta: true,
+      allowOpenAI
     });
     if (debugTrace && typeof debugTrace === 'object') {
       debugTrace.warRoom = checkResult?.provider || preferredProvider;
@@ -3178,7 +3245,7 @@ User message: "${userMessage}"`
 }
 
 // ── Personality Classifier ────────────────────────────────────────────────────
-async function classifyPersonality(userMessage = '', currentPersonality = 'auto', recentMessages = [], openaiClient, preferredProvider = 'openai', debugTrace = null) {
+async function classifyPersonality(userMessage = '', currentPersonality = 'auto', recentMessages = [], openaiClient, preferredProvider = 'openai', debugTrace = null, allowOpenAI = false) {
   const fallback = { id: 'auto', confidence: 0.35, reason: 'fallback' };
   try {
     const recent = recentMessages
@@ -3218,7 +3285,8 @@ Current user message: "${cleanText(userMessage, 500)}"`
     const classifyResult = await runTaskWithProviderFallback(taskMessages, openaiClient, preferredProvider, {
       temperature: 0,
       maxTokens: 80,
-      returnMeta: true
+      returnMeta: true,
+      allowOpenAI
     });
     const raw = String(classifyResult?.text || '');
     if (debugTrace && typeof debugTrace === 'object') {
@@ -3281,6 +3349,7 @@ export default async function handler(req, res) {
   const imageProvider = cleanText(body?.imageProvider || '', 24).toLowerCase();
   const liveResearchModeRaw = cleanText(body?.liveResearchMode || 'auto', 24).toLowerCase();
   const liveResearchMode = liveResearchModeRaw === 'on_demand' ? 'on_demand' : 'auto';
+  const allowOpenAIFallback = body?.allowOpenAIFallback === true || cleanText(process.env.NABAD_ALLOW_OPENAI_FALLBACK || 'false', 6).toLowerCase() === 'true';
   const attachment = body?.attachment && typeof body.attachment === 'object' ? body.attachment : null;
   const providerTrace = {
     mainText: '',
@@ -3589,9 +3658,9 @@ export default async function handler(req, res) {
       const basePrompt = lastMeta?.prompt || '';
       const prompt = basePrompt
         ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
-        : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+        : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai, 'gemini', allowOpenAIFallback);
       const imageType = detectImageType(prompt);
-      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
+      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider, allowOpenAI: allowOpenAIFallback });
       return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[PREMIUM IMAGE ERROR]', err?.message);
@@ -3615,9 +3684,9 @@ export default async function handler(req, res) {
       const basePrompt = lastMeta?.prompt || '';
       const prompt = basePrompt
         ? enrichImagePrompt(basePrompt, detectImageType(basePrompt))
-        : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+        : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai, 'gemini', allowOpenAIFallback);
       const imageType = detectImageType(prompt);
-      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
+      const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider, allowOpenAI: allowOpenAIFallback });
       return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[PREMIUM IMAGE ERROR]', err?.message);
@@ -3635,7 +3704,7 @@ export default async function handler(req, res) {
       const basePrompt = lastMeta?.prompt || lastUserMessage;
       const prompt = enrichImagePrompt(basePrompt, detectImageType(basePrompt));
       const imageType = detectImageType(prompt);
-      const generated = await generateImageWithProviderChain(`${prompt} exact text`, imageType, { preferred: imageProvider });
+      const generated = await generateImageWithProviderChain(`${prompt} exact text`, imageType, { preferred: imageProvider, allowOpenAI: allowOpenAIFallback });
       return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
     } catch (err) {
       console.error('[DIRECT PREMIUM ERROR]', err?.message);
@@ -3677,18 +3746,18 @@ export default async function handler(req, res) {
         const lastMeta = extractLastImageMeta(messages);
         const modText = isImageModificationRequest(lastUserMessage) ? lastUserMessage : '';
         if (parsedAttachment?.imageDataUrl && isImageModificationRequest(lastUserMessage)) {
-          imagePrompt = await buildImageEditPromptFromAttachment(lastUserMessage, parsedAttachment.imageDataUrl, messages, openai);
+          imagePrompt = await buildImageEditPromptFromAttachment(lastUserMessage, parsedAttachment.imageDataUrl, messages, openai, allowOpenAIFallback);
         } else {
           imagePrompt = lastMeta
             ? enrichImagePrompt(`${modText} ${lastMeta.prompt}`.trim(), imageType)
-            : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+            : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai, 'gemini', allowOpenAIFallback);
         }
       } else {
-        imagePrompt = await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+        imagePrompt = await buildImagePromptWithOpenAI(lastUserMessage, messages, openai, 'gemini', allowOpenAIFallback);
       }
       imagePrompt = enrichImagePrompt(imagePrompt, imageType);
       imagePrompt = enforceLogoTextAnchor(imagePrompt, lastUserMessage, messages);
-      const generated = await generateImageWithProviderChain(imagePrompt, imageType, { preferred: imageProvider });
+      const generated = await generateImageWithProviderChain(imagePrompt, imageType, { preferred: imageProvider, allowOpenAI: allowOpenAIFallback });
       providerTrace.imageGeneration = generated?.provider || '';
       return respond({
         reply: buildImageReplyHtml(generated.url, imagePrompt, imageType, generated.provider),
@@ -3708,9 +3777,9 @@ export default async function handler(req, res) {
         const lastMeta = extractLastImageMeta(messages);
         const prompt = lastMeta?.prompt
           ? enrichImagePrompt(lastMeta.prompt, detectImageType(lastMeta.prompt))
-          : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai);
+          : await buildImagePromptWithOpenAI(lastUserMessage, messages, openai, 'gemini', allowOpenAIFallback);
         const imageType = detectImageType(prompt);
-        const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider });
+        const generated = await generateImageWithProviderChain(`${prompt} premium quality`, imageType, { preferred: imageProvider, allowOpenAI: allowOpenAIFallback });
         providerTrace.imageGeneration = generated?.provider || '';
         return respond({ reply: buildPremiumImageReply(generated.url, prompt, imageType), detectedPersonality: 'creative' });
       } catch (err) { console.error('[PREMIUM YES ERROR]', err?.message); }
@@ -3723,7 +3792,7 @@ export default async function handler(req, res) {
   if (isIdeaScoringRequest(lastUserMessage) && cardModeRequested) {
     try {
       providerTrace.scoreCard = 'openai';
-      const scoreData = await generateNabadScore(messages, openai);
+      const scoreData = await generateNabadScore(messages, openai, 'gemini', allowOpenAIFallback);
       return respond({ reply: buildScoreCard(scoreData), detectedPersonality: 'strategist' });
     } catch (err) { console.error('[SCORE ERROR]', err?.message); }
   }
@@ -3742,7 +3811,7 @@ export default async function handler(req, res) {
     }
     try {
       const pricingProvider = process.env.GEMINI_API_KEY ? 'gemini' : 'openai';
-      const pricingData = await generatePricingTable(messages, detectedLocation, openai, pricingProvider, providerTrace);
+      const pricingData = await generatePricingTable(messages, detectedLocation, openai, pricingProvider, providerTrace, allowOpenAIFallback);
       if (!isPricingDataUsable(pricingData)) {
         const fallbackData = buildFallbackPricingData(messages, lastUserMessage, detectedLocation, userProfile);
         return respond({ reply: buildPricingTableCard(fallbackData), detectedPersonality: 'offer' });
@@ -3759,7 +3828,7 @@ export default async function handler(req, res) {
   if (isOfferCardRequest(lastUserMessage) && cardModeRequested) {
     try {
       providerTrace.offerCard = 'openai';
-      const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile);
+      const offerData = await generateOfferCard(messages, detectedLocation, openai, userProfile, 'gemini', allowOpenAIFallback);
       return respond({ reply: buildOfferCard(offerData), detectedPersonality: 'offer' });
     } catch (err) { console.error('[OFFER ERROR]', err?.message); }
   }
@@ -3768,7 +3837,7 @@ export default async function handler(req, res) {
   if (isPositioningMatrixRequest(lastUserMessage) && cardModeRequested) {
     try {
       providerTrace.positioningMatrix = 'openai';
-      const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai);
+      const matrixData = await generatePositioningMatrix(messages, detectedLocation, openai, 'gemini', allowOpenAIFallback);
       return respond({ reply: buildPositioningMatrixCard(matrixData), detectedPersonality: 'strategist' });
     } catch (err) { console.error('[MATRIX ERROR]', err?.message); }
   }
@@ -3777,7 +3846,7 @@ export default async function handler(req, res) {
   if (isActionPlanRequest(lastUserMessage) && cardModeRequested) {
     try {
       providerTrace.actionPlan = 'openai';
-      const planData = await generateActionPlan(messages, detectedLocation, openai);
+      const planData = await generateActionPlan(messages, detectedLocation, openai, 'gemini', allowOpenAIFallback);
       return respond({ reply: buildActionPlanCard(planData), detectedPersonality: 'growth' });
     } catch (err) { console.error('[ACTION PLAN ERROR]', err?.message); }
   }
@@ -4042,9 +4111,13 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
       )
       : null;
 
+    const recentConversation = messages
+      .filter((m) => m.role !== 'system')
+      .slice(-18);
+
     const chatMessages = [
       { role: 'system', content: systemPromptParts },
-      ...messages.filter(m => m.role !== 'system'),
+      ...recentConversation,
       ...(attachmentUserMessage ? [attachmentUserMessage] : [])
     ];
     const temperature = personalityConfig.temperature || businessMode.temperature || 0.82;
@@ -4069,7 +4142,7 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
         console.error('[TEXT PROVIDER ERROR] groq:', groqErr?.message);
       }
     }
-    if (!rawReply) {
+    if (!rawReply && allowOpenAIFallback) {
       try {
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o',
@@ -4096,10 +4169,25 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
 
     // ── Run all three classifiers in parallel ──────────────────
     const [detectedInfo, suggestWarRoom, personalitySignal] = await Promise.all([
-      detectMeaningfulInfo(lastUserMessage, openai, textProviderUsed, providerTrace).catch(() => null),
-      detectWarRoom(lastUserMessage, messages, userProfile || '', openai, textProviderUsed, providerTrace).catch(() => false),
-      classifyPersonality(lastUserMessage, selectedPersonality, messages, openai, textProviderUsed, providerTrace)
-        .catch(() => ({ id: 'auto', confidence: 0.35, reason: 'fallback' }))
+      withSoftTimeout(
+        detectMeaningfulInfo(lastUserMessage, openai, textProviderUsed, providerTrace, allowOpenAIFallback).catch(() => null),
+        1200,
+        (() => {
+          const lite = detectMeaningfulInfoLite(lastUserMessage);
+          return Object.keys(lite).length ? lite : null;
+        })()
+      ),
+      withSoftTimeout(
+        detectWarRoom(lastUserMessage, messages, userProfile || '', openai, textProviderUsed, providerTrace, allowOpenAIFallback).catch(() => false),
+        900,
+        false
+      ),
+      withSoftTimeout(
+        classifyPersonality(lastUserMessage, selectedPersonality, messages, openai, textProviderUsed, providerTrace, allowOpenAIFallback)
+          .catch(() => ({ id: 'auto', confidence: 0.35, reason: 'fallback' })),
+        1100,
+        quickClassifyPersonality(lastUserMessage, selectedPersonality)
+      )
     ]);
 
 console.log('[NABAD DEBUG] detectedInfo:', JSON.stringify(detectedInfo));
