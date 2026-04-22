@@ -5010,14 +5010,13 @@ function finishOnboarding() {
       // ── Speaker button ──
       const speakerBtn = document.createElement('button');
       speakerBtn.className = 'nabad-speaker-btn';
-      speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+      speakerBtn.innerHTML = SPEAKER_ICON_SVG;
       speakerBtn.title = 'Tap to hear this reply';
       speakerBtn.addEventListener('click', () => {
-        if (currentAudio && !currentAudio.paused) {
-          currentAudio.pause();
-          currentAudio = null;
-          speakerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-          speakerBtn.classList.remove('playing');
+        const browserSpeaking = ('speechSynthesis' in window) && window.speechSynthesis.speaking;
+        if ((currentAudio && !currentAudio.paused) || browserSpeaking) {
+          stopCurrentSpeech();
+          resetSpeakerButton(speakerBtn);
         } else {
           speakReply(content, speakerBtn);
         }
@@ -6781,7 +6780,9 @@ function openSettingsPage() {
   }
 
   // ── SPEECH SYNTHESIS / VOICE ──────────────────────────────────
+  const SPEAKER_ICON_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
   let currentAudio  = null;
+  let currentUtterance = null;
   let mediaRecorder = null;
   let audioChunks   = [];
   let voiceTimer    = null;
@@ -6793,6 +6794,59 @@ function openSettingsPage() {
     'Connecting ideas...',
     'Sharpening your next move...'
   ];
+
+  function resetSpeakerButton(btn) {
+    if (!btn) return;
+    btn.innerHTML = SPEAKER_ICON_SVG;
+    btn.classList.remove('playing');
+  }
+
+  function stopCurrentSpeech() {
+    if (currentAudio && !currentAudio.paused) {
+      currentAudio.pause();
+    }
+    currentAudio = null;
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    currentUtterance = null;
+  }
+
+  function speakReplyWithBrowserTTS(text, btn) {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+      return false;
+    }
+
+    stopCurrentSpeech();
+    const utter = new SpeechSynthesisUtterance(String(text || '').slice(0, 1800));
+    const preferred = detectPreferredVoiceLanguage() === 'ar' ? 'ar' : 'en';
+    utter.lang = preferred === 'ar' ? 'ar-SA' : 'en-US';
+    utter.rate = 1;
+    utter.pitch = 1;
+
+    const voices = window.speechSynthesis.getVoices?.() || [];
+    const match = voices.find((v) => String(v.lang || '').toLowerCase().startsWith(preferred));
+    if (match) utter.voice = match;
+
+    btn.innerHTML = `
+      <div class="nabad-wave-anim">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div> Stop`;
+    btn.classList.add('playing');
+
+    utter.onend = () => {
+      currentUtterance = null;
+      resetSpeakerButton(btn);
+    };
+    utter.onerror = () => {
+      currentUtterance = null;
+      resetSpeakerButton(btn);
+    };
+
+    currentUtterance = utter;
+    window.speechSynthesis.speak(utter);
+    return true;
+  }
 
   async function speakReply(text, btn) {
   if (!text) return;
@@ -6810,7 +6864,7 @@ function openSettingsPage() {
       body: JSON.stringify({ text: clean })
     });
 
-    if (!resp.ok) throw new Error('TTS failed');
+    if (!resp.ok) throw new Error(`TTS failed (${resp.status})`);
 
     const blob = await resp.blob();
     const url  = URL.createObjectURL(blob);
@@ -6837,23 +6891,25 @@ function openSettingsPage() {
     currentAudio.onended = () => {
       URL.revokeObjectURL(url);
       currentAudio = null;
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-      btn.classList.remove('playing');
+      resetSpeakerButton(btn);
     };
 
     currentAudio.onerror = () => {
       currentAudio = null;
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-      btn.classList.remove('playing');
+      resetSpeakerButton(btn);
     };
 
   } catch (err) {
     console.error('[NABAD] TTS error:', err);
-    if (String(err?.message || '').toLowerCase().includes('play')) {
+    const playBlocked = String(err?.message || '').toLowerCase().includes('play');
+    if (playBlocked) {
       renderMessage('assistant', '<p>🔊 Tap the speaker again to allow audio playback in this browser tab.</p>');
     }
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
-    btn.classList.remove('playing');
+    const fallbackOk = speakReplyWithBrowserTTS(clean, btn);
+    if (!fallbackOk) {
+      resetSpeakerButton(btn);
+      renderMessage('assistant', '<p>🔊 Voice playback is unavailable in this browser right now.</p>');
+    }
   }
 }
 
@@ -6942,6 +6998,14 @@ function openSettingsPage() {
     formData.append('language', detectPreferredVoiceLanguage());
 
     const resp = await fetch('/api/transcribe', { method: 'POST', body: formData });
+    if (!resp.ok) {
+      let serverError = '';
+      try {
+        const errData = await resp.json();
+        serverError = errData?.error || errData?.detail || '';
+      } catch {}
+      throw new Error(serverError || `Transcription failed (${resp.status})`);
+    }
     const data = await resp.json();
     const transcript = (data.text || '').trim();
 
