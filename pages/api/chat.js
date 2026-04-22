@@ -2204,7 +2204,7 @@ function hasPricingAnchorContext(messages = [], lastUserMessage = '') {
   const recentUserText = `${userMessages.slice(-3).join(' ')} ${lastUserMessage}`.toLowerCase();
   const hasOffer = /\b(offer|service|package|product|subscription|consulting|agency|saas|chatbot|assistant|app|tool)\b/.test(recentUserText);
   const hasAudience = /\b(client|customer|audience|target|founder|startup|brand|business|team|company|enterprise)\b/.test(recentUserText);
-  const hasOutcome = /\b(outcome|result|goal|benefit|solve|improve|grow|conversion|sales|trust|leads|efficiency|save time|save money|support|assist|help|provide|automation)\b/.test(recentUserText);
+  const hasOutcome = /\b(outcome|result|goal|benefit|solve|improve|grow|conversion|sales|trust|leads|efficiency|save time|save money|support|assist|help|provide|provides|deliv(?:er|ers|ery)|service|automation|reduce cost|increase|boost)\b/.test(recentUserText);
   return hasOffer && hasAudience && hasOutcome;
 }
 function hasEnoughPricingContext(messages = [], userProfile = '', lastUserMessage = '') {
