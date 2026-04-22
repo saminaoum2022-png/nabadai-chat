@@ -964,16 +964,34 @@ async function generateWithGeminiText(chatMessages = [], opts = {}) {
 
   const messages = Array.isArray(chatMessages) ? chatMessages : [];
   const systemMsg = messages.find((m) => m.role === 'system');
-  const convoText = messages
+
+  const rawTurns = messages
     .filter((m) => m.role !== 'system')
-    .map((m) => `${String(m.role || 'user').toUpperCase()}: ${getMessageText(m.content)}`)
-    .join('\n')
-    .slice(0, 30000);
-  const payloadText = [
-    systemMsg?.content ? `SYSTEM INSTRUCTIONS:\n${String(systemMsg.content)}` : '',
-    `CONVERSATION:\n${convoText}`,
-    'Reply as ASSISTANT to the latest user message. Keep continuity and follow the system instructions.'
-  ].filter(Boolean).join('\n\n');
+    .map((m) => {
+      const role = m.role === 'assistant' ? 'model' : 'user';
+      const text = cleanText(getMessageText(m.content), 12000);
+      return { role, text };
+    })
+    .filter((t) => t.text);
+
+  // Merge adjacent turns with the same role to keep Gemini dialogue valid/stable.
+  const mergedTurns = [];
+  for (const turn of rawTurns) {
+    const prev = mergedTurns[mergedTurns.length - 1];
+    if (prev && prev.role === turn.role) {
+      prev.text += `\n\n${turn.text}`;
+    } else {
+      mergedTurns.push({ ...turn });
+    }
+  }
+
+  const geminiContents = mergedTurns.slice(-18).map((t) => ({
+    role: t.role,
+    parts: [{ text: t.text.slice(0, 16000) }]
+  }));
+  if (!geminiContents.length) {
+    geminiContents.push({ role: 'user', parts: [{ text: 'Continue the conversation naturally.' }] });
+  }
 
   let lastErr = null;
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -987,7 +1005,10 @@ async function generateWithGeminiText(chatMessages = [], opts = {}) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: payloadText }] }],
+          ...(systemMsg?.content
+            ? { systemInstruction: { parts: [{ text: String(systemMsg.content).slice(0, 26000) }] } }
+            : {}),
+          contents: geminiContents,
           generationConfig: {
             temperature,
             maxOutputTokens: maxTokens
@@ -2677,6 +2698,48 @@ function repairTruncatedReply(text = '') {
   return out;
 }
 
+function limitEmojiUsage(text = '', maxEmojis = 2) {
+  if (!text || maxEmojis < 0) return String(text || '');
+  let seen = 0;
+  return String(text).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, (m) => {
+    seen += 1;
+    return seen <= maxEmojis ? m : '';
+  });
+}
+
+function truncateWords(text = '', maxWords = 140) {
+  const raw = String(text || '').trim();
+  if (!raw) return raw;
+  const words = raw.split(/\s+/);
+  if (words.length <= maxWords) return raw;
+  return `${words.slice(0, maxWords).join(' ').replace(/[,:;\-–—]+$/, '')}.`;
+}
+
+function enforcePersonalityVoice(text = '', personalityId = 'auto') {
+  const raw = String(text || '').trim();
+  if (!raw) return raw;
+  if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
+
+  const styleByPersonality = {
+    strategist: { maxWords: 150, maxEmojis: 2 },
+    growth: { maxWords: 120, maxEmojis: 2 },
+    branding: { maxWords: 100, maxEmojis: 2 },
+    offer: { maxWords: 130, maxEmojis: 2 },
+    creative: { maxWords: 90, maxEmojis: 2 },
+    straight_talk: { maxWords: 60, maxEmojis: 1 },
+    auto: { maxWords: 150, maxEmojis: 3 }
+  };
+  const cfg = styleByPersonality[personalityId] || styleByPersonality.auto;
+  let out = limitEmojiUsage(raw, cfg.maxEmojis);
+  out = truncateWords(out, cfg.maxWords);
+
+  if (personalityId === 'creative' || personalityId === 'straight_talk') {
+    out = out.replace(/^[\s>*-]+/gm, '');
+    out = out.replace(/^\s*(?:[-*•]|\d+\.)\s+/gm, '');
+  }
+  return out.trim();
+}
+
 // ── YES-intent router helper ──────────────────────────────────────────────────
 const YES_PATTERN = /^(yes|yeah|sure|go ahead|do it|ok|okay|yep|please|yea|sounds good|let's go|let's do it|do that|go for it)[\s!.]*$/i;
 
@@ -3741,40 +3804,40 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
     const maxTokens = computeDynamicMaxTokens(lastUserMessage, baseMaxTokens);
 
     let rawReply = '';
-    let textProviderUsed = 'openai';
-    try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: chatMessages,
-        temperature,
-        max_tokens: maxTokens
-      });
-      rawReply = completion.choices?.[0]?.message?.content || '';
-      textProviderUsed = 'openai';
-    } catch (openaiErr) {
-      console.error('[TEXT PROVIDER ERROR] openai:', openaiErr?.message);
-      if (!process.env.GEMINI_API_KEY) {
-        throw openaiErr;
-      }
+    let textProviderUsed = 'degraded-fallback';
+    if (process.env.GEMINI_API_KEY) {
       try {
         rawReply = await generateWithGeminiText(chatMessages, { temperature, maxTokens });
         textProviderUsed = 'gemini';
       } catch (geminiErr) {
         console.error('[TEXT PROVIDER ERROR] gemini:', geminiErr?.message);
-        if (process.env.GROQ_API_KEY) {
-          try {
-            rawReply = await generateWithGroqText(chatMessages, { temperature, maxTokens });
-            textProviderUsed = 'groq';
-          } catch (groqErr) {
-            console.error('[TEXT PROVIDER ERROR] groq:', groqErr?.message);
-            rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
-            textProviderUsed = 'degraded-fallback';
-          }
-        } else {
-          rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
-          textProviderUsed = 'degraded-fallback';
-        }
       }
+    }
+    if (!rawReply && process.env.GROQ_API_KEY) {
+      try {
+        rawReply = await generateWithGroqText(chatMessages, { temperature, maxTokens });
+        textProviderUsed = 'groq';
+      } catch (groqErr) {
+        console.error('[TEXT PROVIDER ERROR] groq:', groqErr?.message);
+      }
+    }
+    if (!rawReply) {
+      try {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: chatMessages,
+          temperature,
+          max_tokens: maxTokens
+        });
+        rawReply = completion.choices?.[0]?.message?.content || '';
+        textProviderUsed = 'openai';
+      } catch (openaiErr) {
+        console.error('[TEXT PROVIDER ERROR] openai:', openaiErr?.message);
+      }
+    }
+    if (!rawReply) {
+      rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
+      textProviderUsed = 'degraded-fallback';
     }
     console.log('[TEXT PROVIDER USED]', textProviderUsed);
     const sourcesFooter = liveResearch?.used ? buildLiveSourcesHtml(liveResearch) : '';
@@ -3795,7 +3858,8 @@ console.log('[NABAD DEBUG] lastUserMessage:', lastUserMessage);
 
     const learningSignals = inferLearningSignals(lastUserMessage, detectedInfo, userLanguage);
     await persistFounderMemory(detectedInfo, learningSignals);
-    const safeReply = repairTruncatedReply(rawReply);
+    const styledReply = enforcePersonalityVoice(rawReply, personalityResolution.personalityId);
+    const safeReply = repairTruncatedReply(styledReply);
     return res.status(200).json({
       reply: `${ensureHtmlReply(safeReply)}${websiteCheckedFooter}${sourcesFooter}`,
       detectedInfo,
