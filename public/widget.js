@@ -325,9 +325,9 @@
     try {
       const raw = (localStorage.getItem(STORAGE_KEYS.imageProvider) || '').toLowerCase().trim();
       const valid = ['auto', 'openai', 'gemini', 'nanobanana', 'ideogram', 'pollinations', 'replicate'];
-      return valid.includes(raw) ? raw : 'auto';
+      return valid.includes(raw) ? raw : 'gemini';
     } catch {
-      return 'auto';
+      return 'gemini';
     }
   }
 
@@ -3946,7 +3946,7 @@ function showPersonalityPill(id) {
                 <path d="M21.44 11.05l-8.49 8.49a5 5 0 0 1-7.07-7.07l8.49-8.49a3.5 3.5 0 0 1 4.95 4.95L9.76 18.5a2 2 0 0 1-2.83-2.83l8.13-8.13"/>
               </svg>
             </button>
-            <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..." enterkeyhint="send" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="true"></textarea>
+            <textarea id="nabad-input" rows="1" placeholder="Ask Nabad anything..." enterkeyhint="send" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true"></textarea>
             <button id="nabad-mic" type="button" aria-label="Voice note">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="9" y="2" width="6" height="12" rx="3"/>
@@ -5552,7 +5552,7 @@ function finishOnboarding() {
         body: JSON.stringify({
           messages:    outboundMessages,
           personality: state.autoDetectMode ? 'auto' : state.personality,
-          imageProvider: state.imageProvider || 'auto',
+          imageProvider: state.imageProvider || 'gemini',
           liveResearchMode: state.liveResearchMode || 'auto',
           userProfile: profile,
           memoryKey: getMemoryKey(),
