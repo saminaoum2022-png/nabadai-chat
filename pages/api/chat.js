@@ -2881,6 +2881,19 @@ function truncateWords(text = '', maxWords = 140) {
   return `${words.slice(0, maxWords).join(' ').replace(/[,:;\-–—]+$/, '')}.`;
 }
 
+function truncateBySentences(text = '', maxSentences = 4) {
+  const raw = String(text || '').trim();
+  if (!raw) return raw;
+  const sentences = raw.match(/[^.!?]+[.!?]?/g) || [raw];
+  const clipped = sentences
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, Math.max(1, maxSentences))
+    .join(' ')
+    .trim();
+  return clipped.replace(/\s+(?=[.,!?])/g, '');
+}
+
 function isDetailedReplyRequest(userMessage = '') {
   const t = cleanText(userMessage, 600).toLowerCase();
   if (!t) return false;
@@ -2902,17 +2915,20 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
   const shortUserPrompt = cleanText(userMessage, 300).split(/\s+/).filter(Boolean).length <= 12;
 
   const styleByPersonality = {
-    strategist: { maxWords: 70, maxEmojis: 2 },
-    growth: { maxWords: 65, maxEmojis: 2 },
-    branding: { maxWords: 60, maxEmojis: 2 },
-    offer: { maxWords: 70, maxEmojis: 2 },
-    creative: { maxWords: 55, maxEmojis: 2 },
-    straight_talk: { maxWords: 35, maxEmojis: 1 },
-    auto: { maxWords: 70, maxEmojis: 2 }
+    strategist: { maxWords: 52, maxEmojis: 2, maxSentences: 4 },
+    growth: { maxWords: 48, maxEmojis: 2, maxSentences: 4 },
+    branding: { maxWords: 45, maxEmojis: 2, maxSentences: 4 },
+    offer: { maxWords: 50, maxEmojis: 2, maxSentences: 4 },
+    creative: { maxWords: 42, maxEmojis: 2, maxSentences: 3 },
+    straight_talk: { maxWords: 26, maxEmojis: 1, maxSentences: 2 },
+    auto: { maxWords: 50, maxEmojis: 2, maxSentences: 4 }
   };
   const base = styleByPersonality[personalityId] || styleByPersonality.auto;
-  let maxWords = base.maxWords + (detailed ? 45 : 0) - (shortUserPrompt && !detailed ? 10 : 0);
+  let maxWords = base.maxWords + (detailed ? 55 : 0) - (shortUserPrompt && !detailed ? 10 : 0);
   if (maxWords < 28) maxWords = 28;
+  const maxSentences = detailed
+    ? Math.min(8, (base.maxSentences || 4) + 3)
+    : Math.max(2, (base.maxSentences || 4) - (shortUserPrompt ? 1 : 0));
 
   let out = limitEmojiUsage(normalized, base.maxEmojis);
   out = truncateWords(out, maxWords);
@@ -2930,11 +2946,15 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
         .split('\n')
         .map((l) => l.trim())
         .filter(Boolean);
-      out = lines.slice(0, 6).join('\n').trim();
+      const clippedLines = lines
+        .slice(0, 5)
+        .map((l) => truncateWords(l, personalityId === 'straight_talk' ? 14 : 18));
+      out = clippedLines.join('\n').trim();
     } else {
-      const sentences = out.match(/[^.!?]+[.!?]?/g) || [out];
-      out = sentences.slice(0, 4).join(' ').trim();
+      out = truncateBySentences(out, maxSentences);
     }
+  } else {
+    out = truncateBySentences(out, maxSentences);
   }
 
   if (personalityId === 'creative' || personalityId === 'straight_talk') {
@@ -3997,6 +4017,16 @@ Language/style:
 - Use <p> for normal replies.
 - Use <ul><li> only for options/checklists.
 - Avoid filler openers and avoid repeating the user's words back.
+
+Response structure (important):
+- Default to compact flow:
+  1) one short decision line
+  2) 2-4 concise points
+  3) one short "Next move" line only when needed
+- Keep most replies between 2 and 5 lines unless user explicitly asks for depth.
+- Use light emphasis for scanability: <strong>for key labels</strong>, <em>for one subtle nuance</em>.
+- Break dense thoughts into short readable lines; avoid long paragraph blocks.
+- If user prompt is short, answer short.
 `;
 
   const isWarRoom = body?.warRoom === true;
