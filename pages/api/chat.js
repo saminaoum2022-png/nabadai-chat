@@ -227,7 +227,8 @@ function memoryToProfileString(memory = {}) {
 function normalizeMemoryField(raw = '') {
   const f = cleanText(raw, 80).toLowerCase();
   if (!f) return '';
-  if (/\b(country|location|city|market|where i am|where i'm based)\b/.test(f)) return 'country';
+  if (/\b(country|market|operating country|which country)\b/.test(f)) return 'country';
+  if (/\b(location|city|where i am|where i'm based|where i am based|based in|from)\b/.test(f)) return 'location';
   if (/\b(industry|sector|niche|business type)\b/.test(f)) return 'industry';
   if (/\b(stage|business stage)\b/.test(f)) return 'stage';
   if (/\b(bottleneck|blocker|biggest block|constraint)\b/.test(f)) return 'bottleneck';
@@ -1089,6 +1090,88 @@ async function generateWithGenspark(prompt = '', imageType = 'image') {
   return imageUrl;
 }
 
+async function generateWithReplicate(prompt = '', imageType = 'image') {
+  const apiToken = cleanText(process.env.REPLICATE_API_TOKEN || '', 260);
+  if (!apiToken) throw new Error('REPLICATE_API_TOKEN not set');
+
+  const model = cleanText(process.env.REPLICATE_IMAGE_MODEL || 'black-forest-labs/flux-schnell', 120);
+  const [owner, name] = model.split('/');
+  if (!owner || !name) {
+    throw new Error('REPLICATE_IMAGE_MODEL must be in owner/name format');
+  }
+
+  const cleanPrompt = sanitizePromptText(prompt).slice(0, 900);
+  const aspect_ratio = imageType === 'banner' ? '3:2' : '1:1';
+  const createResp = await fetchWithTimeout(`https://api.replicate.com/v1/models/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/predictions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Content-Type': 'application/json',
+      Prefer: 'wait=8'
+    },
+    body: JSON.stringify({
+      input: {
+        prompt: cleanPrompt,
+        aspect_ratio,
+        output_format: 'jpg'
+      }
+    })
+  }, 35000);
+
+  const createText = await createResp.text();
+  let prediction = null;
+  try { prediction = JSON.parse(createText); } catch {}
+  if (!createResp.ok) {
+    throw new Error(`Replicate API error: ${createResp.status} — ${createText.slice(0, 160)}`);
+  }
+  if (!prediction || typeof prediction !== 'object') {
+    throw new Error('Replicate returned invalid response');
+  }
+
+  const extractOutputUrl = (p = {}) => {
+    const output = p?.output;
+    if (typeof output === 'string' && /^https?:\/\//i.test(output)) return output;
+    if (Array.isArray(output)) {
+      const found = output.find((v) => typeof v === 'string' && /^https?:\/\//i.test(v));
+      if (found) return found;
+    }
+    const direct = p?.urls?.image || p?.image || p?.url;
+    if (typeof direct === 'string' && /^https?:\/\//i.test(direct)) return direct;
+    return '';
+  };
+
+  let imageUrl = extractOutputUrl(prediction);
+  let status = cleanText(prediction?.status || '', 30).toLowerCase();
+  const pollUrl = cleanText(prediction?.urls?.get || '', 400);
+
+  if (!imageUrl && pollUrl && status && !['succeeded', 'failed', 'canceled'].includes(status)) {
+    for (let i = 0; i < 8; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const pollResp = await fetchWithTimeout(pollUrl, {
+        headers: { Authorization: `Bearer ${apiToken}` }
+      }, 20000);
+      const pollText = await pollResp.text();
+      let polled = null;
+      try { polled = JSON.parse(pollText); } catch {}
+      if (!pollResp.ok) {
+        throw new Error(`Replicate polling error: ${pollResp.status} — ${pollText.slice(0, 140)}`);
+      }
+      imageUrl = extractOutputUrl(polled || {});
+      status = cleanText(polled?.status || '', 30).toLowerCase();
+      if (imageUrl) break;
+      if (status === 'failed' || status === 'canceled') {
+        const err = cleanText(polled?.error || '', 160);
+        throw new Error(err ? `Replicate generation failed: ${err}` : `Replicate generation ${status}`);
+      }
+    }
+  }
+
+  if (!imageUrl) {
+    throw new Error('No image URL returned from Replicate');
+  }
+  return imageUrl;
+}
+
 async function generateImageWithProviderChain(imagePrompt = '', imageType = 'image', options = {}) {
   const preferredOverride = cleanText(options?.preferred || '', 24).toLowerCase();
   const preferred = preferredOverride || cleanText(process.env.NABAD_IMAGE_PROVIDER || 'auto', 24).toLowerCase();
@@ -1098,6 +1181,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
   const hasGeminiImage = !!process.env.GEMINI_API_KEY;
   const hasGenspark = !!process.env.GENSPARK_API_KEY;
   const hasIdeogram = !!process.env.IDEOGRAM_API_KEY;
+  const hasReplicate = !!process.env.REPLICATE_API_TOKEN;
   const isFastMode = /\b(fast|quick|draft|free mode)\b/i.test(imagePrompt) || forcedMode === 'fast';
   const isTextCritical = imageType === 'logo' || /\b(wordmark|exact text|spelling|typography|text)\b/i.test(imagePrompt);
 
@@ -1105,30 +1189,42 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     if (hasOpenAIImage) providers.push('openai');
     if (hasGeminiImage) providers.push('gemini');
     if (hasIdeogram) providers.push('ideogram');
+    if (hasReplicate) providers.push('replicate');
     providers.push('pollinations');
   } else if (preferred === 'gemini' || preferred === 'nanobanana' || preferred === 'nano-banana') {
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
+    if (hasIdeogram) providers.push('ideogram');
+    if (hasReplicate) providers.push('replicate');
+    providers.push('pollinations');
+  } else if (preferred === 'replicate') {
+    if (hasReplicate) providers.push('replicate');
+    if (hasOpenAIImage) providers.push('openai');
+    if (hasGeminiImage) providers.push('gemini');
     if (hasIdeogram) providers.push('ideogram');
     providers.push('pollinations');
   } else if (preferred === 'ideogram') {
     if (hasIdeogram) providers.push('ideogram');
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
+    if (hasReplicate) providers.push('replicate');
     providers.push('pollinations');
   } else if (preferred === 'genspark') {
     if (hasGenspark) providers.push('genspark');
     if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
+    if (hasReplicate) providers.push('replicate');
     providers.push('pollinations');
   } else if (preferred === 'pollinations') {
     providers.push('pollinations');
+    if (hasReplicate) providers.push('replicate');
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
     if (hasGenspark) providers.push('genspark');
   } else if (isFastMode) {
     providers.push('pollinations');
+    if (hasReplicate) providers.push('replicate');
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     if (hasIdeogram) providers.push('ideogram');
@@ -1136,12 +1232,14 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
   } else if (isTextCritical) {
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
+    if (hasReplicate) providers.push('replicate');
     if (hasIdeogram) providers.push('ideogram');
     providers.push('pollinations');
     if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
   } else {
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
+    if (hasReplicate) providers.push('replicate');
     providers.push('pollinations');
     if (hasIdeogram) providers.push('ideogram');
     if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
@@ -1154,6 +1252,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     hasOpenAIImage,
     hasIdeogram,
     hasGenspark,
+    hasReplicate,
     providers
   }));
 
@@ -1172,6 +1271,11 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
       }
       if (provider === 'genspark') {
         const url = await generateWithGenspark(imagePrompt, imageType);
+        console.log('[IMAGE PROVIDER USED]', provider);
+        return { provider, url };
+      }
+      if (provider === 'replicate') {
+        const url = await generateWithReplicate(imagePrompt, imageType);
         console.log('[IMAGE PROVIDER USED]', provider);
         return { provider, url };
       }
@@ -2080,15 +2184,19 @@ function isPricingTableRequest(text = '') {
     || /\b(create|build|show|give|make|design)\b.{0,30}\b(pricing|price plan|packages?)\b/i.test(text);
 }
 function hasEnoughPricingContext(messages = [], userProfile = '', lastUserMessage = '') {
-  const userOnly = (Array.isArray(messages) ? messages : [])
+  const userMessages = (Array.isArray(messages) ? messages : [])
     .filter((m) => m.role === 'user')
-    .map((m) => getMessageText(m.content))
-    .join(' ');
-  const text = `${userOnly} ${userProfile} ${lastUserMessage}`.toLowerCase();
-  const hasOffer = /\b(offer|service|package|product|subscription|consulting|agency|saas|design|branding|marketing)\b/.test(text);
-  const hasAudience = /\b(client|customer|audience|target|founder|startup|brand|business)\b/.test(text);
-  const hasOutcome = /\b(result|deliverable|includes|value|transformation|goal|problem|challenge)\b/.test(text);
-  return hasOffer && (hasAudience || hasOutcome);
+    .map((m) => getMessageText(m.content));
+  const recentUserText = userMessages.slice(-3).join(' ').toLowerCase();
+  const profileText = `${userProfile} ${lastUserMessage}`.toLowerCase();
+
+  const hasOffer = /\b(offer|service|package|product|subscription|consulting|agency|saas|design|branding|marketing)\b/.test(recentUserText) ||
+    /\b(offer|service|package|product|subscription)\b/.test(profileText);
+  const hasAudience = /\b(client|customer|audience|target|founder|startup|brand|business)\b/.test(recentUserText);
+  const hasDeliverables = /\b(include|includes|deliverable|feature|what you get|scope|support|review|strategy|logo|kit|guide)\b/.test(recentUserText);
+  const hasPriceSignal = /\b(aed|usd|sar|egp|price|pricing|per month|per year|\/month|\/year|\$\s*\d|\d+\s*(aed|usd|sar|egp))\b/.test(`${recentUserText} ${lastUserMessage.toLowerCase()}`);
+
+  return hasOffer && hasPriceSignal && (hasAudience || hasDeliverables);
 }
 function hasPlaceholderText(value = '') {
   const t = cleanText(String(value || ''), 240);
@@ -2138,23 +2246,28 @@ function buildPricingTableCard(data = {}) {
   const currency = data.currency || 'USD';
   const symbols = { USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SAR: 'SAR ', EGP: 'EGP ' };
   const sym = symbols[currency] || '$';
-  const tierHtml = tiers.map(tier => {
-    const features = normalizeList(tier.features || []).map(f => `<tr><td style="padding:6px 0;font-size:13px;border-bottom:1px solid rgba(37,99,235,.1)">✓ ${esc(f)}</td></tr>`).join('');
-    return `<div style="flex:1;min-width:200px;background:${tier.highlighted ? 'linear-gradient(180deg,#eff6ff,#e0f2fe)' : '#fff'};border-radius:12px;padding:20px;border:${tier.highlighted ? '2px solid #2563eb' : '1px solid rgba(37,99,235,.12)'};position:relative">
+  const tierHtml = tiers.map((tier, idx) => {
+    const features = normalizeList(tier.features || []).map(f => `<tr><td data-pricing-feature style="padding:6px 0;font-size:13px;border-bottom:1px solid rgba(37,99,235,.1)">✓ ${esc(f)}</td></tr>`).join('');
+    return `<div data-pricing-tier="${idx}" style="flex:1;min-width:200px;background:${tier.highlighted ? 'linear-gradient(180deg,#eff6ff,#e0f2fe)' : '#fff'};border-radius:12px;padding:20px;border:${tier.highlighted ? '2px solid #2563eb' : '1px solid rgba(37,99,235,.12)'};position:relative">
       ${tier.highlighted ? '<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:3px 14px;border-radius:99px;white-space:nowrap">⭐ POPULAR</div>' : ''}
-      <div style="font-size:15px;font-weight:700;margin-bottom:4px">${esc(tier.name || '')}</div>
-      <div style="margin:10px 0"><span style="font-size:28px;font-weight:800">${sym}${esc(String(tier.price || ''))}</span><span style="font-size:12px;color:#64748b">/${tier.period || 'mo'}</span></div>
-      <div style="font-size:12px;color:#64748b;margin-bottom:12px">${esc(tier.description || '')}</div>
+      <div data-pricing-name style="font-size:15px;font-weight:700;margin-bottom:4px">${esc(tier.name || '')}</div>
+      <div style="margin:10px 0"><span data-pricing-price style="font-size:28px;font-weight:800">${sym}${esc(String(tier.price || ''))}</span><span data-pricing-period style="font-size:12px;color:#64748b">/${tier.period || 'mo'}</span></div>
+      <div data-pricing-desc style="font-size:12px;color:#64748b;margin-bottom:12px">${esc(tier.description || '')}</div>
       <table style="width:100%;border-collapse:collapse"><tbody>${features}</tbody></table>
-      <div style="margin-top:14px;text-align:center"><span style="display:inline-block;background:${tier.highlighted ? 'linear-gradient(135deg,#2563eb,#06b6d4)' : '#eff6ff'};color:${tier.highlighted ? '#fff' : '#1e3a8a'};padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;border:${tier.highlighted ? 'none' : '1px solid rgba(37,99,235,.2)'}">${esc(tier.cta || 'Choose Plan')}</span></div>
+      <div style="margin-top:14px;text-align:center"><span data-pricing-cta style="display:inline-block;background:${tier.highlighted ? 'linear-gradient(135deg,#2563eb,#06b6d4)' : '#eff6ff'};color:${tier.highlighted ? '#fff' : '#1e3a8a'};padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;border:${tier.highlighted ? 'none' : '1px solid rgba(37,99,235,.2)'}">${esc(tier.cta || 'Choose Plan')}</span></div>
     </div>`;
   }).join('');
   return `<div data-nabad-card="pricing" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:24px;color:#0f172a;margin:8px 0;font-family:inherit;border:1px solid rgba(37,99,235,.14)">
   <div style="text-align:center;margin-bottom:20px">
-    <div style="font-size:20px;font-weight:700">${esc(data.title || 'Pricing Plans')}</div>
-    ${data.subtitle ? `<div style="font-size:13px;color:#64748b;margin-top:4px">${esc(data.subtitle)}</div>` : ''}
+    <div data-pricing-title style="font-size:20px;font-weight:700">${esc(data.title || 'Pricing Plans')}</div>
+    ${data.subtitle ? `<div data-pricing-subtitle style="font-size:13px;color:#64748b;margin-top:4px">${esc(data.subtitle)}</div>` : ''}
   </div>
-  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">${tierHtml}</div>
+  <div data-pricing-grid style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">${tierHtml}</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:center">
+    <button data-nabad-action="pricing-edit">Edit table</button>
+    <button data-nabad-action="pricing-export-pdf">Export PDF</button>
+    <button data-nabad-action="pricing-export-csv">Export Excel</button>
+  </div>
 </div>`;
 }
 
