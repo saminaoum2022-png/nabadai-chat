@@ -2778,6 +2778,8 @@ function repairTruncatedReply(text = '') {
   const plain = out.replace(/<[^>]+>/g, '').trim();
   if (/(next move:|strategic move:|growth move:|offer move:)\s*$/i.test(plain)) {
     out += ' Share one line of context and I will make it specific.';
+  } else if (/(plan|steps?)\s*:\s*(?:\d+\.)?\s*$/i.test(plain) || /\b\d+\.\s*$/i.test(plain)) {
+    out += '\nNext move: share one line and I will finish the full steps clearly.';
   } else if (/[,:;\-–—]\s*$/.test(plain)) {
     out += ' I can make this precise with one more line of context.';
   }
@@ -2811,7 +2813,12 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
   const raw = String(text || '').trim();
   if (!raw) return raw;
   const normalized = /<[a-z][\s\S]*>/i.test(raw)
-    ? raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    ? raw
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
     : raw;
   const detailed = isDetailedReplyRequest(userMessage);
   const shortUserPrompt = cleanText(userMessage, 300).split(/\s+/).filter(Boolean).length <= 12;
@@ -2837,8 +2844,19 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
     .replace(/\s*Next move:\s*/i, '\nNext move: ');
 
   if (!detailed) {
-    const sentences = out.match(/[^.!?]+[.!?]?/g) || [out];
-    out = sentences.slice(0, 4).join(' ').trim();
+    const hasListLikeStructure =
+      /\n\s*(?:\d+\.|[-*•])\s+/.test(out) ||
+      /\b(plan|steps?)\s*:/i.test(out);
+    if (hasListLikeStructure) {
+      const lines = out
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+      out = lines.slice(0, 6).join('\n').trim();
+    } else {
+      const sentences = out.match(/[^.!?]+[.!?]?/g) || [out];
+      out = sentences.slice(0, 4).join(' ').trim();
+    }
   }
 
   if (personalityId === 'creative' || personalityId === 'straight_talk') {
