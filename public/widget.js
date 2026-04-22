@@ -186,6 +186,7 @@
     personalityScore: 0,
     pendingAttachment: null,
     lastImageAttachment: null,
+    temporaryCreativeLock: false,
     replyTo: null,
     notificationsEnabled: loadNotificationsEnabled(),
     typingLabels: null
@@ -5078,6 +5079,10 @@ function finishOnboarding() {
     const replyTo = state.replyTo;
     if (!text && !attachment) return;
 
+    const temporaryCreativeFromAuto = state.autoDetectMode && shouldForceCreativeForImage(text, attachment);
+    if (temporaryCreativeFromAuto) {
+      state.temporaryCreativeLock = true;
+    }
     if (shouldForceCreativeForImage(text, attachment)) {
       forceCreativeModeForImage();
     }
@@ -5199,6 +5204,20 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
         showWarRoomSuggestion(data.suggestWarRoom);
       }
 
+      if (state.temporaryCreativeLock) {
+        state.temporaryCreativeLock = false;
+        state.autoDetectMode = true;
+        state.personality = 'auto';
+        state.personalityBuffer = null;
+        state.personalityCount = 0;
+        state.personalityScore = 0;
+        savePersonality('auto');
+        saveAutoDetect(true);
+        setInputPlaceholder();
+        updatePersonalityBadge();
+        applyPersonalityColor('auto', true);
+      }
+
       // ── Smarter personality switching (confidence + stickiness) ──
       if (state.autoDetectMode) {
         const detected = String(data.detectedPersonality || 'auto');
@@ -5241,6 +5260,16 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
       }
 
     } catch (err) {
+      if (state.temporaryCreativeLock) {
+        state.temporaryCreativeLock = false;
+        state.autoDetectMode = true;
+        state.personality = 'auto';
+        savePersonality('auto');
+        saveAutoDetect(true);
+        setInputPlaceholder();
+        updatePersonalityBadge();
+        applyPersonalityColor('auto', false);
+      }
       showTyping(false);
       if (logo) logo.classList.remove('thinking');
       console.error('[NABAD] sendMessage error:', err);
