@@ -2289,6 +2289,7 @@ function buildPricingTableCard(data = {}) {
   <div data-pricing-grid style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">${tierHtml}</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:center">
     <button data-nabad-action="pricing-edit">Edit table</button>
+    <button data-nabad-action="pricing-export-docx">Export Word</button>
     <button data-nabad-action="pricing-export-pdf">Export PDF</button>
     <button data-nabad-action="pricing-export-csv">Export Excel</button>
   </div>
