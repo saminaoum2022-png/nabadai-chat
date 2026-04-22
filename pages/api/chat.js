@@ -945,8 +945,12 @@ async function generateWithGeminiImage(prompt = '', imageType = 'image') {
 async function generateWithGeminiText(chatMessages = [], opts = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-  const model = cleanText(process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', 80);
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const preferredModel = cleanText(process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', 80);
+  const modelCandidates = Array.from(new Set([
+    preferredModel,
+    'gemini-2.5-flash',
+    'gemini-2.0-flash'
+  ])).filter(Boolean);
   const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0.8;
   const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 700;
 
@@ -963,34 +967,97 @@ async function generateWithGeminiText(chatMessages = [], opts = {}) {
     'Reply as ASSISTANT to the latest user message. Keep continuity and follow the system instructions.'
   ].filter(Boolean).join('\n\n');
 
-  const response = await fetchWithTimeout(endpoint, {
+  let lastErr = null;
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  for (const model of modelCandidates) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const response = await fetchWithTimeout(endpoint, {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: payloadText }] }],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: maxTokens
+          }
+        })
+      }, 35000);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        lastErr = new Error(`Gemini text API error: ${response.status} — ${errText.slice(0, 140)}`);
+        const retryable = response.status === 429 || response.status === 503;
+        if (retryable && attempt < 2) {
+          await sleep(700 * attempt);
+          continue;
+        }
+        break;
+      }
+
+      const data = await readJsonSafe(response);
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const text = parts
+        .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+        .filter(Boolean)
+        .join('\n')
+        .trim();
+      if (text) return text;
+      lastErr = new Error('No text returned from Gemini');
+      break;
+    }
+  }
+  throw lastErr || new Error('Gemini text unavailable');
+}
+
+async function generateWithClaudeText(chatMessages = [], opts = {}) {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error('CLAUDE_API_KEY not set');
+  const model = cleanText(process.env.CLAUDE_TEXT_MODEL || 'claude-3-5-sonnet-latest', 120);
+  const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0.8;
+  const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 700;
+
+  const messages = Array.isArray(chatMessages) ? chatMessages : [];
+  const system = String(messages.find((m) => m.role === 'system')?.content || '').slice(0, 20000);
+  const convo = messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({
+      role: m.role,
+      content: cleanText(getMessageText(m.content), 12000)
+    }))
+    .filter((m) => m.content);
+
+  if (!convo.length) throw new Error('No conversation payload for Claude');
+
+  const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'x-goog-api-key': apiKey,
-      'Content-Type': 'application/json'
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json'
     },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: payloadText }] }],
-      generationConfig: {
-        temperature,
-        maxOutputTokens: maxTokens
-      }
+      model,
+      system,
+      temperature,
+      max_tokens: maxTokens,
+      messages: convo
     })
   }, 35000);
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Gemini text API error: ${response.status} — ${errText.slice(0, 140)}`);
+    throw new Error(`Claude API error: ${response.status} — ${errText.slice(0, 180)}`);
   }
-
   const data = await readJsonSafe(response);
-  const parts = data?.candidates?.[0]?.content?.parts || [];
-  const text = parts
-    .map((p) => (typeof p?.text === 'string' ? p.text : ''))
-    .filter(Boolean)
+  const text = (Array.isArray(data?.content) ? data.content : [])
+    .map((part) => (part?.type === 'text' ? String(part.text || '') : ''))
     .join('\n')
     .trim();
-  if (!text) throw new Error('No text returned from Gemini');
+  if (!text) throw new Error('No text returned from Claude');
   return text;
 }
 
@@ -3637,8 +3704,25 @@ You are NOT an assistant. You do NOT over-explain. You have energy, edge, and ge
       if (!process.env.GEMINI_API_KEY) {
         throw openaiErr;
       }
-      rawReply = await generateWithGeminiText(chatMessages, { temperature, maxTokens });
-      textProviderUsed = 'gemini';
+      try {
+        rawReply = await generateWithGeminiText(chatMessages, { temperature, maxTokens });
+        textProviderUsed = 'gemini';
+      } catch (geminiErr) {
+        console.error('[TEXT PROVIDER ERROR] gemini:', geminiErr?.message);
+        if (process.env.CLAUDE_API_KEY) {
+          try {
+            rawReply = await generateWithClaudeText(chatMessages, { temperature, maxTokens });
+            textProviderUsed = 'claude';
+          } catch (claudeErr) {
+            console.error('[TEXT PROVIDER ERROR] claude:', claudeErr?.message);
+            rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
+            textProviderUsed = 'degraded-fallback';
+          }
+        } else {
+          rawReply = `I’m hitting temporary AI provider limits right now, but I’m still with you.\n\nIf you resend in 20-60 seconds, I’ll continue from the same context. If urgent, send one short line with your exact goal and I’ll give the fastest actionable outline first.`;
+          textProviderUsed = 'degraded-fallback';
+        }
+      }
     }
     console.log('[TEXT PROVIDER USED]', textProviderUsed);
     const sourcesFooter = liveResearch?.used ? buildLiveSourcesHtml(liveResearch) : '';
