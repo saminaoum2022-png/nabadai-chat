@@ -35,7 +35,10 @@
     ALLOWED_ATTR: [
       'href','src','alt','target','rel','class','style',
       'data-nabad-card','data-nabad-brief',
-      'data-score','data-quadrant','data-nabad-action'
+      'data-score','data-quadrant','data-nabad-action',
+      'data-pricing-grid','data-pricing-tier','data-pricing-title','data-pricing-subtitle',
+      'data-pricing-name','data-pricing-price','data-pricing-period','data-pricing-desc',
+      'data-pricing-feature','data-pricing-cta'
     ]
   };
 
@@ -256,7 +259,7 @@
   function loadImageProvider() {
     try {
       const raw = (localStorage.getItem(STORAGE_KEYS.imageProvider) || '').toLowerCase().trim();
-      const valid = ['auto', 'openai', 'gemini', 'pollinations'];
+      const valid = ['auto', 'openai', 'gemini', 'pollinations', 'replicate'];
       return valid.includes(raw) ? raw : 'auto';
     } catch {
       return 'auto';
@@ -4926,6 +4929,104 @@ function finishOnboarding() {
     return bubble;
   }
 
+  function togglePricingCardEdit(cardEl, triggerBtn = null) {
+    if (!cardEl) return;
+    const isEditing = cardEl.dataset.pricingEditMode === 'true';
+    const fields = cardEl.querySelectorAll('[data-pricing-title],[data-pricing-subtitle],[data-pricing-name],[data-pricing-price],[data-pricing-period],[data-pricing-desc],[data-pricing-feature],[data-pricing-cta]');
+    fields.forEach((el) => {
+      if (isEditing) {
+        el.removeAttribute('contenteditable');
+        el.style.outline = '';
+        el.style.background = '';
+      } else {
+        el.setAttribute('contenteditable', 'true');
+        el.style.outline = '1px dashed rgba(37,99,235,.45)';
+        el.style.background = 'rgba(255,255,255,.72)';
+      }
+    });
+    cardEl.dataset.pricingEditMode = isEditing ? 'false' : 'true';
+    if (triggerBtn) {
+      triggerBtn.textContent = isEditing ? 'Edit table' : 'Done editing';
+      triggerBtn.style.background = isEditing ? '' : 'linear-gradient(135deg,#2563eb,#06b6d4)';
+      triggerBtn.style.color = isEditing ? '' : '#fff';
+      triggerBtn.style.borderColor = isEditing ? '' : 'transparent';
+    }
+  }
+
+  function extractPricingRows(cardEl) {
+    if (!cardEl) return [];
+    const rows = [];
+    const tiers = Array.from(cardEl.querySelectorAll('[data-pricing-tier]'));
+    tiers.forEach((tierEl) => {
+      const name = cleanText(tierEl.querySelector('[data-pricing-name]')?.textContent || '', 120);
+      const rawPrice = cleanText(tierEl.querySelector('[data-pricing-price]')?.textContent || '', 120);
+      const period = cleanText(tierEl.querySelector('[data-pricing-period]')?.textContent || '', 80);
+      const desc = cleanText(tierEl.querySelector('[data-pricing-desc]')?.textContent || '', 180);
+      const cta = cleanText(tierEl.querySelector('[data-pricing-cta]')?.textContent || '', 120);
+      const features = Array.from(tierEl.querySelectorAll('[data-pricing-feature]'))
+        .map((el) => cleanText((el.textContent || '').replace(/^✓\s*/, ''), 180))
+        .filter(Boolean);
+      if (!name) return;
+      rows.push({ name, rawPrice, period, desc, cta, features });
+    });
+    return rows;
+  }
+
+  function exportPricingCardCsv(cardEl) {
+    const title = cleanText(cardEl?.querySelector('[data-pricing-title]')?.textContent || 'Pricing Table', 120);
+    const rows = extractPricingRows(cardEl);
+    if (!rows.length) {
+      alert('No pricing tiers found to export.');
+      return;
+    }
+    const csvRows = [['Plan', 'Price', 'Period', 'Description', 'CTA', 'Features']];
+    rows.forEach((r) => {
+      csvRows.push([r.name, r.rawPrice, r.period, r.desc, r.cta, r.features.join(' | ')]);
+    });
+    const escapeCsv = (val = '') => {
+      const s = String(val ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = csvRows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'pricing-table'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportPricingCardPdf(cardEl) {
+    if (!cardEl) return;
+    const title = cleanText(cardEl.querySelector('[data-pricing-title]')?.textContent || 'Pricing Table', 120);
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
+    <style>
+      body{font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#f8fbff;margin:0;padding:24px;color:#0f172a}
+      .wrap{max-width:980px;margin:0 auto}
+      [data-nabad-card="pricing"]{background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:24px;border:1px solid rgba(37,99,235,.14)}
+      [data-pricing-grid]{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+      [data-pricing-tier]{flex:1;min-width:200px;background:#fff;border-radius:12px;padding:20px;border:1px solid rgba(37,99,235,.12);position:relative}
+      table{width:100%;border-collapse:collapse} td{padding:6px 0;font-size:13px;border-bottom:1px solid rgba(37,99,235,.1)}
+      button{display:none!important}
+      @media print{body{padding:0;background:#fff}.wrap{max-width:none}}
+    </style></head><body><div class="wrap">${cardEl.outerHTML}</div></body></html>`;
+    const win = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=900');
+    if (!win) {
+      alert('Popup blocked. Please allow popups to export PDF.');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+      win.print();
+    }, 300);
+  }
+
   // ── PROCESS ASSISTANT BUBBLE (cards, images, score bars) ─────
   function processAssistantBubble(bubble) {
     // Score bars
@@ -4996,6 +5097,18 @@ function finishOnboarding() {
           refs.input.value = 'Generate a realistic photoreal logo image version';
         } else if (action === 'image-style-logo') {
           refs.input.value = 'Generate a modern professional logo image version';
+        } else if (action === 'pricing-edit') {
+          const cardEl = btn.closest('[data-nabad-card="pricing"]');
+          togglePricingCardEdit(cardEl, btn);
+          return;
+        } else if (action === 'pricing-export-pdf') {
+          const cardEl = btn.closest('[data-nabad-card="pricing"]');
+          exportPricingCardPdf(cardEl);
+          return;
+        } else if (action === 'pricing-export-csv') {
+          const cardEl = btn.closest('[data-nabad-card="pricing"]');
+          exportPricingCardCsv(cardEl);
+          return;
         } else if (action === 'onboard-business' || action === 'onboard-idea' || action === 'onboard-figuring') {
           const path = action.replace('onboard-', '');
           state.userProfile = { ...state.userProfile, path };
@@ -5559,6 +5672,7 @@ function openSettingsPage() {
               <option value="auto" ${state.imageProvider === 'auto' ? 'selected' : ''}>Let Nabad choose</option>
               <option value="openai" ${state.imageProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
               <option value="gemini" ${state.imageProvider === 'gemini' ? 'selected' : ''}>Gemini</option>
+              <option value="replicate" ${state.imageProvider === 'replicate' ? 'selected' : ''}>Replicate</option>
               <option value="pollinations" ${state.imageProvider === 'pollinations' ? 'selected' : ''}>Draft (Free)</option>
             </select>
           </div>
@@ -5707,7 +5821,7 @@ function openSettingsPage() {
   if (imageProviderSelect) {
     imageProviderSelect.addEventListener('change', () => {
       const next = (imageProviderSelect.value || 'auto').toLowerCase();
-      state.imageProvider = ['auto', 'openai', 'gemini', 'pollinations'].includes(next) ? next : 'auto';
+      state.imageProvider = ['auto', 'openai', 'gemini', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
       saveImageProvider(state.imageProvider);
     });
   }
@@ -6080,10 +6194,10 @@ function openSettingsPage() {
       out.push({ field, value: clean, source, label: formatMemoryFieldLabel(field) });
     };
 
-    push('country', memory.country || profile.country);
-    push('industry', memory.industry || profile.industry);
-    push('stage', memory.stage || profile.stage);
-    push('bottleneck', memory.bottleneck || profile.bottleneck);
+    push('country', memory.country || profile.country, memory.country ? 'memory' : 'profile');
+    push('industry', memory.industry || profile.industry, memory.industry ? 'memory' : 'profile');
+    push('stage', memory.stage || profile.stage, memory.stage ? 'memory' : 'profile');
+    push('bottleneck', memory.bottleneck || profile.bottleneck, memory.bottleneck ? 'memory' : 'profile');
 
     const facts = memory.facts && typeof memory.facts === 'object' ? memory.facts : {};
     const orderedFields = [
@@ -6100,6 +6214,15 @@ function openSettingsPage() {
       seen.add(item.field);
       return true;
     });
+  }
+
+  function mapCoreFieldToProfileKey(field = '') {
+    const allowed = new Set([
+      'country', 'industry', 'stage', 'bottleneck', 'businessName', 'location', 'whatYouSell',
+      'revenue', 'biggestChallenge', 'targetCustomer', 'ideaSummary', 'currentProgress',
+      'skills', 'preference', 'timeCommitment'
+    ]);
+    return allowed.has(field) ? field : '';
   }
 
   function buildRecentMemoryItems(memory = {}) {
@@ -6156,7 +6279,10 @@ function openSettingsPage() {
             <div style="padding:10px 12px;margin-bottom:8px;background:#f8faff;border:1px solid rgba(37,99,235,0.10);border-radius:12px;">
               <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
                 <div>
-                  <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#2563eb;">${escapeHtml(item.label)}</div>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#2563eb;">${escapeHtml(item.label)}</div>
+                    <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${item.source === 'profile' ? 'rgba(16,185,129,.12)' : 'rgba(37,99,235,.10)'};color:${item.source === 'profile' ? '#047857' : '#1d4ed8'}">${item.source === 'profile' ? 'Profile' : 'Memory'}</span>
+                  </div>
                   <div style="font-size:13px;color:#1e293b;margin-top:3px;line-height:1.45;">${escapeHtml(item.value)}</div>
                 </div>
                 <div style="display:flex;gap:6px;">
@@ -6236,6 +6362,7 @@ function openSettingsPage() {
       refs.messages.querySelectorAll('[data-core-edit]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const field = cleanText(btn.getAttribute('data-core-edit') || '', 80);
+          const profileKey = mapCoreFieldToProfileKey(field);
           const current = coreItems.find((item) => item.field === field)?.value || '';
           const value = window.prompt(`Update ${formatMemoryFieldLabel(field)}`, current);
           const nextVal = cleanText(value || '', 240);
@@ -6243,6 +6370,10 @@ function openSettingsPage() {
           try {
             const data = await callMemoryApi('update_field', { memoryField: field, memoryValue: nextVal });
             memory = data?.memory && typeof data.memory === 'object' ? data.memory : memory;
+            if (profileKey) {
+              state.userProfile = { ...state.userProfile, [profileKey]: nextVal };
+              saveUserProfile(state.userProfile);
+            }
             mergeProfileFromMemory(memory);
             renderTab('core');
           } catch (err) {
@@ -6254,10 +6385,17 @@ function openSettingsPage() {
       refs.messages.querySelectorAll('[data-core-del]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const field = cleanText(btn.getAttribute('data-core-del') || '', 80);
+          const profileKey = mapCoreFieldToProfileKey(field);
           confirmAction(`Delete "${formatMemoryFieldLabel(field)}" from memory?`, async () => {
             try {
               const data = await callMemoryApi('delete_field', { memoryField: field });
               memory = data?.memory && typeof data.memory === 'object' ? data.memory : memory;
+              if (profileKey && state.userProfile && Object.prototype.hasOwnProperty.call(state.userProfile, profileKey)) {
+                const nextProfile = { ...state.userProfile };
+                delete nextProfile[profileKey];
+                state.userProfile = nextProfile;
+                saveUserProfile(nextProfile);
+              }
               mergeProfileFromMemory(memory);
               renderTab('core');
             } catch (err) {
@@ -6675,7 +6813,7 @@ function setSendState(stateLabel) {
     window.__NABAD_SET_PERSONALITY__ = (id) => setActivePersonality(String(id || 'auto'));
     window.__NABAD_SET_IMAGE_PROVIDER__ = (provider) => {
       const next = String(provider || 'auto').toLowerCase();
-      state.imageProvider = ['auto', 'openai', 'gemini', 'pollinations'].includes(next) ? next : 'auto';
+      state.imageProvider = ['auto', 'openai', 'gemini', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
       saveImageProvider(state.imageProvider);
     };
     window.__NABAD_NEW_CHAT__ = () => newChat();
