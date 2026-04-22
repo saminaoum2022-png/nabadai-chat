@@ -945,10 +945,10 @@ async function generateWithGeminiImage(prompt = '', imageType = 'image') {
 async function generateWithGeminiText(chatMessages = [], opts = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-  const preferredModel = cleanText(process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', 80);
+  const preferredModel = cleanText(process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite', 80);
   const modelCandidates = Array.from(new Set([
     preferredModel,
-    'gemini-2.5-flash'
+    'gemini-2.5-flash-lite'
   ])).filter(Boolean);
   const temperature = Number.isFinite(Number(opts?.temperature)) ? Number(opts.temperature) : 0.8;
   const maxTokens = Number.isFinite(Number(opts?.maxTokens)) ? Number(opts.maxTokens) : 700;
