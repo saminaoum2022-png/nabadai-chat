@@ -2051,9 +2051,59 @@ function buildCampaignRequestPayload(brief = {}) {
     subtext: b.offer || b.objective || 'Campaign subtext',
     ctaText: b.cta || 'Start now',
     imagePrompt: backgroundOnlyPrompt,
+    objective: b.objective,
+    audience: b.audience,
+    offer: b.offer,
+    tone: b.tone,
+    visualStyle: b.visualStyle,
     platform: b.platform,
     format: b.format,
     typography
+  };
+}
+
+async function generateCampaignCopyRewrite(copyContext = {}, openaiClient, preferredProvider = 'gemini', allowOpenAI = false) {
+  const ctx = {
+    headline: cleanText(copyContext?.headline || '', 220),
+    subtext: cleanText(copyContext?.subtext || '', 260),
+    ctaText: cleanText(copyContext?.ctaText || '', 120),
+    objective: cleanText(copyContext?.objective || '', 200),
+    audience: cleanText(copyContext?.audience || '', 180),
+    offer: cleanText(copyContext?.offer || '', 220),
+    tone: cleanText(copyContext?.tone || '', 90),
+    visualStyle: cleanText(copyContext?.visualStyle || '', 140),
+    platform: cleanText(copyContext?.platform || '', 80),
+    format: cleanText(copyContext?.format || '', 50),
+    rewriteHint: cleanText(copyContext?.rewriteHint || '', 220)
+  };
+
+  const prompt = `Return ONLY valid JSON with this schema:
+{
+  "headline": "string",
+  "subtext": "string",
+  "ctaText": "string"
+}
+Rewrite ad copy to be stronger, clearer, and conversion-focused.
+Keep it concise and premium.
+Do not use placeholders.
+Context:
+${JSON.stringify(ctx)}`;
+
+  const result = await runTaskWithProviderFallback([
+    { role: 'system', content: 'You are a conversion copywriter. Return JSON only. No markdown.' },
+    { role: 'user', content: prompt }
+  ], openaiClient, preferredProvider, {
+    temperature: 0.78,
+    maxTokens: 260,
+    returnMeta: true,
+    allowOpenAI
+  });
+
+  const parsed = tryParseJsonBlock(String(result?.text || '')) || {};
+  return {
+    headline: cleanText(parsed?.headline || ctx.headline || 'Your headline', 220),
+    subtext: cleanText(parsed?.subtext || ctx.subtext || 'Your subtext', 260),
+    ctaText: cleanText(parsed?.ctaText || ctx.ctaText || 'Start now', 120)
   };
 }
 
@@ -3891,6 +3941,31 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('[CAMPAIGN EDITOR IMAGE ERROR]', err?.message);
       return res.status(500).json({ error: 'Could not generate campaign image right now.' });
+    }
+  }
+
+  // ── Campaign editor copy rewrite (headline/subtext/CTA) ──
+  if (campaignAction === 'rewrite_copy') {
+    const campaignCopyContext = body?.campaignCopyContext && typeof body.campaignCopyContext === 'object'
+      ? body.campaignCopyContext
+      : null;
+    if (!campaignCopyContext) {
+      return res.status(400).json({ error: 'Missing campaignCopyContext.' });
+    }
+    try {
+      const rewritten = await generateCampaignCopyRewrite(
+        campaignCopyContext,
+        openai,
+        'gemini',
+        allowOpenAIFallback
+      );
+      return res.status(200).json({
+        ok: true,
+        campaignCopy: rewritten
+      });
+    } catch (err) {
+      console.error('[CAMPAIGN COPY REWRITE ERROR]', err?.message);
+      return res.status(500).json({ error: 'Could not rewrite campaign copy right now.' });
     }
   }
 
