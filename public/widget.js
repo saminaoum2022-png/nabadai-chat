@@ -5745,6 +5745,11 @@ function finishOnboarding() {
       subtext: cleanText(data.subtext || '', 220),
       ctaText: cleanText(data.ctaText || '', 120),
       imagePrompt: cleanText(data.imagePrompt || '', 1200),
+      objective: cleanText(data.objective || '', 200),
+      audience: cleanText(data.audience || '', 180),
+      offer: cleanText(data.offer || '', 220),
+      tone: cleanText(data.tone || '', 90),
+      visualStyle: cleanText(data.visualStyle || '', 140),
       platform: cleanText(data.platform || '', 80),
       format: cleanText(data.format || '', 80),
       typography: {
@@ -5800,6 +5805,38 @@ function finishOnboarding() {
     };
   }
 
+  async function fetchCampaignRewriteCopy(context = {}) {
+    const payload = {
+      campaignAction: 'rewrite_copy',
+      campaignCopyContext: {
+        headline: cleanText(context.headline || '', 220),
+        subtext: cleanText(context.subtext || '', 260),
+        ctaText: cleanText(context.ctaText || '', 120),
+        objective: cleanText(context.objective || '', 200),
+        audience: cleanText(context.audience || '', 180),
+        offer: cleanText(context.offer || '', 220),
+        tone: cleanText(context.tone || '', 90),
+        visualStyle: cleanText(context.visualStyle || '', 140),
+        platform: cleanText(context.platform || '', 80),
+        format: cleanText(context.format || '', 50),
+        rewriteHint: cleanText(context.rewriteHint || '', 220)
+      },
+      memoryKey: getMemoryKey()
+    };
+    const resp = await fetch(CONFIG.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error(`Campaign copy rewrite failed (${resp.status})`);
+    const data = await resp.json();
+    return {
+      headline: cleanText(data?.campaignCopy?.headline || '', 220),
+      subtext: cleanText(data?.campaignCopy?.subtext || '', 260),
+      ctaText: cleanText(data?.campaignCopy?.ctaText || '', 120)
+    };
+  }
+
   function hideChatForEditorMode() {
     if (refs.header) refs.header.style.display = 'none';
     const inputWrap = document.getElementById('nabad-input-wrap');
@@ -5840,10 +5877,18 @@ function finishOnboarding() {
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button type="button" class="nabad-editor-btn" id="nabad-editor-back">Back</button>
               <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete selected</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-regenerate">Regenerate image</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-rewrite">Rewrite copy</button>
               <button type="button" class="nabad-editor-btn primary" id="nabad-editor-save">Save PNG</button>
             </div>
           </div>
           <div class="nabad-editor-toolbar">
+            <label class="nabad-editor-tool">Image hint
+              <input id="nabad-editor-image-hint" type="text" placeholder="optional visual tweak" style="height:30px;width:170px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:600;" />
+            </label>
+            <label class="nabad-editor-tool">Rewrite hint
+              <input id="nabad-editor-copy-hint" type="text" placeholder="optional messaging angle" style="height:30px;width:170px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:600;" />
+            </label>
             <label class="nabad-editor-tool">Font
               <select id="nabad-editor-font-family" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
                 <option value="Inter">Inter</option>
@@ -5898,12 +5943,16 @@ function finishOnboarding() {
 
       const backBtn = document.getElementById('nabad-editor-back');
       const deleteBtn = document.getElementById('nabad-editor-delete');
+      const regenerateBtn = document.getElementById('nabad-editor-regenerate');
+      const rewriteBtn = document.getElementById('nabad-editor-rewrite');
       const saveBtn = document.getElementById('nabad-editor-save');
       const bgBtn = document.getElementById('nabad-editor-bg');
       const bgLockBtn = document.getElementById('nabad-editor-bg-lock');
       const bgFile = document.getElementById('nabad-editor-bg-file');
       const shapeSelect = document.getElementById('nabad-editor-shape-select');
       const addShapeBtn = document.getElementById('nabad-editor-add-shape');
+      const imageHintInput = document.getElementById('nabad-editor-image-hint');
+      const copyHintInput = document.getElementById('nabad-editor-copy-hint');
       const fontFamilySelect = document.getElementById('nabad-editor-font-family');
       const headlineRange = document.getElementById('nabad-editor-headline-size');
       const subtextRange = document.getElementById('nabad-editor-subtext-size');
@@ -6300,6 +6349,62 @@ function finishOnboarding() {
         addShape(cleanText(shapeSelect?.value || 'rect', 24) || 'rect');
       });
       deleteBtn?.addEventListener('click', deleteSelectedObject);
+
+      regenerateBtn?.addEventListener('click', async () => {
+        const previousLabel = regenerateBtn.textContent;
+        regenerateBtn.disabled = true;
+        regenerateBtn.textContent = 'Regenerating...';
+        try {
+          const tweak = cleanText(imageHintInput?.value || '', 220);
+          const basePrompt = cleanText(campaignData.imagePrompt || prompt, 1200);
+          const variantPrompt = cleanText(
+            `${basePrompt} Create a distinctly different composition and scene from previous version. ${tweak ? `Extra direction: ${tweak}.` : ''}`,
+            1300
+          );
+          const nextImage = await fetchCampaignEditorImage(variantPrompt);
+          await setBackgroundFromUrl(nextImage.url, false);
+          backgroundObj?.sendToBack?.();
+          fabricCanvas.renderAll();
+        } catch (err) {
+          console.error('[NABAD] editor regenerate image error:', err);
+          alert('Could not regenerate image right now. Please try again.');
+        } finally {
+          regenerateBtn.disabled = false;
+          regenerateBtn.textContent = previousLabel || 'Regenerate image';
+        }
+      });
+
+      rewriteBtn?.addEventListener('click', async () => {
+        const previousLabel = rewriteBtn.textContent;
+        rewriteBtn.disabled = true;
+        rewriteBtn.textContent = 'Rewriting...';
+        try {
+          const rewritten = await fetchCampaignRewriteCopy({
+            headline: cleanText(headlineObj.text || '', 220),
+            subtext: cleanText(subtextObj.text || '', 260),
+            ctaText: cleanText(ctaObj.text || '', 120),
+            objective: cleanText(campaignData.objective || '', 200),
+            audience: cleanText(campaignData.audience || '', 180),
+            offer: cleanText(campaignData.offer || '', 220),
+            tone: cleanText(campaignData.tone || '', 90),
+            visualStyle: cleanText(campaignData.visualStyle || '', 140),
+            platform: cleanText(campaignData.platform || '', 80),
+            format: cleanText(campaignData.format || '', 50),
+            rewriteHint: cleanText(copyHintInput?.value || '', 220)
+          });
+          if (rewritten.headline) headlineObj.set('text', rewritten.headline);
+          if (rewritten.subtext) subtextObj.set('text', rewritten.subtext);
+          if (rewritten.ctaText) ctaObj.set('text', rewritten.ctaText);
+          syncCtaBackground();
+          fabricCanvas.renderAll();
+        } catch (err) {
+          console.error('[NABAD] editor rewrite copy error:', err);
+          alert('Could not rewrite copy right now. Please try again.');
+        } finally {
+          rewriteBtn.disabled = false;
+          rewriteBtn.textContent = previousLabel || 'Rewrite copy';
+        }
+      });
 
       const keyHandler = (e) => {
         if (e.key === 'Delete' || e.key === 'Backspace') {
