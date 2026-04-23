@@ -1956,6 +1956,19 @@ function buildCampaignImagePromptFromBrief(brief = {}) {
   );
 }
 
+function buildCampaignRequestPayload(brief = {}) {
+  const b = normalizeCampaignBriefData(brief, {});
+  return {
+    campaignRequest: true,
+    headline: b.hook || b.campaignName || 'Campaign headline',
+    subtext: b.offer || b.objective || 'Campaign subtext',
+    ctaText: b.cta || 'Start now',
+    imagePrompt: buildCampaignImagePromptFromBrief(b),
+    platform: b.platform,
+    format: b.format
+  };
+}
+
 async function generateSingleProviderImage(provider = '', prompt = '', imageType = 'image') {
   const p = cleanText(provider, 24).toLowerCase();
   if (p === 'gemini') {
@@ -3587,6 +3600,8 @@ export default async function handler(req, res) {
       }
     : null;
   const imageProvider = cleanText(body?.imageProvider || '', 24).toLowerCase();
+  const campaignAction = cleanText(body?.campaignAction || '', 40).toLowerCase();
+  const campaignImagePrompt = cleanText(body?.campaignImagePrompt || '', 1400);
   const liveResearchModeRaw = cleanText(body?.liveResearchMode || 'auto', 24).toLowerCase();
   const liveResearchMode = liveResearchModeRaw === 'on_demand' ? 'on_demand' : 'auto';
   const allowOpenAIFallback = body?.allowOpenAIFallback === true || cleanText(process.env.NABAD_ALLOW_OPENAI_FALLBACK || 'false', 6).toLowerCase() === 'true';
@@ -3765,6 +3780,28 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('[MEMORY RESTORE ERROR]', err?.message);
       return res.status(500).json({ error: 'Could not restore memory right now.' });
+    }
+  }
+
+  // ── Campaign editor image generation (single server call from widget editor) ──
+  if (campaignAction === 'generate_image') {
+    if (!campaignImagePrompt) {
+      return res.status(400).json({ error: 'Missing campaignImagePrompt.' });
+    }
+    try {
+      const generated = await generateImageWithProviderChain(
+        campaignImagePrompt,
+        'banner',
+        { preferred: imageProvider || 'auto', allowOpenAI: allowOpenAIFallback }
+      );
+      return res.status(200).json({
+        ok: true,
+        campaignImageUrl: generated?.url || '',
+        campaignImageProvider: generated?.provider || ''
+      });
+    } catch (err) {
+      console.error('[CAMPAIGN EDITOR IMAGE ERROR]', err?.message);
+      return res.status(500).json({ error: 'Could not generate campaign image right now.' });
     }
   }
 
@@ -3998,18 +4035,19 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Creative quick action: campaign brief first, then confirm generate ──
+  // ── Campaign request: return structured payload for client-side editor flow ──
   if (isCampaignVisualRequest(lastUserMessage) && !isCampaignBriefConfirmationIntent(lastUserMessage)) {
     try {
       const brief = await generateCampaignBrief(messages, userProfile, openai, 'gemini', allowOpenAIFallback);
-      const hasRecentLogo = recentLogoInMessages(messages, 18);
+      const campaignData = buildCampaignRequestPayload(brief);
       return respond({
-        reply: buildCampaignBriefCard({ ...brief, hasRecentLogo }),
+        reply: '<p>Campaign draft prepared. Open editor to customize and generate your visual.</p>',
+        campaignRequest: true,
+        campaignData,
         detectedPersonality: 'creative'
       }, { persist: false });
     } catch (err) {
       console.error('[CAMPAIGN BRIEF ERROR]', err?.message);
-      const hasRecentLogo = recentLogoInMessages(messages, 18);
       const fallbackBrief = normalizeCampaignBriefData({}, {
         campaignName: 'Nabad Campaign Visual',
         objective: 'Increase qualified inbound interest',
@@ -4023,8 +4061,11 @@ export default async function handler(req, res) {
         visualStyle: 'Bold headline, clean composition, clear CTA',
         mustInclude: ['Brand name', 'Outcome-driven headline', 'Clear CTA']
       });
+      const campaignData = buildCampaignRequestPayload(fallbackBrief);
       return respond({
-        reply: buildCampaignBriefCard({ ...fallbackBrief, hasRecentLogo }),
+        reply: '<p>Campaign draft prepared. Open editor to customize and generate your visual.</p>',
+        campaignRequest: true,
+        campaignData,
         detectedPersonality: 'creative'
       }, { persist: false });
     }
