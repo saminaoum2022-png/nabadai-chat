@@ -821,8 +821,9 @@
   }
 
   function shouldCollapseQuickActions() {
-    const userCount = state.messages.filter((m) => m.role === 'user').length;
-    return userCount >= 6 && !state.quickActionsPinned;
+    // Keep quick actions visible so users always see capability prompts.
+    // Auto-collapsing caused confusion during campaign and creative flows.
+    return false;
   }
 
   function renderQuickActions() {
@@ -5486,14 +5487,20 @@ function finishOnboarding() {
           refs.input.focus();
           return;
         } else if (action === 'campaign-refine-text') {
-          refs.input.value = 'Edit this campaign visual text: replace headline and CTA';
+          refs.input.value = 'Campaign refine text: headline= ; subline= ; cta=';
+          autoGrowTextarea();
+          refs.input.focus();
+          return;
         } else if (action === 'campaign-refine-logo') {
-          refs.input.value = 'Edit this campaign visual logo: replace current logo with uploaded logo';
+          refs.input.value = 'Campaign refine logo: replace with uploaded logo';
           autoGrowTextarea();
           refs.fileInput?.click();
           return;
         } else if (action === 'campaign-refine-background') {
-          refs.input.value = 'Edit this campaign visual background: use a different photo/background style';
+          refs.input.value = 'Campaign refine background: ';
+          autoGrowTextarea();
+          refs.input.focus();
+          return;
         } else if (action === 'campaign-refine-regenerate') {
           refs.input.value = 'Regenerate this campaign visual with same layout but improved composition';
         } else if (action === 'pricing-edit') {
