@@ -1767,6 +1767,184 @@ function buildImageReplyHtml(imageUrl = '', promptText = '', imageType = 'image'
   return `<p><strong>${label}</strong></p>${buildGeneratedImageHtml(imageUrl, provider)}`;
 }
 
+function isThreeLogoDirectionsRequest(text = '') {
+  const t = String(text || '').toLowerCase();
+  return /\b(3|three)\b/.test(t) &&
+    /\b(logo|brand|directions|concepts|versions|options)\b/.test(t) &&
+    /\b(generate|create|make|show|give|build|design)\b/.test(t);
+}
+
+function isCampaignVisualRequest(text = '') {
+  const t = String(text || '').toLowerCase();
+  const hasGenerateVerb = /\b(generate|create|make|build|design|concept)\b/.test(t);
+  const hasVisualTarget = /\b(ad visual|creative visual|campaign visual|ad creative|social post|poster|banner|image|visual)\b/.test(t);
+  return hasGenerateVerb && hasVisualTarget;
+}
+
+function isCampaignBriefConfirmationIntent(text = '') {
+  return /\b(confirm|looks good|proceed|go ahead|generate now|finalize|approved?|yes generate|use this brief)\b/i.test(String(text || ''));
+}
+
+function campaignBriefRecentlyShown(messages = [], lookback = 8) {
+  return messages.slice(-lookback).some((m) => {
+    if (m.role !== 'assistant') return false;
+    const raw = String(m.content || '');
+    return raw.includes('data-nabad-card="campaign-brief"');
+  });
+}
+
+function normalizeCampaignBriefData(data = {}, fallback = {}) {
+  const mustInclude = normalizeList(data?.mustInclude || fallback?.mustInclude || []).slice(0, 6);
+  return {
+    campaignName: cleanText(data?.campaignName || fallback?.campaignName || 'Campaign Visual Direction', 80),
+    objective: cleanText(data?.objective || fallback?.objective || 'Improve conversion with a clear value proposition', 180),
+    audience: cleanText(data?.audience || fallback?.audience || 'Founders and business owners', 160),
+    offer: cleanText(data?.offer || fallback?.offer || 'A practical AI co-founder experience', 180),
+    hook: cleanText(data?.hook || fallback?.hook || 'From overthinking to confident execution', 140),
+    cta: cleanText(data?.cta || fallback?.cta || 'Start your first focused sprint', 120),
+    platform: cleanText(data?.platform || fallback?.platform || 'Instagram + LinkedIn', 80),
+    format: cleanText(data?.format || fallback?.format || '1:1 feed visual', 60),
+    tone: cleanText(data?.tone || fallback?.tone || 'Premium, modern, confident, human', 80),
+    visualStyle: cleanText(data?.visualStyle || fallback?.visualStyle || 'Clean composition, strong hierarchy, brand-led', 160),
+    mustInclude: mustInclude.length ? mustInclude : ['Brand name', 'Clear value statement', 'Visible CTA']
+  };
+}
+
+async function generateCampaignBrief(messages = [], userProfile = '', openaiClient, preferredProvider = 'gemini', allowOpenAI = false) {
+  const context = messages
+    .filter((m) => m.role === 'user')
+    .slice(-8)
+    .map((m) => getMessageText(m.content))
+    .join('\n');
+  const prompt = `Return ONLY valid JSON.
+Schema:
+{
+  "campaignName": "string",
+  "objective": "string",
+  "audience": "string",
+  "offer": "string",
+  "hook": "string",
+  "cta": "string",
+  "platform": "string",
+  "format": "string",
+  "tone": "string",
+  "visualStyle": "string",
+  "mustInclude": ["string","string","string"]
+}
+Build a practical ad-visual brief from this founder context.
+Profile: ${cleanText(userProfile, 900)}
+Conversation: ${cleanText(context, 2000)}`;
+  const result = await runTaskWithProviderFallback([
+    { role: 'system', content: 'You are a campaign strategist. Return JSON only. No markdown.' },
+    { role: 'user', content: prompt }
+  ], openaiClient, preferredProvider, {
+    maxTokens: 500,
+    temperature: 0.55,
+    returnMeta: true,
+    allowOpenAI
+  });
+  const parsed = tryParseJsonBlock(String(result?.text || '')) || {};
+  return normalizeCampaignBriefData(parsed, {});
+}
+
+function buildCampaignBriefCard(data = {}) {
+  const brief = normalizeCampaignBriefData(data, {});
+  const payload = encodeURIComponent(JSON.stringify(brief));
+  const mustIncludeHtml = brief.mustInclude.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  return `<div data-nabad-card="campaign-brief" data-nabad-brief="${payload}" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:18px;border:1px solid rgba(37,99,235,.14);margin:8px 0">
+    <div style="font-size:18px;font-weight:800;margin-bottom:8px">Campaign Brief Preview</div>
+    <p style="margin:0 0 10px"><strong>${escapeHtml(brief.campaignName)}</strong></p>
+    <p style="margin:0 0 6px"><strong>Objective:</strong> ${escapeHtml(brief.objective)}</p>
+    <p style="margin:0 0 6px"><strong>Audience:</strong> ${escapeHtml(brief.audience)}</p>
+    <p style="margin:0 0 6px"><strong>Offer:</strong> ${escapeHtml(brief.offer)}</p>
+    <p style="margin:0 0 6px"><strong>Hook:</strong> ${escapeHtml(brief.hook)}</p>
+    <p style="margin:0 0 6px"><strong>CTA:</strong> ${escapeHtml(brief.cta)}</p>
+    <p style="margin:0 0 6px"><strong>Channel / Format:</strong> ${escapeHtml(brief.platform)} · ${escapeHtml(brief.format)}</p>
+    <p style="margin:0 0 8px"><strong>Style:</strong> ${escapeHtml(brief.tone)} · ${escapeHtml(brief.visualStyle)}</p>
+    <p style="margin:0 0 6px"><strong>Must include:</strong></p>
+    <ul style="margin:0 0 12px 18px;padding:0">${mustIncludeHtml}</ul>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button data-nabad-action="campaign-brief-confirm">Confirm & Generate Visual</button>
+      <button data-nabad-action="campaign-brief-edit">Edit Brief</button>
+    </div>
+  </div>`;
+}
+
+function extractRecentCampaignBrief(messages = [], lookback = 12) {
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - lookback); i--) {
+    const m = messages[i];
+    if (m.role !== 'assistant') continue;
+    const raw = String(m.content || '');
+    const match = raw.match(/data-nabad-brief="([^"]+)"/i);
+    if (!match?.[1]) continue;
+    try {
+      const parsed = JSON.parse(decodeURIComponent(match[1]));
+      if (parsed && typeof parsed === 'object') {
+        return normalizeCampaignBriefData(parsed, {});
+      }
+    } catch {}
+  }
+  return null;
+}
+
+function buildCampaignImagePromptFromBrief(brief = {}) {
+  const b = normalizeCampaignBriefData(brief, {});
+  return cleanText(
+    `Ad campaign visual. Campaign: ${b.campaignName}. Objective: ${b.objective}. Audience: ${b.audience}. Offer: ${b.offer}. Hook text: ${b.hook}. CTA text: ${b.cta}. Platform: ${b.platform}. Format: ${b.format}. Tone: ${b.tone}. Visual style: ${b.visualStyle}. Must include: ${b.mustInclude.join(', ')}. Premium composition, clear hierarchy, high conversion, professional typography.`,
+    900
+  );
+}
+
+async function generateSingleProviderImage(provider = '', prompt = '', imageType = 'image') {
+  const p = cleanText(provider, 24).toLowerCase();
+  if (p === 'gemini') {
+    if (!process.env.GEMINI_API_KEY) throw new Error('Gemini is not configured');
+    return await generateWithGeminiImage(prompt, imageType);
+  }
+  if (p === 'ideogram') {
+    if (!process.env.IDEOGRAM_API_KEY) throw new Error('Ideogram is not configured');
+    return await generateWithIdeogram(prompt, imageType);
+  }
+  if (p === 'replicate') {
+    if (!process.env.REPLICATE_API_TOKEN) throw new Error('Replicate is not configured');
+    return await generateWithReplicate(prompt, imageType);
+  }
+  throw new Error('Unsupported provider');
+}
+
+function buildThreeLogoDirectionsCard(results = []) {
+  const sorted = ['gemini', 'ideogram', 'replicate'].map((id) => results.find((r) => r.provider === id)).filter(Boolean);
+  const titles = {
+    gemini: 'Direction A · Gemini',
+    ideogram: 'Direction B · Ideogram',
+    replicate: 'Direction C · Replicate'
+  };
+  const actionByProvider = {
+    gemini: 'logo-direction-gemini',
+    ideogram: 'logo-direction-ideogram',
+    replicate: 'logo-direction-replicate'
+  };
+  const blocks = sorted.map((item) => {
+    const title = titles[item.provider] || item.provider;
+    if (item.ok && item.url) {
+      return `<div style="flex:1;min-width:220px;background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:12px;padding:10px">
+        <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#1e3a8a">${escapeHtml(title)}</p>
+        <img src="${item.url}" alt="${escapeHtml(title)}" class="nabad-gen-image" loading="lazy" />
+        <div style="margin-top:8px"><button data-nabad-action="${actionByProvider[item.provider] || ''}">Use this direction</button></div>
+      </div>`;
+    }
+    return `<div style="flex:1;min-width:220px;background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:12px;padding:10px">
+      <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#1e3a8a">${escapeHtml(title)}</p>
+      <p style="margin:0;font-size:12px;color:#64748b">Could not generate from this provider right now.</p>
+    </div>`;
+  }).join('');
+  return `<div data-nabad-card="logo-directions" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:16px;border:1px solid rgba(37,99,235,.14);margin:8px 0">
+    <p style="margin:0 0 10px;font-size:17px;font-weight:800">3 Logo Directions</p>
+    <p style="margin:0 0 12px;font-size:13px;color:#475569">Same brief, generated by 3 engines. Pick one direction and I’ll refine it.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">${blocks}</div>
+  </div>`;
+}
+
 // ── Business Mode & Personality ───────────────────────────────────────────────
 function detectBusinessMode(text = '', messages = []) {
   const t = (text + ' ' + messages.slice(-3).map(m => getMessageText(m.content)).join(' ')).toLowerCase();
@@ -3720,6 +3898,87 @@ export default async function handler(req, res) {
   ) {
     const lastMeta = extractLastImageMeta(messages);
     return respond({ reply: buildPremiumUpgradeOffer(lastMeta?.prompt || ''), detectedPersonality: 'auto' });
+  }
+
+  // ── Creative quick action: 3 logo directions (Gemini + Ideogram + Replicate) ──
+  if (isThreeLogoDirectionsRequest(lastUserMessage)) {
+    try {
+      let prompt = await buildImagePromptWithOpenAI(lastUserMessage, messages, openai, 'gemini', allowOpenAIFallback);
+      prompt = enrichImagePrompt(prompt, 'logo');
+      prompt = enforceLogoTextAnchor(prompt, lastUserMessage, messages);
+      const providers = ['gemini', 'ideogram', 'replicate'];
+      const settled = await Promise.allSettled(
+        providers.map(async (provider) => {
+          const url = await generateSingleProviderImage(provider, prompt, 'logo');
+          return { provider, ok: true, url };
+        })
+      );
+      const results = settled.map((item, idx) => {
+        const provider = providers[idx];
+        if (item.status === 'fulfilled') return item.value;
+        console.error(`[3 LOGO DIRECTIONS ERROR] ${provider}:`, item.reason?.message || item.reason);
+        return { provider, ok: false, url: '' };
+      });
+      return respond({
+        reply: buildThreeLogoDirectionsCard(results),
+        detectedPersonality: 'creative'
+      });
+    } catch (err) {
+      console.error('[3 LOGO DIRECTIONS ERROR]', err?.message);
+      return respond({
+        reply: '<p>I hit a quick generation issue for one or more providers. Try again and I will rebuild the 3 logo directions.</p>',
+        detectedPersonality: 'creative'
+      });
+    }
+  }
+
+  // ── Creative quick action: campaign brief first, then confirm generate ──
+  if (isCampaignVisualRequest(lastUserMessage) && !isCampaignBriefConfirmationIntent(lastUserMessage)) {
+    try {
+      const brief = await generateCampaignBrief(messages, userProfile, openai, 'gemini', allowOpenAIFallback);
+      return respond({
+        reply: buildCampaignBriefCard(brief),
+        detectedPersonality: 'creative'
+      }, { persist: false });
+    } catch (err) {
+      console.error('[CAMPAIGN BRIEF ERROR]', err?.message);
+      const fallbackBrief = normalizeCampaignBriefData({}, {
+        campaignName: 'Nabad Campaign Visual',
+        objective: 'Increase qualified inbound interest',
+        audience: 'Founders and business owners',
+        offer: 'AI co-founder support with memory and execution',
+        hook: 'Think. Adapt. React.',
+        cta: 'Start with Nabad',
+        platform: 'Instagram + LinkedIn',
+        format: '1080x1080',
+        tone: 'Premium and trustworthy',
+        visualStyle: 'Bold headline, clean composition, clear CTA',
+        mustInclude: ['Brand name', 'Outcome-driven headline', 'Clear CTA']
+      });
+      return respond({
+        reply: buildCampaignBriefCard(fallbackBrief),
+        detectedPersonality: 'creative'
+      }, { persist: false });
+    }
+  }
+
+  if (isCampaignBriefConfirmationIntent(lastUserMessage) && campaignBriefRecentlyShown(messages)) {
+    try {
+      const recentBrief = extractRecentCampaignBrief(messages) || await generateCampaignBrief(messages, userProfile, openai, 'gemini', allowOpenAIFallback);
+      const campaignPrompt = buildCampaignImagePromptFromBrief(recentBrief);
+      const generated = await generateImageWithProviderChain(campaignPrompt, 'banner', { preferred: imageProvider, allowOpenAI: allowOpenAIFallback });
+      providerTrace.imageGeneration = generated?.provider || '';
+      return respond({
+        reply: `<p><strong>Campaign visual generated from your approved brief.</strong></p>${buildGeneratedImageHtml(generated.url, generated.provider)}`,
+        detectedPersonality: 'creative'
+      });
+    } catch (err) {
+      console.error('[CAMPAIGN VISUAL ERROR]', err?.message);
+      return respond({
+        reply: '<p>I could not generate the campaign visual right now. Tap confirm again in a few seconds and I will retry from the same brief.</p>',
+        detectedPersonality: 'creative'
+      });
+    }
   }
 
   // ── Ask image style first for better control ──
