@@ -1776,9 +1776,10 @@ function isThreeLogoDirectionsRequest(text = '') {
 
 function isCampaignVisualRequest(text = '') {
   const t = String(text || '').toLowerCase();
+  const hasCampaignIntent = /\b(campaign|ad|ads|advertising|social post|launch post|promo|promotion)\b/.test(t);
   const hasGenerateVerb = /\b(generate|create|make|build|design|concept)\b/.test(t);
-  const hasVisualTarget = /\b(ad visual|creative visual|campaign visual|ad creative|social post|poster|banner|image|visual)\b/.test(t);
-  return hasGenerateVerb && hasVisualTarget;
+  const hasVisualTarget = /\b(ad visual|creative visual|campaign visual|ad creative|social creative|poster|banner|visual)\b/.test(t);
+  return hasCampaignIntent && hasGenerateVerb && hasVisualTarget;
 }
 
 function isCampaignBriefConfirmationIntent(text = '') {
@@ -1791,6 +1792,25 @@ function campaignBriefRecentlyShown(messages = [], lookback = 8) {
     const raw = String(m.content || '');
     return raw.includes('data-nabad-card="campaign-brief"');
   });
+}
+
+function recentLogoInMessages(messages = [], lookback = 18) {
+  return messages.slice(-lookback).some((m) => {
+    if (m.role !== 'assistant') return false;
+    const t = String(m.content || '').toLowerCase();
+    return /your logo is ready|logo directions|brandmark|wordmark/.test(t);
+  });
+}
+
+function extractCampaignLogoChoice(messages = [], lastUserMessage = '') {
+  const combined = [String(lastUserMessage || ''), ...messages.slice(-10).filter((m) => m.role === 'user').map((m) => getMessageText(m.content))]
+    .join(' ')
+    .toLowerCase();
+  if (/campaign logo choice:\s*use generated logo|use generated logo/.test(combined)) return 'generated';
+  if (/campaign logo choice:\s*use uploaded logo|upload(ed)? logo|use my logo/.test(combined)) return 'upload';
+  if (/campaign logo choice:\s*proceed without logo|without logo|no logo/.test(combined)) return 'none';
+  if (/campaign logo choice:\s*create logo first|create logo first|generate logo first/.test(combined)) return 'generate-first';
+  return '';
 }
 
 function normalizeCampaignBriefData(data = {}, fallback = {}) {
@@ -1851,6 +1871,16 @@ function buildCampaignBriefCard(data = {}) {
   const brief = normalizeCampaignBriefData(data, {});
   const payload = encodeURIComponent(JSON.stringify(brief));
   const mustIncludeHtml = brief.mustInclude.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  const hasRecentLogo = !!data?.hasRecentLogo;
+  const logoChoiceBlock = `<div style="margin:12px 0;padding:10px;border:1px solid rgba(37,99,235,.14);border-radius:10px;background:#fff">
+    <p style="margin:0 0 8px;font-size:13px"><strong>Logo handling for this campaign visual:</strong></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${hasRecentLogo ? '<button data-nabad-action="campaign-logo-generated">Use generated logo</button>' : ''}
+      <button data-nabad-action="campaign-logo-upload">Upload logo</button>
+      <button data-nabad-action="campaign-logo-none">Proceed without logo</button>
+      <button data-nabad-action="campaign-logo-generate-first">Create logo first</button>
+    </div>
+  </div>`;
   return `<div data-nabad-card="campaign-brief" data-nabad-brief="${payload}" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:18px;border:1px solid rgba(37,99,235,.14);margin:8px 0">
     <div style="font-size:18px;font-weight:800;margin-bottom:8px">Campaign Brief Preview</div>
     <p style="margin:0 0 10px"><strong>${escapeHtml(brief.campaignName)}</strong></p>
@@ -1863,6 +1893,7 @@ function buildCampaignBriefCard(data = {}) {
     <p style="margin:0 0 8px"><strong>Style:</strong> ${escapeHtml(brief.tone)} · ${escapeHtml(brief.visualStyle)}</p>
     <p style="margin:0 0 6px"><strong>Must include:</strong></p>
     <ul style="margin:0 0 12px 18px;padding:0">${mustIncludeHtml}</ul>
+    ${logoChoiceBlock}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button data-nabad-action="campaign-brief-confirm">Confirm & Generate Visual</button>
       <button data-nabad-action="campaign-brief-edit">Edit Brief</button>
@@ -1919,18 +1950,12 @@ function buildThreeLogoDirectionsCard(results = []) {
     ideogram: 'Direction B · Ideogram',
     replicate: 'Direction C · Replicate'
   };
-  const actionByProvider = {
-    gemini: 'logo-direction-gemini',
-    ideogram: 'logo-direction-ideogram',
-    replicate: 'logo-direction-replicate'
-  };
   const blocks = sorted.map((item) => {
     const title = titles[item.provider] || item.provider;
     if (item.ok && item.url) {
       return `<div style="flex:1;min-width:220px;background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:12px;padding:10px">
         <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#1e3a8a">${escapeHtml(title)}</p>
         <img src="${item.url}" alt="${escapeHtml(title)}" class="nabad-gen-image" loading="lazy" />
-        <div style="margin-top:8px"><button data-nabad-action="${actionByProvider[item.provider] || ''}">Use this direction</button></div>
       </div>`;
     }
     return `<div style="flex:1;min-width:220px;background:#fff;border:1px solid rgba(37,99,235,.12);border-radius:12px;padding:10px">
@@ -1940,9 +1965,20 @@ function buildThreeLogoDirectionsCard(results = []) {
   }).join('');
   return `<div data-nabad-card="logo-directions" style="background:linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);border-radius:16px;padding:16px;border:1px solid rgba(37,99,235,.14);margin:8px 0">
     <p style="margin:0 0 10px;font-size:17px;font-weight:800">3 Logo Directions</p>
-    <p style="margin:0 0 12px;font-size:13px;color:#475569">Same brief, generated by 3 engines. Pick one direction and I’ll refine it.</p>
+    <p style="margin:0 0 12px;font-size:13px;color:#475569">Same brief, generated by 3 engines. Compare and save the one you like most.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">${blocks}</div>
   </div>`;
+}
+
+function buildCampaignVisualReply(imageUrl = '', provider = 'pollinations') {
+  return `<p><strong>Campaign visual is ready.</strong></p>
+${buildGeneratedImageHtml(imageUrl, provider)}
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+  <button data-nabad-action="campaign-refine-text">Edit text</button>
+  <button data-nabad-action="campaign-refine-logo">Replace logo</button>
+  <button data-nabad-action="campaign-refine-background">Change background</button>
+  <button data-nabad-action="campaign-refine-regenerate">Regenerate layout</button>
+</div>`;
 }
 
 // ── Business Mode & Personality ───────────────────────────────────────────────
@@ -3936,12 +3972,14 @@ export default async function handler(req, res) {
   if (isCampaignVisualRequest(lastUserMessage) && !isCampaignBriefConfirmationIntent(lastUserMessage)) {
     try {
       const brief = await generateCampaignBrief(messages, userProfile, openai, 'gemini', allowOpenAIFallback);
+      const hasRecentLogo = recentLogoInMessages(messages, 18);
       return respond({
-        reply: buildCampaignBriefCard(brief),
+        reply: buildCampaignBriefCard({ ...brief, hasRecentLogo }),
         detectedPersonality: 'creative'
       }, { persist: false });
     } catch (err) {
       console.error('[CAMPAIGN BRIEF ERROR]', err?.message);
+      const hasRecentLogo = recentLogoInMessages(messages, 18);
       const fallbackBrief = normalizeCampaignBriefData({}, {
         campaignName: 'Nabad Campaign Visual',
         objective: 'Increase qualified inbound interest',
@@ -3956,7 +3994,7 @@ export default async function handler(req, res) {
         mustInclude: ['Brand name', 'Outcome-driven headline', 'Clear CTA']
       });
       return respond({
-        reply: buildCampaignBriefCard(fallbackBrief),
+        reply: buildCampaignBriefCard({ ...fallbackBrief, hasRecentLogo }),
         detectedPersonality: 'creative'
       }, { persist: false });
     }
@@ -3964,12 +4002,40 @@ export default async function handler(req, res) {
 
   if (isCampaignBriefConfirmationIntent(lastUserMessage) && campaignBriefRecentlyShown(messages)) {
     try {
+      const logoChoice = extractCampaignLogoChoice(messages, lastUserMessage);
+      const hasRecentLogo = recentLogoInMessages(messages, 18);
+      if (!logoChoice) {
+        const briefForChoice = extractRecentCampaignBrief(messages) || await generateCampaignBrief(messages, userProfile, openai, 'gemini', allowOpenAIFallback);
+        return respond({
+          reply: `${buildCampaignBriefCard({ ...briefForChoice, hasRecentLogo })}<p>Before generation, choose logo handling: use generated logo, upload logo, proceed without logo, or create logo first.</p>`,
+          detectedPersonality: 'creative'
+        }, { persist: false });
+      }
+      if (logoChoice === 'generate-first') {
+        return respond({
+          reply: '<p>Perfect. Let’s create your logo first. Send one line with brand name + style (example: "NabadAi, modern minimal tech"). After that, I’ll attach it to the campaign visual flow.</p>',
+          detectedPersonality: 'creative'
+        }, { persist: false });
+      }
+      if (logoChoice === 'upload' && !parsedAttachment?.imageDataUrl) {
+        return respond({
+          reply: '<p>Please upload your logo image now, then tap confirm again and I will use it in the campaign visual.</p>',
+          detectedPersonality: 'creative'
+        }, { persist: false });
+      }
       const recentBrief = extractRecentCampaignBrief(messages) || await generateCampaignBrief(messages, userProfile, openai, 'gemini', allowOpenAIFallback);
-      const campaignPrompt = buildCampaignImagePromptFromBrief(recentBrief);
+      let campaignPrompt = buildCampaignImagePromptFromBrief(recentBrief);
+      if (logoChoice === 'generated') {
+        campaignPrompt = cleanText(`${campaignPrompt} Use the previously generated logo style as brand reference and keep brand consistency.`, 900);
+      } else if (logoChoice === 'upload') {
+        campaignPrompt = cleanText(`${campaignPrompt} Use the uploaded logo as the central brand mark and keep it clearly visible.`, 900);
+      } else if (logoChoice === 'none') {
+        campaignPrompt = cleanText(`${campaignPrompt} Proceed without placing a logo mark on the visual.`, 900);
+      }
       const generated = await generateImageWithProviderChain(campaignPrompt, 'banner', { preferred: imageProvider, allowOpenAI: allowOpenAIFallback });
       providerTrace.imageGeneration = generated?.provider || '';
       return respond({
-        reply: `<p><strong>Campaign visual generated from your approved brief.</strong></p>${buildGeneratedImageHtml(generated.url, generated.provider)}`,
+        reply: buildCampaignVisualReply(generated.url, generated.provider),
         detectedPersonality: 'creative'
       });
     } catch (err) {
