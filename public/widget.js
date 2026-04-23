@@ -5467,6 +5467,16 @@ function finishOnboarding() {
           refs.input.value = 'Generate a realistic photoreal logo image version';
         } else if (action === 'image-style-logo') {
           refs.input.value = 'Generate a modern professional logo image version';
+        } else if (action === 'logo-direction-gemini') {
+          refs.input.value = 'Use direction A (Gemini) as the base and refine it into a premium final logo for my brand';
+        } else if (action === 'logo-direction-ideogram') {
+          refs.input.value = 'Use direction B (Ideogram) as the base and refine it into a premium final logo for my brand';
+        } else if (action === 'logo-direction-replicate') {
+          refs.input.value = 'Use direction C (Replicate) as the base and refine it into a premium final logo for my brand';
+        } else if (action === 'campaign-brief-confirm') {
+          refs.input.value = 'Confirm this campaign brief and generate the final ad visual now';
+        } else if (action === 'campaign-brief-edit') {
+          refs.input.value = 'Edit campaign brief: objective=, audience=, offer=, hook=, cta=, platform=, format=, visual style=';
         } else if (action === 'pricing-edit') {
           const cardEl = btn.closest('[data-nabad-card="pricing"]');
           togglePricingCardEdit(cardEl, btn);
