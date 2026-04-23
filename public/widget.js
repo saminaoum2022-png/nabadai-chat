@@ -241,11 +241,13 @@
     typingLabels: null,
     quickActionsPinned: false,
     campaignRefineAction: null,
-    campaignEditBubble: null
+    campaignEditBubble: null,
+    campaignEditorContext: null
   };
 
   const refs = {
     root: null, launcher: null, panel: null,
+    header: null,
     messages: null, input: null, send: null,
     attach: null, fileInput: null, attachmentChip: null, replyBar: null,
     quickActions: null,
@@ -3775,6 +3777,93 @@ function showPersonalityPill(id) {
         border-radius: 10px;
         padding: 6px 10px;
       }
+      .nabad-campaign-preview-card {
+        background: linear-gradient(180deg,#f7faff 0%,#eef6ff 100%);
+        border: 1px solid rgba(37,99,235,0.14);
+        border-radius: 14px;
+        padding: 12px;
+        margin-top: 8px;
+      }
+      .nabad-campaign-preview-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 8px;
+      }
+      .nabad-campaign-preview-row {
+        font-size: 13px;
+        color: #1e293b;
+        margin-bottom: 6px;
+      }
+      .nabad-editor-shell {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px 10px 14px;
+        background: #eef3fb;
+      }
+      .nabad-editor-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .nabad-editor-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #0f172a;
+      }
+      .nabad-editor-btn {
+        border: 1px solid rgba(37,99,235,0.2);
+        background: #fff;
+        color: #1e3a8a;
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .nabad-editor-btn.primary {
+        background: linear-gradient(135deg,#2563eb,#06b6d4);
+        border-color: transparent;
+        color: #fff;
+      }
+      .nabad-editor-toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        background: #fff;
+        border: 1px solid rgba(37,99,235,0.12);
+        border-radius: 10px;
+        padding: 8px;
+      }
+      .nabad-editor-tool {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #334155;
+      }
+      .nabad-editor-tool input[type="range"] {
+        width: 120px;
+      }
+      .nabad-editor-stage {
+        flex: 1;
+        min-height: 320px;
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #dbe6f8;
+        position: relative;
+      }
+      .nabad-editor-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
       
       /* ── Settings Page ── */
 #nabad-settings-page {
@@ -4175,6 +4264,7 @@ function showPersonalityPill(id) {
     refs.root          = root;
     refs.launcher      = root.querySelector('#nabad-launcher');
     refs.panel         = root.querySelector('#nabad-panel');
+    refs.header        = root.querySelector('#nabad-header');
     refs.messages      = root.querySelector('#nabad-messages');
     refs.input         = root.querySelector('#nabad-input');
     refs.send          = root.querySelector('#nabad-send');
@@ -5648,6 +5738,308 @@ function finishOnboarding() {
     });
   }
 
+  function buildCampaignPreviewCard(data = {}) {
+    const payload = encodeURIComponent(JSON.stringify({
+      headline: cleanText(data.headline || '', 180),
+      subtext: cleanText(data.subtext || '', 220),
+      ctaText: cleanText(data.ctaText || '', 120),
+      imagePrompt: cleanText(data.imagePrompt || '', 1200),
+      platform: cleanText(data.platform || '', 80),
+      format: cleanText(data.format || '', 80)
+    }));
+    return `<div class="nabad-campaign-preview-card" data-nabad-card="campaign-preview" data-campaign-payload="${payload}">
+      <div class="nabad-campaign-preview-title">Campaign Draft</div>
+      <div class="nabad-campaign-preview-row"><strong>Headline:</strong> ${escapeHtml(cleanText(data.headline || '', 180) || '—')}</div>
+      <div class="nabad-campaign-preview-row"><strong>Subtext:</strong> ${escapeHtml(cleanText(data.subtext || '', 220) || '—')}</div>
+      <div class="nabad-campaign-preview-row"><strong>CTA:</strong> ${escapeHtml(cleanText(data.ctaText || '', 120) || '—')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button data-nabad-action="campaign-open-editor">Open Editor</button>
+      </div>
+    </div>`;
+  }
+
+  let fabricLoadPromise = null;
+  function loadFabricJsIfNeeded() {
+    if (window.fabric) return Promise.resolve(window.fabric);
+    if (fabricLoadPromise) return fabricLoadPromise;
+    fabricLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js';
+      script.async = true;
+      script.onload = () => resolve(window.fabric);
+      script.onerror = () => reject(new Error('Failed to load Fabric.js'));
+      document.head.appendChild(script);
+    });
+    return fabricLoadPromise;
+  }
+
+  async function fetchCampaignEditorImage(promptText = '') {
+    const resp = await fetch(CONFIG.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        campaignAction: 'generate_image',
+        campaignImagePrompt: cleanText(promptText, 1200),
+        imageProvider: state.imageProvider || 'auto',
+        memoryKey: getMemoryKey()
+      })
+    });
+    if (!resp.ok) throw new Error(`Campaign image generation failed (${resp.status})`);
+    const data = await resp.json();
+    if (!data?.campaignImageUrl) throw new Error('No campaign image URL returned');
+    return {
+      url: String(data.campaignImageUrl),
+      provider: cleanText(data.campaignImageProvider || '', 32)
+    };
+  }
+
+  function hideChatForEditorMode() {
+    if (refs.header) refs.header.style.display = 'none';
+    const inputWrap = document.getElementById('nabad-input-wrap');
+    if (inputWrap) inputWrap.style.display = 'none';
+  }
+
+  function restoreChatAfterEditorMode() {
+    if (refs.header) refs.header.style.display = '';
+    const inputWrap = document.getElementById('nabad-input-wrap');
+    if (inputWrap) inputWrap.style.display = 'flex';
+    renderInitialState();
+    scrollToBottom();
+  }
+
+  function makeRoundedRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  async function openCampaignCanvasEditorFromData(campaignData = {}) {
+    const prompt = cleanText(campaignData.imagePrompt || '', 1200);
+    if (!prompt) {
+      renderMessage('assistant', '<p>Campaign prompt is missing. Please ask Nabad to generate the campaign draft again.</p>');
+      return;
+    }
+
+    try {
+      hideChatForEditorMode();
+      refs.messages.innerHTML = `
+        <div class="nabad-editor-shell">
+          <div class="nabad-editor-topbar">
+            <div class="nabad-editor-title">Campaign Editor</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-back">Back</button>
+              <button type="button" class="nabad-editor-btn primary" id="nabad-editor-save">Save PNG</button>
+            </div>
+          </div>
+          <div class="nabad-editor-toolbar">
+            <label class="nabad-editor-tool">Font
+              <input id="nabad-editor-font-size" type="range" min="16" max="96" step="1" value="48" />
+            </label>
+            <label class="nabad-editor-tool">Text
+              <input id="nabad-editor-text-color" type="color" value="#ffffff" />
+            </label>
+            <label class="nabad-editor-tool">CTA
+              <input id="nabad-editor-cta-color" type="color" value="#2563eb" />
+            </label>
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-bg">Replace background</button>
+            <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
+          </div>
+          <div class="nabad-editor-stage">
+            <canvas id="nabad-editor-canvas" class="nabad-editor-canvas"></canvas>
+          </div>
+        </div>
+      `;
+
+      const backBtn = document.getElementById('nabad-editor-back');
+      const saveBtn = document.getElementById('nabad-editor-save');
+      const bgBtn = document.getElementById('nabad-editor-bg');
+      const bgFile = document.getElementById('nabad-editor-bg-file');
+      const fontRange = document.getElementById('nabad-editor-font-size');
+      const textColor = document.getElementById('nabad-editor-text-color');
+      const ctaColor = document.getElementById('nabad-editor-cta-color');
+      const stageEl = refs.messages.querySelector('.nabad-editor-stage');
+      const canvasEl = document.getElementById('nabad-editor-canvas');
+
+      backBtn?.addEventListener('click', () => {
+        try { state.campaignEditorContext?.canvas?.dispose?.(); } catch {}
+        state.campaignEditorContext = null;
+        restoreChatAfterEditorMode();
+      });
+
+      const loading = document.createElement('div');
+      loading.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;color:#1e3a8a;background:rgba(238,243,251,0.88);z-index:2';
+      loading.textContent = 'Generating campaign visual...';
+      stageEl?.appendChild(loading);
+
+      await loadFabricJsIfNeeded();
+      const image = await fetchCampaignEditorImage(prompt);
+
+      const stageWidth = Math.max(320, (stageEl?.clientWidth || 900) - 2);
+      const fallbackHeight = Math.round(stageWidth * 0.5625);
+      const fabricCanvas = new window.fabric.Canvas(canvasEl, {
+        selection: true,
+        preserveObjectStacking: true
+      });
+      fabricCanvas.setWidth(stageWidth);
+      fabricCanvas.setHeight(fallbackHeight);
+
+      const setBackgroundFromUrl = (src) => new Promise((resolve, reject) => {
+        window.fabric.Image.fromURL(src, (img) => {
+          if (!img) return reject(new Error('Failed to load background image.'));
+          const cw = fabricCanvas.getWidth();
+          const ch = fabricCanvas.getHeight();
+          const iw = img.width || cw;
+          const ih = img.height || ch;
+          const ratio = iw / ih;
+          const newH = Math.round(cw / ratio);
+          fabricCanvas.setHeight(Math.max(260, newH));
+          img.set({
+            selectable: false,
+            evented: false,
+            originX: 'left',
+            originY: 'top',
+            left: 0,
+            top: 0,
+            scaleX: fabricCanvas.getWidth() / iw,
+            scaleY: fabricCanvas.getHeight() / ih
+          });
+          fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+          resolve();
+        }, { crossOrigin: 'anonymous' });
+      });
+
+      await setBackgroundFromUrl(image.url);
+
+      const headlineObj = new window.fabric.IText(cleanText(campaignData.headline || 'Your headline', 180), {
+        left: fabricCanvas.getWidth() * 0.08,
+        top: fabricCanvas.getHeight() * 0.11,
+        fontSize: Math.max(26, Math.round(fabricCanvas.getWidth() * 0.055)),
+        fill: '#ffffff',
+        fontWeight: 800,
+        fontFamily: 'Inter, Arial, sans-serif',
+        shadow: 'rgba(0,0,0,0.35) 0 2px 10px',
+        editable: true
+      });
+
+      const subtextObj = new window.fabric.IText(cleanText(campaignData.subtext || 'Your subtext', 220), {
+        left: fabricCanvas.getWidth() * 0.08,
+        top: fabricCanvas.getHeight() * 0.73,
+        fontSize: Math.max(16, Math.round(fabricCanvas.getWidth() * 0.025)),
+        fill: '#ffffff',
+        fontWeight: 600,
+        fontFamily: 'Inter, Arial, sans-serif',
+        shadow: 'rgba(0,0,0,0.35) 0 2px 10px',
+        editable: true
+      });
+
+      const ctaObj = new window.fabric.IText(cleanText(campaignData.ctaText || 'Start now', 120), {
+        left: fabricCanvas.getWidth() * 0.66,
+        top: fabricCanvas.getHeight() * 0.78,
+        fontSize: Math.max(14, Math.round(fabricCanvas.getWidth() * 0.022)),
+        fill: '#ffffff',
+        fontWeight: 800,
+        fontFamily: 'Inter, Arial, sans-serif',
+        backgroundColor: '#2563eb',
+        padding: 10,
+        editable: true
+      });
+      ctaObj.isCta = true;
+
+      fabricCanvas.add(headlineObj, subtextObj, ctaObj);
+      fabricCanvas.setActiveObject(headlineObj);
+      fabricCanvas.renderAll();
+
+      const updateControlFromActive = () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj) return;
+        fontRange.value = String(Math.round(obj.fontSize || 36));
+        textColor.value = toHexColor(String(obj.fill || '#ffffff'));
+        if (obj.isCta) ctaColor.value = toHexColor(String(obj.backgroundColor || '#2563eb'));
+      };
+
+      fabricCanvas.on('selection:created', updateControlFromActive);
+      fabricCanvas.on('selection:updated', updateControlFromActive);
+
+      fontRange?.addEventListener('input', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj) return;
+        obj.set('fontSize', Number(fontRange.value || 36));
+        fabricCanvas.renderAll();
+      });
+      textColor?.addEventListener('input', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj) return;
+        obj.set('fill', textColor.value || '#ffffff');
+        fabricCanvas.renderAll();
+      });
+      ctaColor?.addEventListener('input', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || !obj.isCta) return;
+        obj.set('backgroundColor', ctaColor.value || '#2563eb');
+        fabricCanvas.renderAll();
+      });
+
+      bgBtn?.addEventListener('click', () => bgFile?.click());
+      bgFile?.addEventListener('change', () => {
+        const file = bgFile.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            await setBackgroundFromUrl(String(reader.result || ''));
+          } catch {
+            alert('Could not replace background image.');
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+
+      saveBtn?.addEventListener('click', async () => {
+        try {
+          const dataUrl = fabricCanvas.toDataURL({
+            format: 'png',
+            quality: 1,
+            multiplier: 3
+          });
+          await downloadImageFromUrl(dataUrl, 'nabad-campaign-editor.png');
+        } catch {
+          alert('Could not export image. Please try again.');
+        }
+      });
+
+      state.campaignEditorContext = {
+        canvas: fabricCanvas,
+        payload: campaignData,
+        imageUrl: image.url
+      };
+
+      loading.remove();
+    } catch (err) {
+      console.error('[NABAD] campaign editor error:', err);
+      restoreChatAfterEditorMode();
+      renderMessage('assistant', '<p>⚠️ Could not open campaign editor right now. Please try again.</p>');
+    }
+  }
+
+  function toHexColor(color = '#ffffff') {
+    const value = String(color || '').trim();
+    if (!value) return '#ffffff';
+    if (value.startsWith('#')) {
+      if (value.length === 4) {
+        return `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`.toLowerCase();
+      }
+      return value.toLowerCase();
+    }
+    const m = value.match(/rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+    if (!m) return '#ffffff';
+    const to2 = (n) => Number(n).toString(16).padStart(2, '0');
+    return `#${to2(m[1])}${to2(m[2])}${to2(m[3])}`.toLowerCase();
+  }
+
   function campaignBubbleHasActions(bubble) {
     return !!bubble?.querySelector?.('button[data-nabad-action="campaign-refine-text"]');
   }
@@ -5906,6 +6298,17 @@ function finishOnboarding() {
           autoGrowTextarea();
           refs.input.focus();
           return;
+        } else if (action === 'campaign-open-editor') {
+          const card = btn.closest('[data-nabad-card="campaign-preview"]');
+          const raw = card?.getAttribute('data-campaign-payload') || '';
+          let payload = null;
+          try { payload = raw ? JSON.parse(decodeURIComponent(raw)) : null; } catch {}
+          if (!payload?.imagePrompt) {
+            renderMessage('assistant', '<p>⚠️ Campaign payload missing. Please generate campaign draft again.</p>');
+            return;
+          }
+          openCampaignCanvasEditorFromData(payload);
+          return;
         } else if (action === 'campaign-refine-text') {
           const stage = ensureCampaignTemplateStage(bubble);
           if (stage) {
@@ -6149,8 +6552,12 @@ function finishOnboarding() {
       if (logo) logo.classList.remove('thinking');
 
       const reply = data.reply || '<p>Sorry — no response received.</p>';
-      renderMessage('assistant', reply);
-      applyNabadReactionToLastUserBubble(text, reply);
+      let renderedReply = reply;
+      if (data.campaignRequest && data.campaignData && typeof data.campaignData === 'object') {
+        renderedReply = `${reply}${buildCampaignPreviewCard(data.campaignData)}`;
+      }
+      renderMessage('assistant', renderedReply);
+      applyNabadReactionToLastUserBubble(text, renderedReply);
 
       // ── Handle detectedInfo ──
 if (data.detectedInfo && typeof data.detectedInfo === 'object') {
