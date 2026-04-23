@@ -240,7 +240,8 @@
     notificationsEnabled: loadNotificationsEnabled(),
     typingLabels: null,
     quickActionsPinned: false,
-    campaignRefineAction: null
+    campaignRefineAction: null,
+    campaignEditBubble: null
   };
 
   const refs = {
@@ -3692,6 +3693,88 @@ function showPersonalityPill(id) {
         border-color: transparent;
         color: #fff;
       }
+
+      .nabad-campaign-template-stage {
+        position: relative;
+        width: 100%;
+        border-radius: 16px;
+        overflow: hidden;
+        margin-top: 6px;
+        box-shadow: 0 8px 18px rgba(15,23,42,0.18);
+      }
+      .nabad-campaign-template-bg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .nabad-campaign-template-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      .nabad-campaign-template-text {
+        position: absolute;
+        pointer-events: auto;
+        color: #fff;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+        border-radius: 8px;
+        padding: 4px 6px;
+        line-height: 1.15;
+        max-width: 84%;
+        outline: none;
+        user-select: text;
+      }
+      .nabad-campaign-template-text[data-field="headline"] {
+        top: 9%;
+        left: 8%;
+        font-size: clamp(20px, 4.2vw, 44px);
+        font-weight: 800;
+      }
+      .nabad-campaign-template-text[data-field="subline"] {
+        bottom: 16%;
+        left: 8%;
+        font-size: clamp(12px, 1.9vw, 20px);
+        font-weight: 600;
+        opacity: 0.96;
+      }
+      .nabad-campaign-template-text[data-field="cta"] {
+        bottom: 10%;
+        right: 8%;
+        left: auto;
+        max-width: 42%;
+        font-size: clamp(11px, 1.6vw, 18px);
+        font-weight: 800;
+        background: rgba(37,99,235,0.88);
+        border: 1px solid rgba(255,255,255,0.45);
+        box-shadow: 0 6px 14px rgba(0,0,0,0.2);
+      }
+      .nabad-campaign-template-logo {
+        position: absolute;
+        top: 8%;
+        right: 8%;
+        width: 14%;
+        min-width: 54px;
+        max-width: 120px;
+        height: auto;
+        object-fit: contain;
+        filter: drop-shadow(0 3px 8px rgba(0,0,0,0.35));
+        display: none;
+        pointer-events: auto;
+      }
+      .nabad-campaign-template-stage.editing .nabad-campaign-template-text {
+        background: rgba(15,23,42,0.25);
+        outline: 1px dashed rgba(255,255,255,0.7);
+      }
+      .nabad-campaign-template-hint {
+        margin-top: 8px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #1e3a8a;
+        background: rgba(219,234,254,0.72);
+        border: 1px solid rgba(37,99,235,0.18);
+        border-radius: 10px;
+        padding: 6px 10px;
+      }
       
       /* ── Settings Page ── */
 #nabad-settings-page {
@@ -5010,18 +5093,27 @@ function finishOnboarding() {
       return;
     }
 
-    if (state.campaignRefineAction === 'logo') {
+    if (state.campaignRefineAction === 'logo-template') {
       if (entry.kind !== 'image') {
         state.campaignRefineAction = null;
+        state.campaignEditBubble = null;
         renderMessage('assistant', '<p>Please upload an image file for logo replacement.</p>');
         if (refs.fileInput) refs.fileInput.value = '';
         return;
       }
+      const targetBubble = state.campaignEditBubble;
       state.campaignRefineAction = null;
-      await sendMessage({
-        forcedText: 'Campaign refine logo: replace with uploaded logo',
-        forcedAttachment: entry
-      });
+      state.campaignEditBubble = null;
+      const stage = ensureCampaignTemplateStage(targetBubble);
+      if (stage) {
+        applyLogoToCampaignStage(stage, String(entry.dataUrl || ''));
+        stage.classList.add('editing');
+      } else {
+        await sendMessage({
+          forcedText: 'Campaign refine logo: replace with uploaded logo',
+          forcedAttachment: entry
+        });
+      }
       if (refs.fileInput) refs.fileInput.value = '';
       return;
     }
@@ -5526,6 +5618,18 @@ function finishOnboarding() {
           alert('Add at least one text field (headline, subline, or CTA).');
           return;
         }
+        const stage = ensureCampaignTemplateStage(bubble);
+        if (stage) {
+          const h = stage.querySelector('.nabad-campaign-template-text[data-field="headline"]');
+          const s = stage.querySelector('.nabad-campaign-template-text[data-field="subline"]');
+          const c = stage.querySelector('.nabad-campaign-template-text[data-field="cta"]');
+          if (headline && h) h.textContent = headline;
+          if (subline && s) s.textContent = subline;
+          if (cta && c) c.textContent = cta;
+          stage.classList.add('editing');
+          closeCampaignEditor(bubble);
+          return;
+        }
         const cmd = `Campaign refine text: headline=${headline || '-'}; subline=${subline || '-'}; cta=${cta || '-'}`;
         sendMessage({ forcedText: cmd });
         closeCampaignEditor(bubble);
@@ -5542,6 +5646,154 @@ function finishOnboarding() {
         closeCampaignEditor(bubble);
       }
     });
+  }
+
+  function campaignBubbleHasActions(bubble) {
+    return !!bubble?.querySelector?.('button[data-nabad-action="campaign-refine-text"]');
+  }
+
+  function ensureCampaignTemplateStage(bubble) {
+    if (!bubble || !campaignBubbleHasActions(bubble)) return null;
+    let stage = bubble.querySelector('.nabad-campaign-template-stage');
+    if (stage) return stage;
+
+    const imageWrap = bubble.querySelector('.nabad-inline-image-wrap');
+    const baseImg = imageWrap?.querySelector?.('img.nabad-bubble-img');
+    if (!imageWrap || !baseImg || !baseImg.src) return null;
+
+    stage = document.createElement('div');
+    stage.className = 'nabad-campaign-template-stage';
+    stage.innerHTML = `
+      <img class="nabad-campaign-template-bg" src="${baseImg.src}" alt="${escapeHtml(baseImg.alt || 'Campaign visual')}" />
+      <div class="nabad-campaign-template-layer">
+        <div class="nabad-campaign-template-text" data-field="headline" contenteditable="true" spellcheck="false">Your headline</div>
+        <div class="nabad-campaign-template-text" data-field="subline" contenteditable="true" spellcheck="false">Your subtitle</div>
+        <div class="nabad-campaign-template-text" data-field="cta" contenteditable="true" spellcheck="false">Start now</div>
+        <img class="nabad-campaign-template-logo" alt="Campaign logo overlay" />
+      </div>
+    `;
+    const hint = document.createElement('div');
+    hint.className = 'nabad-campaign-template-hint';
+    hint.textContent = 'Tip: click any text directly on the visual to edit it.';
+    imageWrap.replaceWith(stage);
+    stage.insertAdjacentElement('afterend', hint);
+    return stage;
+  }
+
+  function focusCampaignTextField(stage, field = 'headline') {
+    if (!stage) return;
+    const el = stage.querySelector(`.nabad-campaign-template-text[data-field="${field}"]`)
+      || stage.querySelector('.nabad-campaign-template-text[data-field="headline"]');
+    if (!el) return;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function applyLogoToCampaignStage(stage, imageDataUrl = '') {
+    if (!stage || !imageDataUrl) return;
+    const logo = stage.querySelector('.nabad-campaign-template-logo');
+    if (!logo) return;
+    logo.src = imageDataUrl;
+    logo.style.display = 'block';
+  }
+
+  async function downloadCampaignTemplateImage(stage) {
+    if (!stage) return false;
+    const bg = stage.querySelector('.nabad-campaign-template-bg');
+    if (!bg?.src) return false;
+
+    try {
+      const canvas = document.createElement('canvas');
+      const width = bg.naturalWidth || 1600;
+      const height = bg.naturalHeight || Math.round(width * 0.56);
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+
+      const loadImage = (src) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+
+      const bgImg = await loadImage(bg.src);
+      ctx.drawImage(bgImg, 0, 0, width, height);
+
+      const drawText = (field, opts = {}) => {
+        const el = stage.querySelector(`.nabad-campaign-template-text[data-field="${field}"]`);
+        if (!el) return;
+        const stageRect = stage.getBoundingClientRect();
+        const rect = el.getBoundingClientRect();
+        const x = ((rect.left - stageRect.left) / stageRect.width) * width;
+        const y = ((rect.top - stageRect.top) / stageRect.height) * height;
+        const fontPx = Math.max(18, ((parseFloat(getComputedStyle(el).fontSize) || 16) / stageRect.height) * height);
+        const text = cleanText(el.textContent || '', 180);
+        if (!text) return;
+        ctx.save();
+        ctx.font = `${opts.weight || 800} ${fontPx}px Inter, Arial, sans-serif`;
+        ctx.textBaseline = 'top';
+        if (opts.cta) {
+          const padX = Math.max(14, fontPx * 0.6);
+          const padY = Math.max(8, fontPx * 0.35);
+          const tw = ctx.measureText(text).width;
+          const bw = tw + padX * 2;
+          const bh = fontPx + padY * 1.7;
+          ctx.fillStyle = 'rgba(37,99,235,0.9)';
+          ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+          ctx.lineWidth = Math.max(1, fontPx * 0.05);
+          const r = Math.max(10, fontPx * 0.45);
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + bw, y, x + bw, y + bh, r);
+          ctx.arcTo(x + bw, y + bh, x, y + bh, r);
+          ctx.arcTo(x, y + bh, x, y, r);
+          ctx.arcTo(x, y, x + bw, y, r);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#fff';
+          ctx.fillText(text, x + padX, y + padY);
+        } else {
+          ctx.shadowColor = 'rgba(0,0,0,0.45)';
+          ctx.shadowBlur = fontPx * 0.5;
+          ctx.fillStyle = opts.color || '#ffffff';
+          ctx.fillText(text, x, y);
+        }
+        ctx.restore();
+      };
+
+      drawText('headline', { weight: 800, color: '#ffffff' });
+      drawText('subline', { weight: 600, color: '#ffffff' });
+      drawText('cta', { cta: true, weight: 800 });
+
+      const logoEl = stage.querySelector('.nabad-campaign-template-logo');
+      if (logoEl?.src && logoEl.style.display !== 'none') {
+        try {
+          const logoImg = await loadImage(logoEl.src);
+          const stageRect = stage.getBoundingClientRect();
+          const lr = logoEl.getBoundingClientRect();
+          const lx = ((lr.left - stageRect.left) / stageRect.width) * width;
+          const ly = ((lr.top - stageRect.top) / stageRect.height) * height;
+          const lw = (lr.width / stageRect.width) * width;
+          const lh = (lr.height / stageRect.height) * height;
+          ctx.drawImage(logoImg, lx, ly, lw, lh);
+        } catch {}
+      }
+
+      const out = canvas.toDataURL('image/png');
+      await downloadImageFromUrl(out, 'nabad-campaign-edited.png');
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // ── PROCESS ASSISTANT BUBBLE (cards, images, score bars) ─────
@@ -5577,15 +5829,24 @@ function finishOnboarding() {
         saveBtn.type = 'button';
         saveBtn.className = 'nabad-inline-image-save';
         saveBtn.textContent = 'Save image';
-        saveBtn.addEventListener('click', (e) => {
+        saveBtn.addEventListener('click', async (e) => {
           e.preventDefault();
           e.stopPropagation();
+          const stage = bubble.querySelector('.nabad-campaign-template-stage');
+          if (stage) {
+            const exported = await downloadCampaignTemplateImage(stage);
+            if (exported) return;
+          }
           downloadImageFromUrl(src, 'nabad-generated-image.png');
         });
         wrap.appendChild(realImg);
         wrap.appendChild(saveBtn);
         clearPlaceholderTimer(placeholder);
         placeholder.replaceWith(wrap);
+        if (campaignBubbleHasActions(bubble)) {
+          ensureCampaignTemplateStage(bubble);
+          bindCampaignEditorEvents(bubble);
+        }
         scrollToBottom();
       };
       realImg.onerror = () => {
@@ -5646,16 +5907,32 @@ function finishOnboarding() {
           refs.input.focus();
           return;
         } else if (action === 'campaign-refine-text') {
-          openCampaignEditor(bubble, 'headline');
-          bindCampaignEditorEvents(bubble);
+          const stage = ensureCampaignTemplateStage(bubble);
+          if (stage) {
+            stage.classList.add('editing');
+            focusCampaignTextField(stage, 'headline');
+          } else {
+            openCampaignEditor(bubble, 'headline');
+            bindCampaignEditorEvents(bubble);
+          }
           return;
         } else if (action === 'campaign-refine-logo') {
-          state.campaignRefineAction = 'logo';
+          const stage = ensureCampaignTemplateStage(bubble);
+          if (stage) stage.classList.add('editing');
+          state.campaignEditBubble = bubble;
+          state.campaignRefineAction = 'logo-template';
           refs.fileInput?.click();
           return;
         } else if (action === 'campaign-refine-background') {
-          openCampaignEditor(bubble, 'background');
-          bindCampaignEditorEvents(bubble);
+          const stage = ensureCampaignTemplateStage(bubble);
+          if (stage) {
+            stage.classList.add('editing');
+            openCampaignEditor(bubble, 'background');
+            bindCampaignEditorEvents(bubble);
+          } else {
+            openCampaignEditor(bubble, 'background');
+            bindCampaignEditorEvents(bubble);
+          }
           return;
         } else if (action === 'campaign-refine-regenerate') {
           sendMessage({ forcedText: 'Regenerate this campaign visual with same layout but improved composition' });
