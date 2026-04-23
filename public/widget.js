@@ -1537,6 +1537,51 @@ function showPersonalityPill(id) {
 
       .nabad-bubble li { margin: 0 0 6px; }
 
+      .nabad-msg.bot .nabad-bubble .nabad-collapse-content {
+        position: relative;
+        max-height: 230px;
+        overflow: hidden;
+        transition: max-height 0.24s ease;
+      }
+
+      .nabad-msg.bot .nabad-bubble .nabad-collapse-content::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 52px;
+        background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.98));
+        pointer-events: none;
+      }
+
+      .nabad-msg.bot .nabad-bubble.nabad-expanded .nabad-collapse-content {
+        max-height: 2400px;
+      }
+
+      .nabad-msg.bot .nabad-bubble.nabad-expanded .nabad-collapse-content::after {
+        display: none;
+      }
+
+      .nabad-load-more-btn {
+        margin-top: 8px;
+        border: 1px solid rgba(37,99,235,0.22);
+        background: rgba(37,99,235,0.08);
+        color: #1d4ed8;
+        border-radius: 999px;
+        padding: 5px 12px;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .nabad-load-more-btn:hover {
+        background: rgba(37,99,235,0.14);
+        border-color: rgba(37,99,235,0.35);
+      }
+
       .nabad-bubble a {
         color: #2563eb;
         font-weight: 700;
@@ -4744,6 +4789,52 @@ function finishOnboarding() {
       .trim();
   }
 
+  const LONG_REPLY_CHAR_LIMIT = 780;
+  const LONG_REPLY_LINE_LIMIT = 10;
+
+  function shouldCollapseAssistantReply(rawContent = '', bubble = null) {
+    if (!bubble) return false;
+    if (
+      bubble.querySelector('[data-nabad-card], table, img, .nabad-inline-image-wrap, .nabad-img-placeholder, pre, code, blockquote')
+    ) {
+      return false;
+    }
+    const plain = cleanText(toPlainText(rawContent), 12000);
+    if (!plain) return false;
+    const lines = plain.split(/\n+/).filter(Boolean).length;
+    return plain.length >= LONG_REPLY_CHAR_LIMIT || lines >= LONG_REPLY_LINE_LIMIT;
+  }
+
+  function attachAssistantLoadMore(bubble, contentWrap, rawContent = '') {
+    if (!bubble || !contentWrap) return;
+    if (!shouldCollapseAssistantReply(rawContent, bubble)) return;
+
+    bubble.classList.add('nabad-has-load-more');
+    contentWrap.classList.add('nabad-collapse-content');
+    contentWrap.dataset.expanded = 'false';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'nabad-load-more-btn';
+    toggleBtn.textContent = 'Load more';
+    toggleBtn.setAttribute('aria-expanded', 'false');
+
+    toggleBtn.addEventListener('click', () => {
+      const expanded = bubble.classList.toggle('nabad-expanded');
+      contentWrap.dataset.expanded = expanded ? 'true' : 'false';
+      toggleBtn.textContent = expanded ? 'Show less' : 'Load more';
+      toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if (!expanded) {
+        requestAnimationFrame(() => {
+          const top = bubble.getBoundingClientRect().top + window.scrollY - 84;
+          window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        });
+      }
+    });
+
+    bubble.appendChild(toggleBtn);
+  }
+
   function formatSize(bytes = 0) {
     if (!Number.isFinite(bytes) || bytes <= 0) return '';
     if (bytes < 1024) return `${bytes}B`;
@@ -4988,6 +5079,12 @@ function finishOnboarding() {
       bubble.innerHTML = sanitizeHtml(
         `${replyQuoteHtml}${markdownToHtml(normalizeAssistantContent(String(content || '<p>Sorry — I could not generate a response.</p>')))}`
       );
+
+      const assistantContentWrap = document.createElement('div');
+      assistantContentWrap.className = 'nabad-assistant-content';
+      while (bubble.firstChild) assistantContentWrap.appendChild(bubble.firstChild);
+      bubble.appendChild(assistantContentWrap);
+
       bubble.classList.add('nabad-reply-pop');
       bubble.addEventListener('animationend', () => {
         bubble.classList.remove('nabad-reply-pop');
@@ -5006,6 +5103,8 @@ function finishOnboarding() {
 
     if (!isUser) {
       processAssistantBubble(bubble);
+      const contentWrap = bubble.querySelector('.nabad-assistant-content');
+      attachAssistantLoadMore(bubble, contentWrap, content);
 
       // ── Speaker button ──
       const speakerBtn = document.createElement('button');
