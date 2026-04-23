@@ -5745,7 +5745,13 @@ function finishOnboarding() {
       ctaText: cleanText(data.ctaText || '', 120),
       imagePrompt: cleanText(data.imagePrompt || '', 1200),
       platform: cleanText(data.platform || '', 80),
-      format: cleanText(data.format || '', 80)
+      format: cleanText(data.format || '', 80),
+      typography: {
+        fontFamily: cleanText(data?.typography?.fontFamily || '', 48),
+        headlineSize: Number(data?.typography?.headlineSize || 0) || 0,
+        subtextSize: Number(data?.typography?.subtextSize || 0) || 0,
+        ctaSize: Number(data?.typography?.ctaSize || 0) || 0
+      }
     }));
     return `<div class="nabad-campaign-preview-card" data-nabad-card="campaign-preview" data-campaign-payload="${payload}">
       <div class="nabad-campaign-preview-title">Campaign Draft</div>
@@ -5837,15 +5843,44 @@ function finishOnboarding() {
           </div>
           <div class="nabad-editor-toolbar">
             <label class="nabad-editor-tool">Font
-              <input id="nabad-editor-font-size" type="range" min="16" max="96" step="1" value="48" />
+              <select id="nabad-editor-font-family" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
+                <option value="Inter">Inter</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Playfair Display">Playfair Display</option>
+                <option value="Merriweather">Merriweather</option>
+              </select>
+            </label>
+            <label class="nabad-editor-tool">Headline
+              <input id="nabad-editor-headline-size" type="range" min="18" max="120" step="1" value="58" />
+            </label>
+            <label class="nabad-editor-tool">Subtext
+              <input id="nabad-editor-subtext-size" type="range" min="12" max="72" step="1" value="26" />
+            </label>
+            <label class="nabad-editor-tool">CTA
+              <input id="nabad-editor-cta-size" type="range" min="12" max="68" step="1" value="24" />
             </label>
             <label class="nabad-editor-tool">Text
               <input id="nabad-editor-text-color" type="color" value="#ffffff" />
             </label>
-            <label class="nabad-editor-tool">CTA
+            <label class="nabad-editor-tool">CTA Fill
               <input id="nabad-editor-cta-color" type="color" value="#2563eb" />
             </label>
+            <label class="nabad-editor-tool">CTA Style
+              <select id="nabad-editor-cta-style" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
+                <option value="solid">Solid</option>
+                <option value="outline">Outline</option>
+                <option value="pill">Pill</option>
+                <option value="glass">Glass</option>
+              </select>
+            </label>
             <button type="button" class="nabad-editor-btn" id="nabad-editor-bg">Replace background</button>
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-bg-lock">Unlock background</button>
+            <button type="button" class="nabad-editor-btn" data-nabad-shape="rect">+ Rect</button>
+            <button type="button" class="nabad-editor-btn" data-nabad-shape="circle">+ Circle</button>
+            <button type="button" class="nabad-editor-btn" data-nabad-shape="line">+ Line</button>
+            <button type="button" class="nabad-editor-btn" data-nabad-shape="star">+ Star</button>
+            <button type="button" class="nabad-editor-btn" data-nabad-shape="blob">+ Accent</button>
             <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
           </div>
           <div class="nabad-editor-stage">
@@ -5857,10 +5892,15 @@ function finishOnboarding() {
       const backBtn = document.getElementById('nabad-editor-back');
       const saveBtn = document.getElementById('nabad-editor-save');
       const bgBtn = document.getElementById('nabad-editor-bg');
+      const bgLockBtn = document.getElementById('nabad-editor-bg-lock');
       const bgFile = document.getElementById('nabad-editor-bg-file');
-      const fontRange = document.getElementById('nabad-editor-font-size');
+      const fontFamilySelect = document.getElementById('nabad-editor-font-family');
+      const headlineRange = document.getElementById('nabad-editor-headline-size');
+      const subtextRange = document.getElementById('nabad-editor-subtext-size');
+      const ctaRange = document.getElementById('nabad-editor-cta-size');
       const textColor = document.getElementById('nabad-editor-text-color');
       const ctaColor = document.getElementById('nabad-editor-cta-color');
+      const ctaStyleSelect = document.getElementById('nabad-editor-cta-style');
       const stageEl = refs.messages.querySelector('.nabad-editor-stage');
       const canvasEl = document.getElementById('nabad-editor-canvas');
 
@@ -5878,6 +5918,22 @@ function finishOnboarding() {
       await loadFabricJsIfNeeded();
       const image = await fetchCampaignEditorImage(prompt);
 
+      if (!document.getElementById('nabad-editor-fonts')) {
+        const fontLink = document.createElement('link');
+        fontLink.id = 'nabad-editor-fonts';
+        fontLink.rel = 'stylesheet';
+        fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Merriweather:wght@400;700&family=Montserrat:wght@500;700;800&family=Playfair+Display:wght@600;700&family=Poppins:wght@500;700;800&display=swap';
+        document.head.appendChild(fontLink);
+      }
+
+      const typography = campaignData?.typography && typeof campaignData.typography === 'object'
+        ? campaignData.typography
+        : {};
+      const allowedFonts = ['Inter', 'Poppins', 'Montserrat', 'Playfair Display', 'Merriweather'];
+      const defaultFont = allowedFonts.includes(cleanText(typography.fontFamily || '', 40))
+        ? cleanText(typography.fontFamily || '', 40)
+        : 'Inter';
+
       const stageWidth = Math.max(320, (stageEl?.clientWidth || 900) - 2);
       const fallbackHeight = Math.round(stageWidth * 0.5625);
       const fabricCanvas = new window.fabric.Canvas(canvasEl, {
@@ -5887,27 +5943,77 @@ function finishOnboarding() {
       fabricCanvas.setWidth(stageWidth);
       fabricCanvas.setHeight(fallbackHeight);
 
-      const setBackgroundFromUrl = (src) => new Promise((resolve, reject) => {
+      let backgroundObj = null;
+      let backgroundLocked = true;
+
+      const fitBackground = (imgObj) => {
+        if (!imgObj) return;
+        const cw = fabricCanvas.getWidth();
+        const ch = fabricCanvas.getHeight();
+        const iw = imgObj.width || cw;
+        const ih = imgObj.height || ch;
+        const scale = Math.max(cw / iw, ch / ih);
+        const scaledW = iw * scale;
+        const scaledH = ih * scale;
+        imgObj.set({
+          left: (cw - scaledW) / 2,
+          top: (ch - scaledH) / 2,
+          scaleX: scale,
+          scaleY: scale,
+          selectable: !backgroundLocked,
+          evented: !backgroundLocked,
+          hasControls: !backgroundLocked,
+          hasBorders: !backgroundLocked,
+          lockRotation: backgroundLocked
+        });
+      };
+
+      const setBackgroundLockState = (locked = true) => {
+        backgroundLocked = !!locked;
+        if (backgroundObj) {
+          backgroundObj.set({
+            selectable: !backgroundLocked,
+            evented: !backgroundLocked,
+            hasControls: !backgroundLocked,
+            hasBorders: !backgroundLocked,
+            lockRotation: backgroundLocked
+          });
+          if (backgroundLocked && fabricCanvas.getActiveObject() === backgroundObj) {
+            fabricCanvas.discardActiveObject();
+          }
+        }
+        if (bgLockBtn) {
+          bgLockBtn.textContent = backgroundLocked ? 'Unlock background' : 'Lock background';
+        }
+        fabricCanvas.renderAll();
+      };
+
+      const setBackgroundFromUrl = (src, keepTransform = true) => new Promise((resolve, reject) => {
         window.fabric.Image.fromURL(src, (img) => {
           if (!img) return reject(new Error('Failed to load background image.'));
-          const cw = fabricCanvas.getWidth();
-          const ch = fabricCanvas.getHeight();
-          const iw = img.width || cw;
-          const ih = img.height || ch;
-          const ratio = iw / ih;
-          const newH = Math.round(cw / ratio);
-          fabricCanvas.setHeight(Math.max(260, newH));
           img.set({
-            selectable: false,
-            evented: false,
             originX: 'left',
-            originY: 'top',
-            left: 0,
-            top: 0,
-            scaleX: fabricCanvas.getWidth() / iw,
-            scaleY: fabricCanvas.getHeight() / ih
+            originY: 'top'
           });
-          fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+          if (backgroundObj && keepTransform) {
+            img.set({
+              left: backgroundObj.left,
+              top: backgroundObj.top,
+              scaleX: backgroundObj.scaleX,
+              scaleY: backgroundObj.scaleY,
+              angle: backgroundObj.angle || 0
+            });
+          } else {
+            fitBackground(img);
+          }
+          if (backgroundObj) {
+            fabricCanvas.remove(backgroundObj);
+          }
+          backgroundObj = img;
+          fabricCanvas.insertAt(backgroundObj, 0, false);
+          setBackgroundLockState(backgroundLocked);
+          backgroundObj.sendToBack();
+          fabricCanvas.renderAll();
           resolve();
         }, { crossOrigin: 'anonymous' });
       });
@@ -5917,10 +6023,10 @@ function finishOnboarding() {
       const headlineObj = new window.fabric.IText(cleanText(campaignData.headline || 'Your headline', 180), {
         left: fabricCanvas.getWidth() * 0.08,
         top: fabricCanvas.getHeight() * 0.11,
-        fontSize: Math.max(26, Math.round(fabricCanvas.getWidth() * 0.055)),
+        fontSize: Number(typography.headlineSize || 0) || Math.max(26, Math.round(fabricCanvas.getWidth() * 0.055)),
         fill: '#ffffff',
         fontWeight: 800,
-        fontFamily: 'Inter, Arial, sans-serif',
+        fontFamily: defaultFont,
         shadow: 'rgba(0,0,0,0.35) 0 2px 10px',
         editable: true
       });
@@ -5928,10 +6034,10 @@ function finishOnboarding() {
       const subtextObj = new window.fabric.IText(cleanText(campaignData.subtext || 'Your subtext', 220), {
         left: fabricCanvas.getWidth() * 0.08,
         top: fabricCanvas.getHeight() * 0.73,
-        fontSize: Math.max(16, Math.round(fabricCanvas.getWidth() * 0.025)),
+        fontSize: Number(typography.subtextSize || 0) || Math.max(16, Math.round(fabricCanvas.getWidth() * 0.025)),
         fill: '#ffffff',
         fontWeight: 600,
-        fontFamily: 'Inter, Arial, sans-serif',
+        fontFamily: defaultFont,
         shadow: 'rgba(0,0,0,0.35) 0 2px 10px',
         editable: true
       });
@@ -5939,58 +6045,137 @@ function finishOnboarding() {
       const ctaObj = new window.fabric.IText(cleanText(campaignData.ctaText || 'Start now', 120), {
         left: fabricCanvas.getWidth() * 0.66,
         top: fabricCanvas.getHeight() * 0.78,
-        fontSize: Math.max(14, Math.round(fabricCanvas.getWidth() * 0.022)),
+        fontSize: Number(typography.ctaSize || 0) || Math.max(14, Math.round(fabricCanvas.getWidth() * 0.022)),
         fill: '#ffffff',
         fontWeight: 800,
-        fontFamily: 'Inter, Arial, sans-serif',
-        backgroundColor: '#2563eb',
-        padding: 10,
+        fontFamily: defaultFont,
         editable: true
       });
-      ctaObj.isCta = true;
+      ctaObj.isCtaText = true;
 
-      fabricCanvas.add(headlineObj, subtextObj, ctaObj);
+      const ctaBg = new window.fabric.Rect({
+        left: ctaObj.left - 14,
+        top: ctaObj.top - 8,
+        width: Math.max(140, (ctaObj.width || 120) + 28),
+        height: Math.max(44, (ctaObj.height || 24) + 16),
+        rx: 14,
+        ry: 14,
+        fill: '#2563eb',
+        stroke: 'rgba(255,255,255,0.30)',
+        strokeWidth: 1.2,
+        selectable: false,
+        evented: false
+      });
+
+      const syncCtaBackground = () => {
+        const padX = 14;
+        const padY = 8;
+        ctaBg.set({
+          left: (ctaObj.left || 0) - padX,
+          top: (ctaObj.top || 0) - padY,
+          width: Math.max(120, (ctaObj.width || 90) + padX * 2),
+          height: Math.max(36, (ctaObj.height || 18) + padY * 2)
+        });
+        ctaBg.setCoords();
+        ctaObj.setCoords();
+      };
+
+      const applyCtaStyle = (styleName = 'solid') => {
+        const s = String(styleName || 'solid');
+        if (s === 'outline') {
+          ctaBg.set({ fill: 'rgba(15,23,42,0.02)', stroke: '#2563eb', strokeWidth: 2, rx: 12, ry: 12, opacity: 1 });
+          ctaObj.set({ fill: '#2563eb' });
+        } else if (s === 'pill') {
+          ctaBg.set({ fill: ctaColor.value || '#2563eb', stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1, rx: 22, ry: 22, opacity: 1 });
+          ctaObj.set({ fill: '#ffffff' });
+        } else if (s === 'glass') {
+          ctaBg.set({ fill: 'rgba(255,255,255,0.18)', stroke: 'rgba(255,255,255,0.58)', strokeWidth: 1.4, rx: 16, ry: 16, opacity: 1 });
+          ctaObj.set({ fill: '#ffffff' });
+        } else {
+          ctaBg.set({ fill: ctaColor.value || '#2563eb', stroke: 'rgba(255,255,255,0.30)', strokeWidth: 1.2, rx: 14, ry: 14, opacity: 1 });
+          ctaObj.set({ fill: '#ffffff' });
+        }
+        fabricCanvas.renderAll();
+      };
+
+      ctaObj.on('moving', syncCtaBackground);
+      ctaObj.on('scaling', syncCtaBackground);
+      ctaObj.on('changed', () => {
+        syncCtaBackground();
+        fabricCanvas.renderAll();
+      });
+      ctaObj.on('modified', syncCtaBackground);
+
+      fabricCanvas.add(ctaBg, headlineObj, subtextObj, ctaObj);
+      syncCtaBackground();
+      applyCtaStyle('solid');
       fabricCanvas.setActiveObject(headlineObj);
       fabricCanvas.renderAll();
 
       const updateControlFromActive = () => {
         const obj = fabricCanvas.getActiveObject();
-        if (!obj) return;
-        fontRange.value = String(Math.round(obj.fontSize || 36));
+        if (!obj || !('fontFamily' in obj)) return;
+        fontFamilySelect.value = allowedFonts.includes(String(obj.fontFamily || '')) ? String(obj.fontFamily) : defaultFont;
         textColor.value = toHexColor(String(obj.fill || '#ffffff'));
-        if (obj.isCta) ctaColor.value = toHexColor(String(obj.backgroundColor || '#2563eb'));
+        headlineRange.value = String(Math.round(headlineObj.fontSize || 48));
+        subtextRange.value = String(Math.round(subtextObj.fontSize || 24));
+        ctaRange.value = String(Math.round(ctaObj.fontSize || 22));
+        ctaColor.value = toHexColor(String(ctaBg.fill || '#2563eb'));
       };
 
       fabricCanvas.on('selection:created', updateControlFromActive);
       fabricCanvas.on('selection:updated', updateControlFromActive);
+      fabricCanvas.on('mouse:down', (ev) => {
+        if (!ev.target) updateControlFromActive();
+      });
 
-      fontRange?.addEventListener('input', () => {
+      fontFamilySelect?.addEventListener('change', () => {
         const obj = fabricCanvas.getActiveObject();
-        if (!obj) return;
-        obj.set('fontSize', Number(fontRange.value || 36));
+        if (!obj || !('fontFamily' in obj)) return;
+        obj.set('fontFamily', cleanText(fontFamilySelect.value || defaultFont, 48) || defaultFont);
         fabricCanvas.renderAll();
       });
+
+      headlineRange?.addEventListener('input', () => {
+        headlineObj.set('fontSize', Number(headlineRange.value || 56));
+        fabricCanvas.renderAll();
+      });
+      subtextRange?.addEventListener('input', () => {
+        subtextObj.set('fontSize', Number(subtextRange.value || 24));
+        fabricCanvas.renderAll();
+      });
+      ctaRange?.addEventListener('input', () => {
+        ctaObj.set('fontSize', Number(ctaRange.value || 22));
+        syncCtaBackground();
+        fabricCanvas.renderAll();
+      });
+
       textColor?.addEventListener('input', () => {
         const obj = fabricCanvas.getActiveObject();
-        if (!obj) return;
+        if (!obj || !('fill' in obj)) return;
         obj.set('fill', textColor.value || '#ffffff');
         fabricCanvas.renderAll();
       });
       ctaColor?.addEventListener('input', () => {
-        const obj = fabricCanvas.getActiveObject();
-        if (!obj || !obj.isCta) return;
-        obj.set('backgroundColor', ctaColor.value || '#2563eb');
+        ctaBg.set('fill', ctaColor.value || '#2563eb');
+        if ((ctaStyleSelect?.value || 'solid') === 'outline') {
+          ctaBg.set('stroke', ctaColor.value || '#2563eb');
+          ctaObj.set('fill', ctaColor.value || '#2563eb');
+        }
         fabricCanvas.renderAll();
       });
+      ctaStyleSelect?.addEventListener('change', () => applyCtaStyle(ctaStyleSelect.value || 'solid'));
 
       bgBtn?.addEventListener('click', () => bgFile?.click());
+      bgLockBtn?.addEventListener('click', () => setBackgroundLockState(!backgroundLocked));
+
       bgFile?.addEventListener('change', () => {
         const file = bgFile.files?.[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = async () => {
           try {
-            await setBackgroundFromUrl(String(reader.result || ''));
+            await setBackgroundFromUrl(String(reader.result || ''), false);
           } catch {
             alert('Could not replace background image.');
           }
@@ -5998,8 +6183,84 @@ function finishOnboarding() {
         reader.readAsDataURL(file);
       });
 
+      const addShape = (shape = 'rect') => {
+        const cw = fabricCanvas.getWidth();
+        const ch = fabricCanvas.getHeight();
+        const centerX = cw * 0.5;
+        const centerY = ch * 0.5;
+        let obj = null;
+        if (shape === 'circle') {
+          obj = new window.fabric.Circle({
+            left: centerX - 42,
+            top: centerY - 42,
+            radius: 42,
+            fill: 'rgba(56,189,248,0.26)',
+            stroke: '#38bdf8',
+            strokeWidth: 1.5
+          });
+        } else if (shape === 'line') {
+          obj = new window.fabric.Line([centerX - 90, centerY, centerX + 90, centerY], {
+            stroke: '#38bdf8',
+            strokeWidth: 3
+          });
+        } else if (shape === 'star') {
+          const outer = 48;
+          const inner = 22;
+          const points = [];
+          for (let i = 0; i < 10; i += 1) {
+            const radius = i % 2 === 0 ? outer : inner;
+            const angle = (Math.PI / 5) * i - Math.PI / 2;
+            points.push({
+              x: centerX + radius * Math.cos(angle),
+              y: centerY + radius * Math.sin(angle)
+            });
+          }
+          obj = new window.fabric.Polygon(points, {
+            fill: 'rgba(14,165,233,0.28)',
+            stroke: '#0ea5e9',
+            strokeWidth: 1.5
+          });
+        } else if (shape === 'blob') {
+          obj = new window.fabric.Ellipse({
+            left: centerX - 100,
+            top: centerY - 52,
+            rx: 100,
+            ry: 52,
+            angle: -12,
+            fill: 'rgba(59,130,246,0.20)',
+            stroke: 'rgba(56,189,248,0.72)',
+            strokeWidth: 1.2
+          });
+        } else {
+          obj = new window.fabric.Rect({
+            left: centerX - 68,
+            top: centerY - 38,
+            width: 136,
+            height: 76,
+            rx: 12,
+            ry: 12,
+            fill: 'rgba(56,189,248,0.20)',
+            stroke: '#38bdf8',
+            strokeWidth: 1.5
+          });
+        }
+        if (!obj) return;
+        fabricCanvas.add(obj);
+        obj.bringToFront();
+        ctaBg.bringToFront();
+        ctaObj.bringToFront();
+        fabricCanvas.setActiveObject(obj);
+        fabricCanvas.renderAll();
+      };
+
+      refs.messages.querySelectorAll('[data-nabad-shape]').forEach((btn) => {
+        btn.addEventListener('click', () => addShape(btn.getAttribute('data-nabad-shape') || 'rect'));
+      });
+
       saveBtn?.addEventListener('click', async () => {
         try {
+          fabricCanvas.discardActiveObject();
+          fabricCanvas.renderAll();
           const dataUrl = fabricCanvas.toDataURL({
             format: 'png',
             quality: 1,
@@ -6014,9 +6275,15 @@ function finishOnboarding() {
       state.campaignEditorContext = {
         canvas: fabricCanvas,
         payload: campaignData,
-        imageUrl: image.url
+        imageUrl: image.url,
+        background: backgroundObj
       };
 
+      if (fontFamilySelect) fontFamilySelect.value = defaultFont;
+      if (headlineRange) headlineRange.value = String(Math.round(headlineObj.fontSize || 58));
+      if (subtextRange) subtextRange.value = String(Math.round(subtextObj.fontSize || 26));
+      if (ctaRange) ctaRange.value = String(Math.round(ctaObj.fontSize || 24));
+      setBackgroundLockState(true);
       loading.remove();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
