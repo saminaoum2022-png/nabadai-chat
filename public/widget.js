@@ -239,7 +239,8 @@
     replyTo: null,
     notificationsEnabled: loadNotificationsEnabled(),
     typingLabels: null,
-    quickActionsPinned: false
+    quickActionsPinned: false,
+    campaignRefineAction: null
   };
 
   const refs = {
@@ -3634,6 +3635,63 @@ function showPersonalityPill(id) {
         padding-bottom: 2px;
         margin-top: 8px;
       }
+
+      .nabad-campaign-editor {
+        margin-top: 10px;
+        padding: 12px;
+        background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+        border: 1px solid rgba(37,99,235,0.14);
+        border-radius: 12px;
+      }
+      .nabad-campaign-editor.hidden {
+        display: none;
+      }
+      .nabad-campaign-editor-title {
+        font-size: 12px;
+        font-weight: 800;
+        color: #1e3a8a;
+        margin-bottom: 8px;
+      }
+      .nabad-campaign-editor-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+      .nabad-campaign-editor-input {
+        width: 100%;
+        border: 1px solid rgba(37,99,235,0.2);
+        border-radius: 10px;
+        padding: 9px 10px;
+        font-size: 12px;
+        color: #0f172a;
+        background: #fff;
+        outline: none;
+      }
+      .nabad-campaign-editor-input:focus {
+        border-color: rgba(37,99,235,0.4);
+        box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+      }
+      .nabad-campaign-editor-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+      .nabad-campaign-editor-btn {
+        border: 1px solid rgba(37,99,235,0.2);
+        background: #fff;
+        color: #1e3a8a;
+        border-radius: 10px;
+        padding: 8px 11px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .nabad-campaign-editor-btn.primary {
+        background: linear-gradient(135deg, #2563eb, #06b6d4);
+        border-color: transparent;
+        color: #fff;
+      }
       
       /* ── Settings Page ── */
 #nabad-settings-page {
@@ -4952,6 +5010,22 @@ function finishOnboarding() {
       return;
     }
 
+    if (state.campaignRefineAction === 'logo') {
+      if (entry.kind !== 'image') {
+        state.campaignRefineAction = null;
+        renderMessage('assistant', '<p>Please upload an image file for logo replacement.</p>');
+        if (refs.fileInput) refs.fileInput.value = '';
+        return;
+      }
+      state.campaignRefineAction = null;
+      await sendMessage({
+        forcedText: 'Campaign refine logo: replace with uploaded logo',
+        forcedAttachment: entry
+      });
+      if (refs.fileInput) refs.fileInput.value = '';
+      return;
+    }
+
     state.pendingAttachment = entry;
     renderAttachmentChip();
   }
@@ -5385,6 +5459,91 @@ function finishOnboarding() {
     }, 250);
   }
 
+  function getOrCreateCampaignEditor(bubble) {
+    if (!bubble) return null;
+    const actionRow = bubble.querySelector('button[data-nabad-action="campaign-refine-text"]')?.closest('div');
+    if (!actionRow) return null;
+    let editor = bubble.querySelector('.nabad-campaign-editor');
+    if (editor) return editor;
+
+    editor = document.createElement('div');
+    editor.className = 'nabad-campaign-editor hidden';
+    editor.innerHTML = `
+      <div class="nabad-campaign-editor-title">Campaign Quick Editor</div>
+      <div class="nabad-campaign-editor-grid">
+        <input class="nabad-campaign-editor-input" data-campaign-field="headline" placeholder="Headline (e.g. Protect your music today)" />
+        <input class="nabad-campaign-editor-input" data-campaign-field="subline" placeholder="Subline (e.g. Create safely with built-in copyright)" />
+        <input class="nabad-campaign-editor-input" data-campaign-field="cta" placeholder="CTA (e.g. Start now)" />
+        <input class="nabad-campaign-editor-input" data-campaign-field="background" placeholder="Background direction (e.g. warm studio with neon accent)" />
+      </div>
+      <div class="nabad-campaign-editor-actions">
+        <button type="button" class="nabad-campaign-editor-btn primary" data-campaign-apply="text">Apply text + CTA</button>
+        <button type="button" class="nabad-campaign-editor-btn" data-campaign-apply="background">Apply background</button>
+        <button type="button" class="nabad-campaign-editor-btn" data-campaign-apply="close">Close</button>
+      </div>
+    `;
+
+    actionRow.insertAdjacentElement('afterend', editor);
+    return editor;
+  }
+
+  function openCampaignEditor(bubble, focusField = '') {
+    const editor = getOrCreateCampaignEditor(bubble);
+    if (!editor) return;
+    editor.classList.remove('hidden');
+    const fieldEl = focusField ? editor.querySelector(`[data-campaign-field="${focusField}"]`) : null;
+    (fieldEl || editor.querySelector('[data-campaign-field="headline"]'))?.focus();
+  }
+
+  function closeCampaignEditor(bubble) {
+    const editor = bubble?.querySelector('.nabad-campaign-editor');
+    if (!editor) return;
+    editor.classList.add('hidden');
+  }
+
+  function bindCampaignEditorEvents(bubble) {
+    if (!bubble) return;
+    const editor = getOrCreateCampaignEditor(bubble);
+    if (!editor || editor.dataset.bound === 'true') return;
+    editor.dataset.bound = 'true';
+
+    editor.addEventListener('click', (e) => {
+      const btn = e.target?.closest?.('[data-campaign-apply]');
+      if (!btn) return;
+      const type = btn.getAttribute('data-campaign-apply') || '';
+      if (type === 'close') {
+        closeCampaignEditor(bubble);
+        return;
+      }
+
+      const headline = cleanText(editor.querySelector('[data-campaign-field="headline"]')?.value || '', 180);
+      const subline = cleanText(editor.querySelector('[data-campaign-field="subline"]')?.value || '', 180);
+      const cta = cleanText(editor.querySelector('[data-campaign-field="cta"]')?.value || '', 120);
+      const background = cleanText(editor.querySelector('[data-campaign-field="background"]')?.value || '', 220);
+
+      if (type === 'text') {
+        if (!headline && !subline && !cta) {
+          alert('Add at least one text field (headline, subline, or CTA).');
+          return;
+        }
+        const cmd = `Campaign refine text: headline=${headline || '-'}; subline=${subline || '-'}; cta=${cta || '-'}`;
+        sendMessage({ forcedText: cmd });
+        closeCampaignEditor(bubble);
+        return;
+      }
+
+      if (type === 'background') {
+        if (!background) {
+          alert('Add a background direction first.');
+          return;
+        }
+        const cmd = `Campaign refine background: ${background}`;
+        sendMessage({ forcedText: cmd });
+        closeCampaignEditor(bubble);
+      }
+    });
+  }
+
   // ── PROCESS ASSISTANT BUBBLE (cards, images, score bars) ─────
   function processAssistantBubble(bubble) {
     // Score bars
@@ -5487,22 +5646,20 @@ function finishOnboarding() {
           refs.input.focus();
           return;
         } else if (action === 'campaign-refine-text') {
-          refs.input.value = 'Campaign refine text: headline= ; subline= ; cta=';
-          autoGrowTextarea();
-          refs.input.focus();
+          openCampaignEditor(bubble, 'headline');
+          bindCampaignEditorEvents(bubble);
           return;
         } else if (action === 'campaign-refine-logo') {
-          refs.input.value = 'Campaign refine logo: replace with uploaded logo';
-          autoGrowTextarea();
+          state.campaignRefineAction = 'logo';
           refs.fileInput?.click();
           return;
         } else if (action === 'campaign-refine-background') {
-          refs.input.value = 'Campaign refine background: ';
-          autoGrowTextarea();
-          refs.input.focus();
+          openCampaignEditor(bubble, 'background');
+          bindCampaignEditorEvents(bubble);
           return;
         } else if (action === 'campaign-refine-regenerate') {
-          refs.input.value = 'Regenerate this campaign visual with same layout but improved composition';
+          sendMessage({ forcedText: 'Regenerate this campaign visual with same layout but improved composition' });
+          return;
         } else if (action === 'pricing-edit') {
           const cardEl = btn.closest('[data-nabad-card="pricing"]');
           togglePricingCardEdit(cardEl, btn);
@@ -5598,11 +5755,15 @@ function finishOnboarding() {
   }
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
-  async function sendMessage() {
+  async function sendMessage(options = {}) {
     if (state.sending) return;
-    const text = (refs.input.value || '').trim();
-    const attachment = state.pendingAttachment;
-    const replyTo = state.replyTo;
+    const forcedText = typeof options.forcedText === 'string' ? options.forcedText.trim() : '';
+    const forcedAttachment = options.forcedAttachment || null;
+    const forcedReplyTo = options.forcedReplyTo || null;
+
+    const text = forcedText || (refs.input.value || '').trim();
+    const attachment = forcedAttachment || state.pendingAttachment;
+    const replyTo = forcedReplyTo || state.replyTo;
     if (!text && !attachment) return;
 
     if (shouldForceCreativeForImage(text, attachment)) {
@@ -5622,11 +5783,20 @@ function finishOnboarding() {
       }
     }
 
-    refs.input.value = '';
-    refs.input.style.height = 'auto';
-    _lastScrollHeight = 0;
-    clearPendingAttachment();
-    clearReplyTarget();
+    if (!forcedText && !forcedAttachment && !forcedReplyTo) {
+      refs.input.value = '';
+      refs.input.style.height = 'auto';
+      _lastScrollHeight = 0;
+      clearPendingAttachment();
+      clearReplyTarget();
+    } else {
+      if (forcedAttachment) {
+        clearPendingAttachment();
+      }
+      if (forcedReplyTo) {
+        clearReplyTarget();
+      }
+    }
     state.sending = true;
     refs.send.disabled = true;
 
