@@ -3865,6 +3865,91 @@ function showPersonalityPill(id) {
         height: 100%;
         display: block;
       }
+      .nabad-editor-stage-busy {
+        box-shadow: 0 0 0 1px rgba(37,99,235,0.2), 0 0 24px rgba(37,99,235,0.28);
+      }
+      .nabad-editor-busy-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 8;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 14px;
+        background: radial-gradient(120% 120% at 10% 0%, rgba(96,165,250,0.26) 0%, rgba(37,99,235,0.16) 34%, rgba(236,242,255,0.72) 100%);
+        backdrop-filter: blur(5px);
+        overflow: hidden;
+      }
+      .nabad-editor-busy-overlay.show {
+        display: flex;
+      }
+      .nabad-editor-busy-overlay::before {
+        content: '';
+        position: absolute;
+        top: -45%;
+        left: -60%;
+        width: 58%;
+        height: 190%;
+        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 52%, rgba(255,255,255,0) 100%);
+        transform: rotate(16deg);
+        animation: nabadEditorBusySweep 1.7s linear infinite;
+      }
+      .nabad-editor-busy-content {
+        position: relative;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255,255,255,0.76);
+        border: 1px solid rgba(37,99,235,0.2);
+        border-radius: 999px;
+        padding: 10px 14px;
+        box-shadow: 0 0 24px rgba(37,99,235,0.2);
+      }
+      .nabad-editor-busy-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #2563eb;
+        box-shadow: 0 0 12px rgba(37,99,235,0.75);
+        animation: nabadEditorBusyDot 0.95s ease-in-out infinite;
+      }
+      .nabad-editor-busy-text {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.2px;
+        color: #1e3a8a;
+      }
+      .nabad-editor-busy-overlay.mode-rewrite .nabad-editor-busy-dot {
+        background: #7c3aed;
+        box-shadow: 0 0 14px rgba(124,58,237,0.85);
+      }
+      .nabad-editor-busy-overlay.mode-rewrite {
+        background: radial-gradient(120% 120% at 10% 0%, rgba(196,181,253,0.28) 0%, rgba(139,92,246,0.16) 34%, rgba(241,236,255,0.72) 100%);
+      }
+      .nabad-editor-busy-overlay.mode-regenerate .nabad-editor-busy-dot {
+        background: #06b6d4;
+        box-shadow: 0 0 14px rgba(6,182,212,0.85);
+      }
+      .nabad-editor-busy-overlay.mode-regenerate {
+        background: radial-gradient(120% 120% at 10% 0%, rgba(165,243,252,0.28) 0%, rgba(6,182,212,0.16) 34%, rgba(235,252,255,0.72) 100%);
+      }
+      .nabad-editor-busy-overlay.mode-removebg .nabad-editor-busy-dot {
+        background: #0ea5e9;
+        box-shadow: 0 0 14px rgba(14,165,233,0.85);
+      }
+      .nabad-editor-busy-overlay.mode-removebg {
+        background: radial-gradient(120% 120% at 10% 0%, rgba(147,197,253,0.28) 0%, rgba(14,165,233,0.16) 34%, rgba(237,249,255,0.72) 100%);
+      }
+      @keyframes nabadEditorBusyDot {
+        0%, 100% { transform: scale(0.72); opacity: 0.5; }
+        50% { transform: scale(1.22); opacity: 1; }
+      }
+      @keyframes nabadEditorBusySweep {
+        0% { transform: translateX(-18%) rotate(16deg); }
+        100% { transform: translateX(215%) rotate(16deg); }
+      }
       
       /* ── Settings Page ── */
 #nabad-settings-page {
@@ -5993,6 +6078,38 @@ function finishOnboarding() {
       const stageEl = refs.messages.querySelector('.nabad-editor-stage');
       const canvasEl = document.getElementById('nabad-editor-canvas');
 
+      let busyOverlay = null;
+      const ensureBusyOverlay = () => {
+        if (busyOverlay || !stageEl) return busyOverlay;
+        busyOverlay = document.createElement('div');
+        busyOverlay.className = 'nabad-editor-busy-overlay';
+        busyOverlay.innerHTML = `
+          <div class="nabad-editor-busy-content">
+            <span class="nabad-editor-busy-dot"></span>
+            <span class="nabad-editor-busy-text">Nabad is working...</span>
+          </div>
+        `;
+        stageEl.appendChild(busyOverlay);
+        return busyOverlay;
+      };
+      const showEditorBusy = (label = 'Nabad is working...', mode = '') => {
+        const overlay = ensureBusyOverlay();
+        if (!overlay) return;
+        overlay.classList.remove('mode-rewrite', 'mode-regenerate', 'mode-removebg');
+        if (mode === 'rewrite') overlay.classList.add('mode-rewrite');
+        if (mode === 'regenerate') overlay.classList.add('mode-regenerate');
+        if (mode === 'removebg') overlay.classList.add('mode-removebg');
+        const textEl = overlay.querySelector('.nabad-editor-busy-text');
+        if (textEl) textEl.textContent = cleanText(label, 80) || 'Nabad is working...';
+        overlay.classList.add('show');
+        stageEl.classList.add('nabad-editor-stage-busy');
+      };
+      const hideEditorBusy = () => {
+        if (!busyOverlay) return;
+        busyOverlay.classList.remove('show', 'mode-rewrite', 'mode-regenerate', 'mode-removebg');
+        stageEl?.classList?.remove('nabad-editor-stage-busy');
+      };
+
       backBtn?.addEventListener('click', () => {
         if (state.campaignEditorContext?.keyHandler) {
           document.removeEventListener('keydown', state.campaignEditorContext.keyHandler);
@@ -6002,10 +6119,7 @@ function finishOnboarding() {
         restoreChatAfterEditorMode();
       });
 
-      const loading = document.createElement('div');
-      loading.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;color:#1e3a8a;background:rgba(238,243,251,0.88);z-index:2';
-      loading.textContent = 'Generating campaign visual...';
-      stageEl?.appendChild(loading);
+      showEditorBusy('Generating campaign visual...', 'regenerate');
 
       await loadFabricJsIfNeeded();
       const image = await fetchCampaignEditorImage(prompt);
@@ -6435,6 +6549,7 @@ function finishOnboarding() {
         const removeBackground = await loadBackgroundRemovalIfNeeded();
         const previousLabel = layerActionSelect?.value || '';
         if (layerActionSelect) layerActionSelect.disabled = true;
+        showEditorBusy('Removing background...', 'removebg');
         try {
           const blob = await removeBackground(src);
           const url = URL.createObjectURL(blob);
@@ -6448,6 +6563,7 @@ function finishOnboarding() {
             layerActionSelect.disabled = false;
             layerActionSelect.value = '';
           }
+          hideEditorBusy();
         }
       };
 
@@ -6532,6 +6648,7 @@ function finishOnboarding() {
         const previousLabel = regenerateBtn.textContent;
         regenerateBtn.disabled = true;
         regenerateBtn.textContent = 'Regenerating...';
+        showEditorBusy('Regenerating image...', 'regenerate');
         try {
           const tweak = cleanText(imageHintInput?.value || '', 220);
           const basePrompt = cleanText(campaignData.imagePrompt || prompt, 1200);
@@ -6549,6 +6666,7 @@ function finishOnboarding() {
         } finally {
           regenerateBtn.disabled = false;
           regenerateBtn.textContent = previousLabel || 'Regenerate image';
+          hideEditorBusy();
         }
       });
 
@@ -6556,6 +6674,7 @@ function finishOnboarding() {
         const previousLabel = rewriteBtn.textContent;
         rewriteBtn.disabled = true;
         rewriteBtn.textContent = 'Rewriting...';
+        showEditorBusy('Rewriting campaign text...', 'rewrite');
         try {
           const rewritten = await fetchCampaignRewriteCopy({
             headline: cleanText(headlineObj.text || '', 220),
@@ -6581,6 +6700,7 @@ function finishOnboarding() {
         } finally {
           rewriteBtn.disabled = false;
           rewriteBtn.textContent = previousLabel || 'Rewrite copy';
+          hideEditorBusy();
         }
       });
 
@@ -6623,7 +6743,7 @@ function finishOnboarding() {
       if (textTargetInput) textTargetInput.value = 'Headline';
       setBackgroundLockState(true);
       setTextControlsEnabled(true);
-      loading.remove();
+      hideEditorBusy();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
       if (state.campaignEditorContext?.keyHandler) {
@@ -6631,6 +6751,7 @@ function finishOnboarding() {
       }
       restoreChatAfterEditorMode();
       renderMessage('assistant', '<p>⚠️ Could not open campaign editor right now. Please try again.</p>');
+      hideEditorBusy();
     }
   }
 
