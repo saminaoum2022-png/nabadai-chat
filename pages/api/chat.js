@@ -2848,51 +2848,13 @@ function ensureHtmlReply(text = '') {
     .trim();
   if (!raw) return '<p>I hit a snag. Try rephrasing your question.</p>';
   if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
-  const paragraphs = raw
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-  if (!paragraphs.length) return '<p>I hit a snag. Try rephrasing your question.</p>';
-
-  const body = [...paragraphs];
-  const firstPlain = String(body[0] || '').replace(/<[^>]+>/g, '');
-  const split = firstPlain.match(/^([^.!?]{18,180}[.!?])\s+([\s\S]+)$/);
-  if (split) {
-    body[0] = `<strong>${escapeHtml(split[1])}</strong><br>${escapeHtml(split[2])}`;
-  } else {
-    body[0] = escapeHtml(firstPlain).replace(/\n/g, '<br>');
-  }
-
-  for (let i = 1; i < body.length; i += 1) {
-    const p = String(body[i] || '').replace(/<[^>]+>/g, '').trim();
-    body[i] = escapeHtml(p).replace(/\n/g, '<br>');
-  }
-
-  const last = String(body[body.length - 1] || '');
-  const lastPlain = last.replace(/<[^>]+>/g, '').trim();
-  const canItalicizeClosingQuestion =
-    /\?\s*$/.test(lastPlain) &&
-    lastPlain.length <= 180 &&
-    !/\b(next move|strategic move|growth move|offer move)\s*:/i.test(lastPlain);
-  if (canItalicizeClosingQuestion) {
-    body[body.length - 1] = `<em>${escapeHtml(lastPlain)}</em>`;
-  }
-
-  return `<p>${body.join('</p><p>')}</p>`;
+  return '<p>' + raw.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
 }
 function repairTruncatedReply(text = '') {
   let out = String(text || '').trim();
   if (!out) return out;
   const plain = out.replace(/<[^>]+>/g, '').trim();
-  if (/(next move:|strategic move:|growth move:|offer move:)\s*$/i.test(plain)) {
-    out += ' Share one line of context and I will make it specific.';
-  } else if (/(plan|steps?)\s*:\s*(?:\d+\.)?\s*$/i.test(plain) || /\b\d+\.\s*$/i.test(plain)) {
-    out += '\nShare one line of context and I will finish the full steps clearly.';
-  } else if (/[,:;\-–—]\s*$/.test(plain)) {
-    out += ' I can make this precise with one more line of context.';
-  } else if (/\b(that|this|which|who|because|when|where|if|so|and|or|but|to|for|with|of|the|a|an|q)\.?$/i.test(plain)) {
-    out += '\nWhat part do you want to decide first?';
-  }
+  if (/[,:;\-–—]\s*$/.test(plain)) out += ' …';
   return out;
 }
 
@@ -2952,60 +2914,24 @@ function enforcePersonalityVoice(text = '', personalityId = 'auto', userMessage 
   const shortUserPrompt = cleanText(userMessage, 300).split(/\s+/).filter(Boolean).length <= 12;
 
   const styleByPersonality = {
-    strategist: { maxWords: 120, maxEmojis: 2, maxSentences: 6 },
-    growth: { maxWords: 110, maxEmojis: 2, maxSentences: 6 },
-    branding: { maxWords: 105, maxEmojis: 2, maxSentences: 6 },
-    offer: { maxWords: 120, maxEmojis: 2, maxSentences: 6 },
-    creative: { maxWords: 95, maxEmojis: 2, maxSentences: 5 },
-    straight_talk: { maxWords: 65, maxEmojis: 1, maxSentences: 4 },
-    auto: { maxWords: 115, maxEmojis: 2, maxSentences: 6 }
+    strategist: { maxWords: 420, maxEmojis: 2 },
+    growth: { maxWords: 420, maxEmojis: 2 },
+    branding: { maxWords: 420, maxEmojis: 2 },
+    offer: { maxWords: 420, maxEmojis: 2 },
+    creative: { maxWords: 380, maxEmojis: 2 },
+    straight_talk: { maxWords: 220, maxEmojis: 1 },
+    auto: { maxWords: 420, maxEmojis: 2 }
   };
   const base = styleByPersonality[personalityId] || styleByPersonality.auto;
-  let maxWords = base.maxWords + (detailed ? 80 : 0) - (shortUserPrompt && !detailed ? 12 : 0);
+  let maxWords = base.maxWords + (detailed ? 80 : 0) - (shortUserPrompt && !detailed ? 0 : 0);
   if (maxWords < 28) maxWords = 28;
-  const maxSentences = detailed
-    ? Math.min(10, (base.maxSentences || 4) + 4)
-    : Math.max(2, (base.maxSentences || 4) - (shortUserPrompt ? 1 : 0));
 
   let out = limitEmojiUsage(normalized, base.maxEmojis);
   out = truncateWords(out, maxWords);
   out = out
     .replace(/\s+([.!?])/g, '$1')
-    .replace(/\n{3,}/g, '\n\n');
-
-  if (!detailed) {
-    const hasListLikeStructure =
-      /\n\s*(?:\d+\.|[-*•])\s+/.test(out) ||
-      /\b(plan|steps?)\s*:/i.test(out);
-    if (hasListLikeStructure) {
-      const lines = out
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const clippedLines = lines
-        .slice(0, 7)
-        .map((l) => truncateWords(l, personalityId === 'straight_talk' ? 18 : 28));
-      out = clippedLines.join('\n').trim();
-    } else {
-      out = truncateBySentences(out, maxSentences);
-    }
-  } else {
-    out = truncateBySentences(out, maxSentences);
-  }
-
-  const hasClosure = /\?\s*$/.test(out);
-  if (!hasClosure) {
-    const closureByPersonality = {
-      straight_talk: 'What is the one bottleneck you want to fix first?',
-      growth: 'Which metric do you want to move first this week?',
-      offer: 'Want me to turn this into a concrete package with pricing?',
-      branding: 'Want me to sharpen this into one clear positioning line?',
-      creative: 'Want 3 bold versions so we pick the strongest direction?',
-      strategist: 'Which path do you want to commit to first?',
-      auto: 'What do you want to execute first?'
-    };
-    out = `${out}\n${closureByPersonality[personalityId] || closureByPersonality.auto}`.trim();
-  }
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   if (personalityId === 'creative' || personalityId === 'straight_talk') {
     out = out.replace(/^[\s>*-]+/gm, '');
@@ -4069,13 +3995,10 @@ Language/style:
 - Avoid filler openers and avoid repeating the user's words back.
 
 Response structure (important):
-- Keep structure clean and readable:
-  1) opening line with the core answer
-  2) concise body in short lines or 2-4 bullets when useful
-  3) one smooth closing line on a new line (prefer a natural question)
-- Use light emphasis for scanability: <strong>key label</strong>, <em>subtle nuance</em>.
+- Keep structure readable and natural, not templated.
+- Use bullets only when they genuinely help clarity.
+- Close smoothly in your normal voice; do not force labels or fixed ending formulas.
 - Avoid giant paragraph walls, but do not over-compress or cut thought continuity.
-- If user prompt is short, keep answer concise while preserving complete meaning.
 `;
 
   const isWarRoom = body?.warRoom === true;
