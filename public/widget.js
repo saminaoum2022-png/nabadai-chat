@@ -5785,6 +5785,28 @@ function finishOnboarding() {
     return fabricLoadPromise;
   }
 
+  let bgRemovalLoadPromise = null;
+  async function loadBackgroundRemovalIfNeeded() {
+    if (window.__NABAD_BG_REMOVAL__?.removeBackground) {
+      return window.__NABAD_BG_REMOVAL__.removeBackground;
+    }
+    if (!bgRemovalLoadPromise) {
+      bgRemovalLoadPromise = import('https://esm.sh/@imgly/background-removal?bundle')
+        .then((mod) => {
+          const removeBackgroundFn =
+            mod?.removeBackground ||
+            mod?.default?.removeBackground ||
+            mod?.default;
+          if (typeof removeBackgroundFn !== 'function') {
+            throw new Error('Background removal module did not expose removeBackground().');
+          }
+          window.__NABAD_BG_REMOVAL__ = { removeBackground: removeBackgroundFn };
+          return removeBackgroundFn;
+        });
+    }
+    return bgRemovalLoadPromise;
+  }
+
   async function fetchCampaignEditorImage(promptText = '') {
     const resp = await fetch(CONFIG.apiUrl, {
       method: 'POST',
@@ -5889,6 +5911,20 @@ function finishOnboarding() {
             <label class="nabad-editor-tool">Rewrite hint
               <input id="nabad-editor-copy-hint" type="text" placeholder="optional messaging angle" style="height:30px;width:170px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:600;" />
             </label>
+            <label class="nabad-editor-tool">Layering
+              <select id="nabad-editor-layer-action" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
+                <option value="">Layer actions…</option>
+                <option value="add-image-object">Upload image as object</option>
+                <option value="remove-bg">Remove background (selected image)</option>
+                <option value="set-background">Set selected image as background</option>
+                <option value="bring-front">Bring selected to front</option>
+                <option value="send-back">Send selected to back</option>
+              </select>
+            </label>
+            <input id="nabad-editor-object-file" type="file" accept="image/*" hidden />
+            <label class="nabad-editor-tool">Text target
+              <input id="nabad-editor-text-target" type="text" value="No text selected" readonly style="height:30px;width:150px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#f8fbff;color:#1e3a8a;font-weight:700;" />
+            </label>
             <label class="nabad-editor-tool">Font
               <select id="nabad-editor-font-family" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
                 <option value="Inter">Inter</option>
@@ -5898,14 +5934,8 @@ function finishOnboarding() {
                 <option value="Merriweather">Merriweather</option>
               </select>
             </label>
-            <label class="nabad-editor-tool">Headline
-              <input id="nabad-editor-headline-size" type="range" min="18" max="120" step="1" value="58" />
-            </label>
-            <label class="nabad-editor-tool">Subtext
-              <input id="nabad-editor-subtext-size" type="range" min="12" max="72" step="1" value="26" />
-            </label>
-            <label class="nabad-editor-tool">CTA
-              <input id="nabad-editor-cta-size" type="range" min="12" max="68" step="1" value="24" />
+            <label class="nabad-editor-tool">Text size
+              <input id="nabad-editor-text-size" type="range" min="10" max="140" step="1" value="34" />
             </label>
             <label class="nabad-editor-tool">Text
               <input id="nabad-editor-text-color" type="color" value="#ffffff" />
@@ -5923,8 +5953,9 @@ function finishOnboarding() {
             </label>
             <button type="button" class="nabad-editor-btn" id="nabad-editor-bg">Replace background</button>
             <button type="button" class="nabad-editor-btn" id="nabad-editor-bg-lock">Unlock background</button>
-            <label class="nabad-editor-tool">Object
+            <label class="nabad-editor-tool">Add object
               <select id="nabad-editor-shape-select" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
+                <option value="">Choose shape…</option>
                 <option value="rect">Rectangle</option>
                 <option value="circle">Circle</option>
                 <option value="line">Line</option>
@@ -5932,7 +5963,6 @@ function finishOnboarding() {
                 <option value="blob">Accent</option>
               </select>
             </label>
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-add-shape">Add object</button>
             <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
           </div>
           <div class="nabad-editor-stage">
@@ -5949,14 +5979,14 @@ function finishOnboarding() {
       const bgBtn = document.getElementById('nabad-editor-bg');
       const bgLockBtn = document.getElementById('nabad-editor-bg-lock');
       const bgFile = document.getElementById('nabad-editor-bg-file');
+      const layerActionSelect = document.getElementById('nabad-editor-layer-action');
+      const objectFile = document.getElementById('nabad-editor-object-file');
       const shapeSelect = document.getElementById('nabad-editor-shape-select');
-      const addShapeBtn = document.getElementById('nabad-editor-add-shape');
       const imageHintInput = document.getElementById('nabad-editor-image-hint');
       const copyHintInput = document.getElementById('nabad-editor-copy-hint');
+      const textTargetInput = document.getElementById('nabad-editor-text-target');
       const fontFamilySelect = document.getElementById('nabad-editor-font-family');
-      const headlineRange = document.getElementById('nabad-editor-headline-size');
-      const subtextRange = document.getElementById('nabad-editor-subtext-size');
-      const ctaRange = document.getElementById('nabad-editor-cta-size');
+      const textSizeRange = document.getElementById('nabad-editor-text-size');
       const textColor = document.getElementById('nabad-editor-text-color');
       const ctaColor = document.getElementById('nabad-editor-cta-color');
       const ctaStyleSelect = document.getElementById('nabad-editor-cta-style');
@@ -6184,14 +6214,38 @@ function finishOnboarding() {
       fabricCanvas.setActiveObject(headlineObj);
       fabricCanvas.renderAll();
 
+      const isTextLikeObject = (obj) => !!obj && (
+        obj.type === 'i-text' ||
+        obj.type === 'textbox' ||
+        obj.type === 'text'
+      );
+
+      const getTextTargetLabel = (obj) => {
+        if (!obj || !isTextLikeObject(obj)) return 'No text selected';
+        if (obj === headlineObj) return 'Headline';
+        if (obj === subtextObj) return 'Subtext';
+        if (obj === ctaObj) return 'CTA';
+        if (obj === brandMarkObj) return 'Brand mark';
+        return 'Text object';
+      };
+
+      const setTextControlsEnabled = (enabled = false) => {
+        const on = !!enabled;
+        if (fontFamilySelect) fontFamilySelect.disabled = !on;
+        if (textSizeRange) textSizeRange.disabled = !on;
+        if (textColor) textColor.disabled = !on;
+      };
+
       const updateControlFromActive = () => {
         const obj = fabricCanvas.getActiveObject();
-        if (!obj || !('fontFamily' in obj)) return;
-        fontFamilySelect.value = allowedFonts.includes(String(obj.fontFamily || '')) ? String(obj.fontFamily) : defaultFont;
-        textColor.value = toHexColor(String(obj.fill || '#ffffff'));
-        headlineRange.value = String(Math.round(headlineObj.fontSize || 48));
-        subtextRange.value = String(Math.round(subtextObj.fontSize || 24));
-        ctaRange.value = String(Math.round(ctaObj.fontSize || 22));
+        const isText = isTextLikeObject(obj);
+        if (textTargetInput) textTargetInput.value = getTextTargetLabel(obj);
+        setTextControlsEnabled(isText);
+        if (isText) {
+          fontFamilySelect.value = allowedFonts.includes(String(obj.fontFamily || '')) ? String(obj.fontFamily) : defaultFont;
+          textColor.value = toHexColor(String(obj.fill || '#ffffff'));
+          textSizeRange.value = String(Math.round(obj.fontSize || 34));
+        }
         ctaColor.value = toHexColor(String(ctaBg.fill || '#2563eb'));
       };
 
@@ -6208,23 +6262,17 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       });
 
-      headlineRange?.addEventListener('input', () => {
-        headlineObj.set('fontSize', Number(headlineRange.value || 56));
-        fabricCanvas.renderAll();
-      });
-      subtextRange?.addEventListener('input', () => {
-        subtextObj.set('fontSize', Number(subtextRange.value || 24));
-        fabricCanvas.renderAll();
-      });
-      ctaRange?.addEventListener('input', () => {
-        ctaObj.set('fontSize', Number(ctaRange.value || 22));
-        syncCtaBackground();
+      textSizeRange?.addEventListener('input', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!isTextLikeObject(obj)) return;
+        obj.set('fontSize', Number(textSizeRange.value || 34));
+        if (obj === ctaObj) syncCtaBackground();
         fabricCanvas.renderAll();
       });
 
       textColor?.addEventListener('input', () => {
         const obj = fabricCanvas.getActiveObject();
-        if (!obj || !('fill' in obj)) return;
+        if (!isTextLikeObject(obj) || !('fill' in obj)) return;
         obj.set('fill', textColor.value || '#ffffff');
         fabricCanvas.renderAll();
       });
@@ -6326,6 +6374,83 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       };
 
+      const addImageObjectFromSource = (src = '') => new Promise((resolve, reject) => {
+        window.fabric.Image.fromURL(src, (img) => {
+          if (!img) return reject(new Error('Could not add image object.'));
+          const cw = fabricCanvas.getWidth();
+          const ch = fabricCanvas.getHeight();
+          const iw = img.width || 1;
+          const ih = img.height || 1;
+          const maxW = cw * 0.42;
+          const maxH = ch * 0.42;
+          const scale = Math.min(maxW / iw, maxH / ih, 1);
+          img.set({
+            left: cw * 0.5 - (iw * scale) * 0.5,
+            top: ch * 0.5 - (ih * scale) * 0.5,
+            scaleX: scale,
+            scaleY: scale,
+            selectable: true,
+            evented: true,
+            hasControls: true,
+            hasBorders: true
+          });
+          fabricCanvas.add(img);
+          brandMarkObj.bringToFront();
+          ctaBg.bringToFront();
+          ctaObj.bringToFront();
+          fabricCanvas.setActiveObject(img);
+          fabricCanvas.renderAll();
+          resolve(img);
+        }, { crossOrigin: 'anonymous' });
+      });
+
+      const setSelectedAsBackground = async () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || obj.type !== 'image') {
+          alert('Select an image object first.');
+          return;
+        }
+        const src = typeof obj.getSrc === 'function' ? obj.getSrc() : (obj._element?.src || '');
+        if (!src) {
+          alert('Selected image source is not available.');
+          return;
+        }
+        await setBackgroundFromUrl(src, false);
+        try { fabricCanvas.remove(obj); } catch {}
+        setBackgroundLockState(true);
+        fabricCanvas.renderAll();
+      };
+
+      const removeSelectedImageBackground = async () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || obj.type !== 'image') {
+          alert('Select an image object first, then run background remover.');
+          return;
+        }
+        const src = typeof obj.getSrc === 'function' ? obj.getSrc() : (obj._element?.src || '');
+        if (!src) {
+          alert('Could not read selected image source.');
+          return;
+        }
+        const removeBackground = await loadBackgroundRemovalIfNeeded();
+        const previousLabel = layerActionSelect?.value || '';
+        if (layerActionSelect) layerActionSelect.disabled = true;
+        try {
+          const blob = await removeBackground(src);
+          const url = URL.createObjectURL(blob);
+          await addImageObjectFromSource(url);
+          setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        } catch (err) {
+          console.error('[NABAD] remove background error:', err);
+          alert('Background remover failed on this image. Try another image or run again.');
+        } finally {
+          if (layerActionSelect) {
+            layerActionSelect.disabled = false;
+            layerActionSelect.value = '';
+          }
+        }
+      };
+
       const deleteSelectedObject = () => {
         const obj = fabricCanvas.getActiveObject();
         if (!obj) return;
@@ -6345,10 +6470,63 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       };
 
-      addShapeBtn?.addEventListener('click', () => {
-        addShape(cleanText(shapeSelect?.value || 'rect', 24) || 'rect');
+      shapeSelect?.addEventListener('change', () => {
+        const shape = cleanText(shapeSelect.value || '', 24);
+        if (!shape) return;
+        addShape(shape);
+        shapeSelect.value = '';
       });
       deleteBtn?.addEventListener('click', deleteSelectedObject);
+
+      objectFile?.addEventListener('change', () => {
+        const file = objectFile.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            await addImageObjectFromSource(String(reader.result || ''));
+          } catch {
+            alert('Could not add image object.');
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+
+      layerActionSelect?.addEventListener('change', async () => {
+        const action = cleanText(layerActionSelect.value || '', 40);
+        if (!action) return;
+        try {
+          if (action === 'add-image-object') {
+            objectFile?.click();
+          } else if (action === 'remove-bg') {
+            await removeSelectedImageBackground();
+          } else if (action === 'set-background') {
+            await setSelectedAsBackground();
+          } else if (action === 'bring-front') {
+            const obj = fabricCanvas.getActiveObject();
+            if (!obj) alert('Select an object first.');
+            else {
+              obj.bringToFront();
+              brandMarkObj.bringToFront();
+              ctaBg.bringToFront();
+              ctaObj.bringToFront();
+              fabricCanvas.renderAll();
+            }
+          } else if (action === 'send-back') {
+            const obj = fabricCanvas.getActiveObject();
+            if (!obj) alert('Select an object first.');
+            else {
+              obj.sendBackwards();
+              if (backgroundObj) backgroundObj.sendToBack();
+              fabricCanvas.renderAll();
+            }
+          }
+        } finally {
+          if (layerActionSelect && layerActionSelect.value !== '') {
+            layerActionSelect.value = '';
+          }
+        }
+      });
 
       regenerateBtn?.addEventListener('click', async () => {
         const previousLabel = regenerateBtn.textContent;
@@ -6441,10 +6619,10 @@ function finishOnboarding() {
       };
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
-      if (headlineRange) headlineRange.value = String(Math.round(headlineObj.fontSize || 58));
-      if (subtextRange) subtextRange.value = String(Math.round(subtextObj.fontSize || 26));
-      if (ctaRange) ctaRange.value = String(Math.round(ctaObj.fontSize || 24));
+      if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj.fontSize || 58));
+      if (textTargetInput) textTargetInput.value = 'Headline';
       setBackgroundLockState(true);
+      setTextControlsEnabled(true);
       loading.remove();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
