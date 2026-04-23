@@ -5467,16 +5467,35 @@ function finishOnboarding() {
           refs.input.value = 'Generate a realistic photoreal logo image version';
         } else if (action === 'image-style-logo') {
           refs.input.value = 'Generate a modern professional logo image version';
-        } else if (action === 'logo-direction-gemini') {
-          refs.input.value = 'Use direction A (Gemini) as the base and refine it into a premium final logo for my brand';
-        } else if (action === 'logo-direction-ideogram') {
-          refs.input.value = 'Use direction B (Ideogram) as the base and refine it into a premium final logo for my brand';
-        } else if (action === 'logo-direction-replicate') {
-          refs.input.value = 'Use direction C (Replicate) as the base and refine it into a premium final logo for my brand';
+        } else if (action === 'campaign-logo-generated') {
+          refs.input.value = 'Campaign logo choice: use generated logo';
+        } else if (action === 'campaign-logo-upload') {
+          refs.input.value = 'Campaign logo choice: use uploaded logo';
+          autoGrowTextarea();
+          refs.fileInput?.click();
+          return;
+        } else if (action === 'campaign-logo-none') {
+          refs.input.value = 'Campaign logo choice: proceed without logo';
+        } else if (action === 'campaign-logo-generate-first') {
+          refs.input.value = 'Campaign logo choice: create logo first';
         } else if (action === 'campaign-brief-confirm') {
           refs.input.value = 'Confirm this campaign brief and generate the final ad visual now';
         } else if (action === 'campaign-brief-edit') {
-          refs.input.value = 'Edit campaign brief: objective=, audience=, offer=, hook=, cta=, platform=, format=, visual style=';
+          refs.input.value = 'Edit campaign brief: ';
+          autoGrowTextarea();
+          refs.input.focus();
+          return;
+        } else if (action === 'campaign-refine-text') {
+          refs.input.value = 'Edit this campaign visual text: replace headline and CTA';
+        } else if (action === 'campaign-refine-logo') {
+          refs.input.value = 'Edit this campaign visual logo: replace current logo with uploaded logo';
+          autoGrowTextarea();
+          refs.fileInput?.click();
+          return;
+        } else if (action === 'campaign-refine-background') {
+          refs.input.value = 'Edit this campaign visual background: use a different photo/background style';
+        } else if (action === 'campaign-refine-regenerate') {
+          refs.input.value = 'Regenerate this campaign visual with same layout but improved composition';
         } else if (action === 'pricing-edit') {
           const cardEl = btn.closest('[data-nabad-card="pricing"]');
           togglePricingCardEdit(cardEl, btn);
