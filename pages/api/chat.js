@@ -1335,6 +1335,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
   const hasReplicate = !!process.env.REPLICATE_API_TOKEN;
   const isFastMode = /\b(fast|quick|draft|free mode)\b/i.test(imagePrompt) || forcedMode === 'fast';
   const isTextCritical = imageType === 'logo' || /\b(wordmark|exact text|spelling|typography|text)\b/i.test(imagePrompt);
+  const campaignMode = options?.campaignMode === true;
 
   if (preferred === 'openai') {
     if (hasOpenAIImage) providers.push('openai');
@@ -1394,6 +1395,28 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     providers.push('pollinations');
     if (hasIdeogram) providers.push('ideogram');
     if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
+  }
+  if (campaignMode) {
+    // Campaign backgrounds should avoid engines/modes that tend to inject text.
+    // Keep pollinations only as a last-resort when user explicitly selected it.
+    const explicitPollinations = preferred === 'pollinations';
+    const filtered = explicitPollinations
+      ? providers
+      : providers.filter((p) => p !== 'pollinations');
+    providers.length = 0;
+    filtered.forEach((p) => providers.push(p));
+    if (explicitPollinations) {
+      // still keep a better fallback path after pollinations if it fails
+      if (hasGeminiImage && !providers.includes('gemini')) providers.push('gemini');
+      if (hasReplicate && !providers.includes('replicate')) providers.push('replicate');
+      if (hasIdeogram && !providers.includes('ideogram')) providers.push('ideogram');
+    } else if (!providers.length) {
+      if (hasGeminiImage) providers.push('gemini');
+      if (hasReplicate) providers.push('replicate');
+      if (hasIdeogram) providers.push('ideogram');
+      if (hasOpenAIImage) providers.push('openai');
+      providers.push('pollinations');
+    }
   }
   console.log('[IMAGE ROUTER]', JSON.stringify({
     preferred,
@@ -1866,6 +1889,16 @@ async function generateCampaignBrief(messages = [], userProfile = '', openaiClie
     .slice(-8)
     .map((m) => getMessageText(m.content))
     .join('\n');
+  const recentBriefs = extractRecentCampaignBriefs(messages, 26, 3);
+  const avoidList = recentBriefs
+    .map((b, idx) => {
+      const name = cleanText(b?.campaignName || '', 80);
+      const hook = cleanText(b?.hook || '', 120);
+      const cta = cleanText(b?.cta || '', 90);
+      return `${idx + 1}. Name="${name}" | Hook="${hook}" | CTA="${cta}"`;
+    })
+    .join('\n');
+  const variationSeed = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const prompt = `Return ONLY valid JSON.
 Schema:
 {
@@ -1883,13 +1916,20 @@ Schema:
 }
 Build a practical ad-visual brief from this founder context.
 Profile: ${cleanText(userProfile, 900)}
-Conversation: ${cleanText(context, 2000)}`;
+Conversation: ${cleanText(context, 2000)}
+Variation seed: ${variationSeed}
+Avoid repeating these recent campaign directions:
+${avoidList || 'None'}
+Rules:
+- Make this direction materially different from previous outputs.
+- Change at least: campaignName, hook, CTA, tone, visualStyle.
+- Keep it specific and grounded in user context.`;
   const result = await runTaskWithProviderFallback([
     { role: 'system', content: 'You are a campaign strategist. Return JSON only. No markdown.' },
     { role: 'user', content: prompt }
   ], openaiClient, preferredProvider, {
     maxTokens: 500,
-    temperature: 0.55,
+    temperature: 0.82,
     returnMeta: true,
     allowOpenAI
   });
@@ -1946,6 +1986,32 @@ function extractRecentCampaignBrief(messages = [], lookback = 12) {
     } catch {}
   }
   return null;
+}
+
+function extractRecentCampaignBriefs(messages = [], lookback = 24, maxItems = 3) {
+  const out = [];
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - lookback); i--) {
+    const m = messages[i];
+    if (m.role !== 'assistant') continue;
+    const raw = String(m.content || '');
+    const match = raw.match(/data-nabad-brief="([^"]+)"/i);
+    if (!match?.[1]) continue;
+    try {
+      const parsed = JSON.parse(decodeURIComponent(match[1]));
+      if (parsed && typeof parsed === 'object') {
+        out.push(normalizeCampaignBriefData(parsed, {}));
+      }
+    } catch {}
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function campaignBackgroundHardRule(text = '') {
+  return cleanText(
+    `${text} STRICT VISUAL RULES: no words, no letters, no numbers, no typography, no captions, no labels, no watermarks, no logos, no signatures. Clean image background only. ONLY allowed text: tiny "nabadai.com" at top-right.`,
+    1300
+  );
 }
 
 function buildCampaignImagePromptFromBrief(brief = {}) {
@@ -3811,14 +3877,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing campaignImagePrompt.' });
     }
     try {
-      const strictCampaignPrompt = cleanText(
-        `${campaignImagePrompt} IMPORTANT: background-only visual. No text at all except tiny "nabadai.com" in top-right corner.`,
-        1300
-      );
+      const strictCampaignPrompt = campaignBackgroundHardRule(campaignImagePrompt);
       const generated = await generateImageWithProviderChain(
         strictCampaignPrompt,
-        'banner',
-        { preferred: imageProvider || 'auto', allowOpenAI: allowOpenAIFallback }
+        'image',
+        { preferred: imageProvider || 'auto', allowOpenAI: allowOpenAIFallback, campaignMode: true }
       );
       return res.status(200).json({
         ok: true,
@@ -4129,7 +4192,11 @@ export default async function handler(req, res) {
       } else if (logoChoice === 'none') {
         campaignPrompt = cleanText(`${campaignPrompt} Proceed without placing a logo mark on the visual.`, 900);
       }
-      const generated = await generateImageWithProviderChain(campaignPrompt, 'banner', { preferred: imageProvider, allowOpenAI: allowOpenAIFallback });
+      const generated = await generateImageWithProviderChain(
+        campaignBackgroundHardRule(campaignPrompt),
+        'image',
+        { preferred: imageProvider, allowOpenAI: allowOpenAIFallback, campaignMode: true }
+      );
       providerTrace.imageGeneration = generated?.provider || '';
       return respond({
         reply: buildCampaignVisualReply(generated.url, generated.provider),
@@ -4161,7 +4228,7 @@ export default async function handler(req, res) {
           }, { persist: false });
         }
         campaignPrompt = cleanText(
-          `${campaignPrompt} Keep the same campaign concept and composition, but update ONLY text overlays based on this instruction: ${campaignRefine.instruction}. Prioritize readability and conversion clarity.`,
+          `${campaignPrompt} Keep same concept, but adjust visual mood based on this instruction (no text overlays): ${campaignRefine.instruction}.`,
           900
         );
       } else if (campaignRefine.type === 'logo') {
@@ -4193,9 +4260,10 @@ export default async function handler(req, res) {
         );
       }
 
-      const generated = await generateImageWithProviderChain(campaignPrompt, 'banner', {
+      const generated = await generateImageWithProviderChain(campaignBackgroundHardRule(campaignPrompt), 'image', {
         preferred: imageProvider,
-        allowOpenAI: allowOpenAIFallback
+        allowOpenAI: allowOpenAIFallback,
+        campaignMode: true
       });
       providerTrace.imageGeneration = generated?.provider || '';
       return respond({
