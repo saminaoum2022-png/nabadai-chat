@@ -1802,6 +1802,36 @@ function recentLogoInMessages(messages = [], lookback = 18) {
   });
 }
 
+function campaignVisualRecentlyGenerated(messages = [], lookback = 18) {
+  return messages.slice(-lookback).some((m) => {
+    if (m.role !== 'assistant') return false;
+    const t = String(m.content || '').toLowerCase();
+    return t.includes('campaign visual is ready') || t.includes('campaign-refine-text');
+  });
+}
+
+function parseCampaignRefineIntent(text = '') {
+  const raw = cleanText(text, 1200);
+  const t = raw.toLowerCase();
+  if (!raw) return null;
+  if (/\bcampaign refine text:|edit this campaign visual text/i.test(raw)) {
+    return { type: 'text', instruction: raw.replace(/.*?(campaign refine text:|edit this campaign visual text:?)\s*/i, '').trim() };
+  }
+  if (/\bcampaign refine logo:|edit this campaign visual logo/i.test(raw)) {
+    return { type: 'logo', instruction: raw.replace(/.*?(campaign refine logo:|edit this campaign visual logo:?)\s*/i, '').trim() };
+  }
+  if (/\bcampaign refine background:|edit this campaign visual background/i.test(raw)) {
+    return { type: 'background', instruction: raw.replace(/.*?(campaign refine background:|edit this campaign visual background:?)\s*/i, '').trim() };
+  }
+  if (/\bregenerate this campaign visual\b/i.test(raw)) {
+    return { type: 'regenerate', instruction: raw };
+  }
+  if (/\b(generate again with this edit|update this campaign visual|refine campaign visual)\b/i.test(t)) {
+    return { type: 'regenerate', instruction: raw };
+  }
+  return null;
+}
+
 function extractCampaignLogoChoice(messages = [], lastUserMessage = '') {
   const combined = [String(lastUserMessage || ''), ...messages.slice(-10).filter((m) => m.role === 'user').map((m) => getMessageText(m.content))]
     .join(' ')
@@ -4044,6 +4074,73 @@ export default async function handler(req, res) {
         reply: '<p>I could not generate the campaign visual right now. Tap confirm again in a few seconds and I will retry from the same brief.</p>',
         detectedPersonality: 'creative'
       });
+    }
+  }
+
+  // ── Campaign visual refine actions (edit text/logo/background on the same flow) ──
+  const campaignRefine = parseCampaignRefineIntent(lastUserMessage);
+  if (campaignRefine && (campaignBriefRecentlyShown(messages, 14) || campaignVisualRecentlyGenerated(messages, 20))) {
+    try {
+      const recentBrief =
+        extractRecentCampaignBrief(messages, 18) ||
+        await generateCampaignBrief(messages, userProfile, openai, 'gemini', allowOpenAIFallback);
+      let campaignPrompt = buildCampaignImagePromptFromBrief(recentBrief);
+
+      if (campaignRefine.type === 'text') {
+        if (!campaignRefine.instruction) {
+          return respond({
+            reply: '<p>Send your text edit in one line, for example: <strong>Campaign refine text: headline=Your Music, Protected. cta=Start Now</strong>.</p>',
+            detectedPersonality: 'creative'
+          }, { persist: false });
+        }
+        campaignPrompt = cleanText(
+          `${campaignPrompt} Keep the same campaign concept and composition, but update ONLY text overlays based on this instruction: ${campaignRefine.instruction}. Prioritize readability and conversion clarity.`,
+          900
+        );
+      } else if (campaignRefine.type === 'logo') {
+        if (!parsedAttachment?.imageDataUrl) {
+          return respond({
+            reply: '<p>Please upload the new logo image now, then send your message again and I will replace the logo in the campaign visual.</p>',
+            detectedPersonality: 'creative'
+          }, { persist: false });
+        }
+        campaignPrompt = cleanText(
+          `${campaignPrompt} Replace current logo with uploaded logo reference. Keep placement premium and readable. ${campaignRefine.instruction || ''}`,
+          900
+        );
+      } else if (campaignRefine.type === 'background') {
+        if (!campaignRefine.instruction) {
+          return respond({
+            reply: '<p>Tell me the new background direction in one line, for example: <strong>Campaign refine background: modern music studio with neon accents</strong>.</p>',
+            detectedPersonality: 'creative'
+          }, { persist: false });
+        }
+        campaignPrompt = cleanText(
+          `${campaignPrompt} Change the background based on this direction: ${campaignRefine.instruction}. Keep message hierarchy, headline zone, and CTA clarity.`,
+          900
+        );
+      } else {
+        campaignPrompt = cleanText(
+          `${campaignPrompt} Regenerate same concept with improved composition, clearer hierarchy, and stronger conversion focus.`,
+          900
+        );
+      }
+
+      const generated = await generateImageWithProviderChain(campaignPrompt, 'banner', {
+        preferred: imageProvider,
+        allowOpenAI: allowOpenAIFallback
+      });
+      providerTrace.imageGeneration = generated?.provider || '';
+      return respond({
+        reply: buildCampaignVisualReply(generated.url, generated.provider),
+        detectedPersonality: 'creative'
+      });
+    } catch (err) {
+      console.error('[CAMPAIGN REFINE ERROR]', err?.message);
+      return respond({
+        reply: '<p>I hit a quick issue while applying that campaign edit. Try again in a few seconds and I will regenerate with your same instruction.</p>',
+        detectedPersonality: 'creative'
+      }, { persist: false });
     }
   }
 
