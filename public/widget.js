@@ -206,6 +206,7 @@
     profile: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>`,
     notifications: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></svg>`,
     account: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/></svg>`,
+    editor: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8"/><path d="M9 8h6"/><path d="M8 12h8"/></svg>`,
     warRoom: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.47 6.03.88-4.36 4.25 1.03 6.01L12 16.9 6.6 19.61l1.03-6.01L3.27 9.35l6.03-.88L12 3z"/></svg>`,
     reset: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 10v7"/><path d="M14 10v7"/></svg>`
   };
@@ -3819,7 +3820,7 @@ function showPersonalityPill(id) {
         background: #fff;
         color: #1e3a8a;
         border-radius: 10px;
-        padding: 8px 12px;
+        padding: 7px 10px;
         font-size: 12px;
         font-weight: 700;
         cursor: pointer;
@@ -3831,24 +3832,24 @@ function showPersonalityPill(id) {
       }
       .nabad-editor-toolbar {
         display: flex;
-        gap: 10px;
+        gap: 7px;
         flex-wrap: wrap;
         align-items: center;
         background: #fff;
         border: 1px solid rgba(37,99,235,0.12);
         border-radius: 10px;
-        padding: 8px;
+        padding: 6px;
       }
       .nabad-editor-tool {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        font-size: 12px;
+        gap: 5px;
+        font-size: 11px;
         font-weight: 700;
         color: #334155;
       }
       .nabad-editor-tool input[type="range"] {
-        width: 120px;
+        width: 92px;
       }
       .nabad-editor-stage {
         flex: 1;
@@ -5835,9 +5836,10 @@ function finishOnboarding() {
       refs.messages.innerHTML = `
         <div class="nabad-editor-shell">
           <div class="nabad-editor-topbar">
-            <div class="nabad-editor-title">Campaign Editor</div>
+            <div class="nabad-editor-title">Nabad Editor</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button type="button" class="nabad-editor-btn" id="nabad-editor-back">Back</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete selected</button>
               <button type="button" class="nabad-editor-btn primary" id="nabad-editor-save">Save PNG</button>
             </div>
           </div>
@@ -5876,11 +5878,16 @@ function finishOnboarding() {
             </label>
             <button type="button" class="nabad-editor-btn" id="nabad-editor-bg">Replace background</button>
             <button type="button" class="nabad-editor-btn" id="nabad-editor-bg-lock">Unlock background</button>
-            <button type="button" class="nabad-editor-btn" data-nabad-shape="rect">+ Rect</button>
-            <button type="button" class="nabad-editor-btn" data-nabad-shape="circle">+ Circle</button>
-            <button type="button" class="nabad-editor-btn" data-nabad-shape="line">+ Line</button>
-            <button type="button" class="nabad-editor-btn" data-nabad-shape="star">+ Star</button>
-            <button type="button" class="nabad-editor-btn" data-nabad-shape="blob">+ Accent</button>
+            <label class="nabad-editor-tool">Object
+              <select id="nabad-editor-shape-select" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
+                <option value="rect">Rectangle</option>
+                <option value="circle">Circle</option>
+                <option value="line">Line</option>
+                <option value="star">Star</option>
+                <option value="blob">Accent</option>
+              </select>
+            </label>
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-add-shape">Add object</button>
             <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
           </div>
           <div class="nabad-editor-stage">
@@ -5890,10 +5897,13 @@ function finishOnboarding() {
       `;
 
       const backBtn = document.getElementById('nabad-editor-back');
+      const deleteBtn = document.getElementById('nabad-editor-delete');
       const saveBtn = document.getElementById('nabad-editor-save');
       const bgBtn = document.getElementById('nabad-editor-bg');
       const bgLockBtn = document.getElementById('nabad-editor-bg-lock');
       const bgFile = document.getElementById('nabad-editor-bg-file');
+      const shapeSelect = document.getElementById('nabad-editor-shape-select');
+      const addShapeBtn = document.getElementById('nabad-editor-add-shape');
       const fontFamilySelect = document.getElementById('nabad-editor-font-family');
       const headlineRange = document.getElementById('nabad-editor-headline-size');
       const subtextRange = document.getElementById('nabad-editor-subtext-size');
@@ -5905,6 +5915,9 @@ function finishOnboarding() {
       const canvasEl = document.getElementById('nabad-editor-canvas');
 
       backBtn?.addEventListener('click', () => {
+        if (state.campaignEditorContext?.keyHandler) {
+          document.removeEventListener('keydown', state.campaignEditorContext.keyHandler);
+        }
         try { state.campaignEditorContext?.canvas?.dispose?.(); } catch {}
         state.campaignEditorContext = null;
         restoreChatAfterEditorMode();
@@ -6053,6 +6066,16 @@ function finishOnboarding() {
       });
       ctaObj.isCtaText = true;
 
+      const brandMarkObj = new window.fabric.IText('nabadai.com', {
+        left: fabricCanvas.getWidth() * 0.79,
+        top: fabricCanvas.getHeight() * 0.04,
+        fontSize: Math.max(11, Math.round(fabricCanvas.getWidth() * 0.015)),
+        fill: 'rgba(255,255,255,0.86)',
+        fontWeight: 600,
+        fontFamily: defaultFont,
+        editable: true
+      });
+
       const ctaBg = new window.fabric.Rect({
         left: ctaObj.left - 14,
         top: ctaObj.top - 8,
@@ -6106,7 +6129,7 @@ function finishOnboarding() {
       });
       ctaObj.on('modified', syncCtaBackground);
 
-      fabricCanvas.add(ctaBg, headlineObj, subtextObj, ctaObj);
+      fabricCanvas.add(ctaBg, headlineObj, subtextObj, ctaObj, brandMarkObj);
       syncCtaBackground();
       applyCtaStyle('solid');
       fabricCanvas.setActiveObject(headlineObj);
@@ -6247,15 +6270,47 @@ function finishOnboarding() {
         if (!obj) return;
         fabricCanvas.add(obj);
         obj.bringToFront();
+        brandMarkObj.bringToFront();
         ctaBg.bringToFront();
         ctaObj.bringToFront();
         fabricCanvas.setActiveObject(obj);
         fabricCanvas.renderAll();
       };
 
-      refs.messages.querySelectorAll('[data-nabad-shape]').forEach((btn) => {
-        btn.addEventListener('click', () => addShape(btn.getAttribute('data-nabad-shape') || 'rect'));
+      const deleteSelectedObject = () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj) return;
+        if (obj === backgroundObj) {
+          alert('Background is protected. Use "Replace background" or unlock to move it.');
+          return;
+        }
+        if (obj === ctaObj || obj === ctaBg) {
+          fabricCanvas.remove(ctaObj);
+          fabricCanvas.remove(ctaBg);
+          fabricCanvas.discardActiveObject();
+          fabricCanvas.renderAll();
+          return;
+        }
+        fabricCanvas.remove(obj);
+        fabricCanvas.discardActiveObject();
+        fabricCanvas.renderAll();
+      };
+
+      addShapeBtn?.addEventListener('click', () => {
+        addShape(cleanText(shapeSelect?.value || 'rect', 24) || 'rect');
       });
+      deleteBtn?.addEventListener('click', deleteSelectedObject);
+
+      const keyHandler = (e) => {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          const active = fabricCanvas.getActiveObject();
+          if (active && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            deleteSelectedObject();
+          }
+        }
+      };
+      document.addEventListener('keydown', keyHandler);
 
       saveBtn?.addEventListener('click', async () => {
         try {
@@ -6276,7 +6331,8 @@ function finishOnboarding() {
         canvas: fabricCanvas,
         payload: campaignData,
         imageUrl: image.url,
-        background: backgroundObj
+        background: backgroundObj,
+        keyHandler
       };
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
@@ -6287,6 +6343,9 @@ function finishOnboarding() {
       loading.remove();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
+      if (state.campaignEditorContext?.keyHandler) {
+        document.removeEventListener('keydown', state.campaignEditorContext.keyHandler);
+      }
       restoreChatAfterEditorMode();
       renderMessage('assistant', '<p>⚠️ Could not open campaign editor right now. Please try again.</p>');
     }
@@ -7127,6 +7186,33 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
   }
 
   // ── SETTINGS PAGE ─────────────────────────────────────────────
+function openNabadEditorFromMenu() {
+  const p = state.userProfile || {};
+  const brand = cleanText(p.businessName || p.ideaSummary || 'NabadAi', 120);
+  const offer = cleanText(p.whatYouSell || p.biggestChallenge || 'premium AI business support', 220);
+  const audience = cleanText(p.targetCustomer || 'founders and creators', 180);
+  const goal = cleanText(p.mainGoal || p.revenue || 'higher conversion', 180);
+
+  const editorPayload = {
+    headline: `${brand}`,
+    subtext: `${offer}`,
+    ctaText: 'Start now',
+    imagePrompt: cleanText(
+      `Premium campaign background for ${brand}. Audience: ${audience}. Goal: ${goal}. Visual style: modern, clean, conversion-focused. Background only. Do not add text except tiny "nabadai.com" top-right.`,
+      1200
+    ),
+    platform: 'social',
+    format: '1:1',
+    typography: {
+      fontFamily: 'Inter',
+      headlineSize: 58,
+      subtextSize: 26,
+      ctaSize: 22
+    }
+  };
+  openCampaignCanvasEditorFromData(editorPayload);
+}
+
 function openSettingsPage() {
   // Remove old dropdown if it exists
   const oldPopup = document.getElementById('nabad-options-popup');
@@ -7299,6 +7385,16 @@ function openSettingsPage() {
             </div>
             <span class="nabad-settings-row-arrow">›</span>
           </div>
+          <div class="nabad-settings-row" id="nabad-set-editor">
+            <div class="nabad-settings-row-left">
+              <div class="nabad-settings-row-icon">${SETTINGS_ICONS.editor}</div>
+              <div>
+                <div class="nabad-settings-row-label">Nabad Editor</div>
+                <div class="nabad-settings-row-desc">Open visual editor directly</div>
+              </div>
+            </div>
+            <span class="nabad-settings-row-arrow">›</span>
+          </div>
         </div>
       </div>
 
@@ -7444,6 +7540,9 @@ function openSettingsPage() {
   });
   page.querySelector('#nabad-set-warroom').addEventListener('click', () => {
     closeSettings(); setTimeout(() => openWarRoom(''), 360);
+  });
+  page.querySelector('#nabad-set-editor').addEventListener('click', () => {
+    closeSettings(); setTimeout(() => openNabadEditorFromMenu(), 360);
   });
 
   // ── Reset ──
