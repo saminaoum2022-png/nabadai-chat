@@ -1956,16 +1956,38 @@ function buildCampaignImagePromptFromBrief(brief = {}) {
   );
 }
 
+function pickCampaignTypography(brief = {}) {
+  const tone = `${brief?.tone || ''} ${brief?.visualStyle || ''}`.toLowerCase();
+  let fontFamily = 'Inter';
+  if (/\b(elegant|luxury|editorial|fashion|premium)\b/.test(tone)) fontFamily = 'Playfair Display';
+  else if (/\b(creative|playful|bold|youth|music|fun)\b/.test(tone)) fontFamily = 'Poppins';
+  else if (/\b(modern|clean|minimal|tech|professional)\b/.test(tone)) fontFamily = 'Inter';
+  else if (/\b(classic|serious|corporate)\b/.test(tone)) fontFamily = 'Merriweather';
+
+  return {
+    fontFamily,
+    headlineSize: 58,
+    subtextSize: 26,
+    ctaSize: 22
+  };
+}
+
 function buildCampaignRequestPayload(brief = {}) {
   const b = normalizeCampaignBriefData(brief, {});
+  const typography = pickCampaignTypography(b);
+  const backgroundOnlyPrompt = cleanText(
+    `${buildCampaignImagePromptFromBrief(b)} IMPORTANT: generate background only. Do NOT render any text, letters, words, logo marks, CTA buttons, labels, or typography in the image.`,
+    1100
+  );
   return {
     campaignRequest: true,
     headline: b.hook || b.campaignName || 'Campaign headline',
     subtext: b.offer || b.objective || 'Campaign subtext',
     ctaText: b.cta || 'Start now',
-    imagePrompt: buildCampaignImagePromptFromBrief(b),
+    imagePrompt: backgroundOnlyPrompt,
     platform: b.platform,
-    format: b.format
+    format: b.format,
+    typography
   };
 }
 
