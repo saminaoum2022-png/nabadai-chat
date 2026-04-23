@@ -1951,7 +1951,7 @@ function extractRecentCampaignBrief(messages = [], lookback = 12) {
 function buildCampaignImagePromptFromBrief(brief = {}) {
   const b = normalizeCampaignBriefData(brief, {});
   return cleanText(
-    `Ad campaign visual. Campaign: ${b.campaignName}. Objective: ${b.objective}. Audience: ${b.audience}. Offer: ${b.offer}. Hook text: ${b.hook}. CTA text: ${b.cta}. Platform: ${b.platform}. Format: ${b.format}. Tone: ${b.tone}. Visual style: ${b.visualStyle}. Must include: ${b.mustInclude.join(', ')}. Premium composition, clear hierarchy, high conversion, professional typography.`,
+    `Ad campaign visual background. Campaign: ${b.campaignName}. Objective: ${b.objective}. Audience: ${b.audience}. Offer concept: ${b.offer}. Message direction: ${b.hook}. CTA concept: ${b.cta}. Platform: ${b.platform}. Format: ${b.format}. Tone: ${b.tone}. Visual style: ${b.visualStyle}. Must include visual motifs: ${b.mustInclude.join(', ')}. Premium composition, clean hierarchy, high conversion energy. BACKGROUND ONLY: no rendered text or labels except tiny "nabadai.com" in top-right corner.`,
     900
   );
 }
@@ -1976,7 +1976,7 @@ function buildCampaignRequestPayload(brief = {}) {
   const b = normalizeCampaignBriefData(brief, {});
   const typography = pickCampaignTypography(b);
   const backgroundOnlyPrompt = cleanText(
-    `${buildCampaignImagePromptFromBrief(b)} IMPORTANT: generate background only. Do NOT render any text, letters, words, logo marks, CTA buttons, labels, or typography in the image.`,
+    `${buildCampaignImagePromptFromBrief(b)} IMPORTANT: generate BACKGROUND ONLY. Absolutely DO NOT render headlines, CTA text, labels, typography, words, letters, symbols, or logos anywhere in the image. The ONLY allowed text is tiny "nabadai.com" placed in the top-right corner.`,
     1100
   );
   return {
@@ -3811,8 +3811,12 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing campaignImagePrompt.' });
     }
     try {
+      const strictCampaignPrompt = cleanText(
+        `${campaignImagePrompt} IMPORTANT: background-only visual. No text at all except tiny "nabadai.com" in top-right corner.`,
+        1300
+      );
       const generated = await generateImageWithProviderChain(
-        campaignImagePrompt,
+        strictCampaignPrompt,
         'banner',
         { preferred: imageProvider || 'auto', allowOpenAI: allowOpenAIFallback }
       );
