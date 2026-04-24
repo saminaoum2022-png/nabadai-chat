@@ -6742,9 +6742,6 @@ function finishOnboarding() {
       const paletteBtn = null;
       const detectObjectsBtn = sidebarDetectObjectsBtn;
       const detectTextBtn = sidebarRemoveTextBtn;
-      const sidebarActionButtons = Array.from(
-        refs.messages.querySelectorAll('.nabad-editor-sidebar-section .add-grid .nabad-editor-btn')
-      );
       const layerHeadline = document.getElementById('nabad-layer-headline');
       const layerSubtext = document.getElementById('nabad-layer-subtext');
       const layerCta = document.getElementById('nabad-layer-cta');
@@ -6826,11 +6823,6 @@ function finishOnboarding() {
       });
       actionPopupEl?.addEventListener('click', (e) => {
         e.stopPropagation();
-      });
-      sidebarActionButtons.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          showActionOverlay(cleanText(btn.textContent || 'Editor action', 70));
-        });
       });
       const overlayEscHandler = (e) => {
         if (e.key === 'Escape' && actionOverlayEl && !actionOverlayEl.hidden) {
