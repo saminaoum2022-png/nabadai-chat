@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import Script from 'next/script';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const PERSONALITIES = [
   { id: 'strategist', label: 'Strategist' },
@@ -37,15 +37,16 @@ export default function AppPage() {
     h: 0,
     opacity: 100
   });
+  const inspectorApplyRef = useRef(null);
 
   const providerOptions = useMemo(() => ([
     { id: 'auto', label: 'Let Nabad choose' },
     { id: 'openai', label: 'OpenAI' },
     { id: 'gemini', label: 'Gemini' },
-    { id: 'nanobanana', label: 'Nano Banana (Gemini)' },
     { id: 'ideogram', label: 'Ideogram' },
     { id: 'replicate', label: 'Replicate' },
-    { id: 'pollinations', label: 'Draft (Free)' }
+    { id: 'pollinations', label: 'Pollinations' },
+    { id: 'huggingface', label: 'Hugging Face' }
   ]), []);
 
   useEffect(() => {
@@ -103,6 +104,12 @@ export default function AppPage() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (inspectorApplyRef.current) clearTimeout(inspectorApplyRef.current);
+    };
+  }, []);
+
   function applyPersonality(id) {
     const next = PERSONALITIES.some((p) => p.id === id) ? id : 'auto';
     setActivePersonality(next);
@@ -130,7 +137,10 @@ export default function AppPage() {
   function updateInspector(next) {
     const draft = { ...inspectorDraft, ...next };
     setInspectorDraft(draft);
-    doEditorAction('set_selected_style', draft);
+    if (inspectorApplyRef.current) clearTimeout(inspectorApplyRef.current);
+    inspectorApplyRef.current = setTimeout(() => {
+      doEditorAction('set_selected_style', next);
+    }, 20);
   }
 
   return (
