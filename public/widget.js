@@ -3842,6 +3842,24 @@ function showPersonalityPill(id) {
         font-weight: 700;
         cursor: pointer;
       }
+      .nabad-editor-btn.with-icon {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .nabad-editor-btn .nabad-btn-icon {
+        width: 14px;
+        height: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 14px;
+      }
+      .nabad-editor-btn .nabad-btn-icon svg {
+        width: 14px;
+        height: 14px;
+        display: block;
+      }
       .nabad-editor-btn.primary {
         background: linear-gradient(135deg,#2563eb,#06b6d4);
         border-color: transparent;
@@ -3861,7 +3879,7 @@ function showPersonalityPill(id) {
         flex: 1;
         min-height: 0;
         display: grid;
-        grid-template-columns: 230px minmax(0, 1fr) 270px;
+        grid-template-columns: 230px minmax(0, 1fr);
         gap: 10px;
       }
       .nabad-editor-panel {
@@ -3962,15 +3980,99 @@ function showPersonalityPill(id) {
       .nabad-editor-inline-actions button {
         min-width: 34px;
       }
-      .nabad-editor-bottom-ai {
+      .nabad-editor-bottom-dock {
         display: flex;
+        flex-direction: column;
         gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
         background: #fff;
         border: 1px solid rgba(37,99,235,0.16);
         border-radius: 12px;
         padding: 8px;
+        box-shadow: 0 -4px 16px rgba(15,23,42,0.06);
+      }
+      .nabad-editor-tooltray {
+        border: 1px solid rgba(37,99,235,0.14);
+        border-radius: 12px 12px 10px 10px;
+        padding: 8px;
+        background: #fff;
+        max-height: 120px;
+        overflow: auto;
+      }
+      .nabad-editor-toolpanel {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .nabad-editor-tabs {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        width: 100%;
+      }
+      .nabad-editor-tab {
+        border: 1px solid rgba(37,99,235,0.2);
+        background: #fff;
+        color: #1e3a8a;
+        border-radius: 10px;
+        padding: 6px 4px;
+        cursor: pointer;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.1;
+      }
+      .nabad-editor-tab .icon {
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .nabad-editor-tab .icon svg {
+        width: 18px;
+        height: 18px;
+        display: block;
+        stroke: currentColor;
+      }
+      .nabad-editor-tab .label {
+        font-size: 11px;
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .nabad-editor-tab.active {
+        background: linear-gradient(135deg,#2563eb,#06b6d4);
+        color: #fff;
+        border-color: transparent;
+      }
+      .nabad-editor-contextbar {
+        background: #fff;
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 12px;
+        padding: 8px;
+        box-shadow: 0 -4px 16px rgba(15,23,42,0.08);
+      }
+      .nabad-editor-context-title {
+        font-size: 11px;
+        font-weight: 800;
+        color: #1e3a8a;
+        margin-bottom: 6px;
+      }
+      .nabad-editor-context-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .nabad-editor-inline-label {
+        font-size: 11px;
+        color: #334155;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .nabad-editor-contextbar input[type="range"] {
+        min-width: 110px;
       }
       @media (max-width: 1100px) {
         .nabad-editor-workspace {
@@ -3978,9 +4080,6 @@ function showPersonalityPill(id) {
         }
         .nabad-editor-panel.left {
           order: 2;
-        }
-        .nabad-editor-panel.right {
-          order: 3;
         }
         .nabad-editor-stage {
           order: 1;
@@ -4008,11 +4107,38 @@ function showPersonalityPill(id) {
         .nabad-editor-panel.right {
           max-height: 220px;
         }
-        .nabad-editor-bottom-ai {
+        .nabad-editor-panel.left {
+          display: none;
+        }
+        .nabad-editor-tabs {
+          display: flex;
+          overflow-x: auto;
+          white-space: nowrap;
+          -webkit-overflow-scrolling: touch;
+        }
+        .nabad-editor-tab {
+          min-width: 86px;
+          flex: 0 0 auto;
+        }
+        .nabad-editor-toolpanel {
           flex-wrap: nowrap;
           overflow-x: auto;
           white-space: nowrap;
           -webkit-overflow-scrolling: touch;
+        }
+        .nabad-editor-toolpanel .nabad-editor-btn {
+          flex: 0 0 auto;
+        }
+        .nabad-editor-context-row {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          white-space: nowrap;
+          -webkit-overflow-scrolling: touch;
+        }
+        .nabad-editor-context-row .nabad-editor-btn,
+        .nabad-editor-context-row input,
+        .nabad-editor-context-row select {
+          flex: 0 0 auto;
         }
         .nabad-editor-stage {
           height: min(48vh, 320px);
@@ -6149,19 +6275,51 @@ function finishOnboarding() {
         <div class="nabad-editor-shell ${INLINE_MODE ? 'external-sidebar-mode' : ''}">
           <div class="nabad-editor-topbar">
             <div class="nabad-editor-top-left">
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-back">← Back</button>
+              <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-back">
+                <span class="nabad-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 18l-6-6 6-6"/>
+                  </svg>
+                </span>
+                <span>Back</span>
+              </button>
               <div class="nabad-editor-title">Nabad Editor</div>
             </div>
             <div class="nabad-editor-top-right">
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-undo">Undo</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-redo">Redo</button>
+              <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-undo">
+                <span class="nabad-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 14l-5-5 5-5"/>
+                    <path d="M20 20v-2a9 9 0 0 0-9-9H4"/>
+                  </svg>
+                </span>
+                <span>Undo</span>
+              </button>
+              <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-redo">
+                <span class="nabad-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 14l5-5-5-5"/>
+                    <path d="M4 20v-2a9 9 0 0 1 9-9h7"/>
+                  </svg>
+                </span>
+                <span>Redo</span>
+              </button>
               <span class="nabad-editor-divider"></span>
               <select id="nabad-editor-save-size" class="nabad-editor-select" title="Save size">
                 <option value="square">Square 1080×1080</option>
                 <option value="story">Story 1080×1920</option>
                 <option value="landscape" selected>Landscape 1920×1080</option>
               </select>
-              <button type="button" class="nabad-editor-btn primary" id="nabad-editor-save">Save PNG</button>
+              <button type="button" class="nabad-editor-btn primary with-icon" id="nabad-editor-save">
+                <span class="nabad-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <path d="M7 10l5 5 5-5"/>
+                    <path d="M12 15V3"/>
+                  </svg>
+                </span>
+                <span>Save PNG</span>
+              </button>
             </div>
           </div>
 
@@ -6175,71 +6333,118 @@ function finishOnboarding() {
                 <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-logo" checked /> 👁 Logo</span></label>
                 <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-background" checked /> 👁 Background image</span></label>
               </div>
-
-              <h4 style="margin-top:14px">Add</h4>
-              <div class="add-grid">
-                <button type="button" class="nabad-editor-btn" id="nabad-add-text">+ Text</button>
-                <button type="button" class="nabad-editor-btn" id="nabad-add-image">+ Image</button>
-                <button type="button" class="nabad-editor-btn" id="nabad-add-shape">+ Shape</button>
-                <button type="button" class="nabad-editor-btn" id="nabad-add-logo">+ Logo</button>
-              </div>
             </aside>
 
             <div class="nabad-editor-stage">
               <canvas id="nabad-editor-canvas" class="nabad-editor-canvas"></canvas>
             </div>
+          </div>
 
-            <aside class="nabad-editor-panel right" id="nabad-editor-right-panel" hidden>
-              <div class="nabad-editor-inspector">
-                <div class="nabad-editor-selected" id="nabad-selected-label">SELECTED: None</div>
+          <div class="nabad-editor-contextbar" id="nabad-editor-contextbar" hidden>
+            <div class="nabad-editor-context-title" id="nabad-selected-label">SELECTED: None</div>
+            <div class="nabad-editor-context-row" id="nabad-context-text-tools" hidden>
+              <select id="nabad-editor-font-family" class="nabad-editor-select">
+                <option value="Inter">Inter</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Playfair Display">Playfair Display</option>
+                <option value="Merriweather">Merriweather</option>
+              </select>
+              <input id="nabad-editor-text-size" type="range" min="10" max="160" step="1" value="34" />
+              <input id="nabad-editor-text-color" type="color" value="#ffffff" />
+              <button type="button" class="nabad-editor-btn" id="nabad-text-bold">B</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-text-italic">I</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-text-underline">U</button>
+            </div>
+            <div class="nabad-editor-context-row" id="nabad-context-common-tools">
+              <label class="nabad-editor-inline-label">Opacity
+                <input id="nabad-editor-opacity" type="range" min="0" max="100" step="1" value="100" />
+              </label>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-duplicate">Duplicate</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-bring-front">Bring Forward</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-send-back">Send Back</button>
+            </div>
+          </div>
 
-                <h4>Typography</h4>
-                <label class="nabad-editor-field">Font
-                  <select id="nabad-editor-font-family">
-                    <option value="Inter">Inter</option>
-                    <option value="Poppins">Poppins</option>
-                    <option value="Montserrat">Montserrat</option>
-                    <option value="Playfair Display">Playfair Display</option>
-                    <option value="Merriweather">Merriweather</option>
-                  </select>
-                </label>
-                <label class="nabad-editor-field">Size
-                  <input id="nabad-editor-text-size" type="range" min="10" max="160" step="1" value="34" />
-                </label>
-                <div class="nabad-editor-inline-actions">
-                  <button type="button" class="nabad-editor-btn" id="nabad-text-bold">B</button>
-                  <button type="button" class="nabad-editor-btn" id="nabad-text-italic">I</button>
-                  <button type="button" class="nabad-editor-btn" id="nabad-text-underline">U</button>
-                </div>
-                <label class="nabad-editor-field">Color
-                  <input id="nabad-editor-text-color" type="color" value="#ffffff" />
-                </label>
-
-                <h4>Position</h4>
-                <div class="nabad-editor-two-col">
-                  <label class="nabad-editor-field">X<input id="nabad-pos-x" type="number" step="1" /></label>
-                  <label class="nabad-editor-field">Y<input id="nabad-pos-y" type="number" step="1" /></label>
-                  <label class="nabad-editor-field">W<input id="nabad-size-w" type="number" step="1" /></label>
-                  <label class="nabad-editor-field">H<input id="nabad-size-h" type="number" step="1" /></label>
-                </div>
-                <label class="nabad-editor-field">Opacity
-                  <input id="nabad-editor-opacity" type="range" min="0" max="100" step="1" value="100" />
-                </label>
-                <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete element</button>
+          <div class="nabad-editor-bottom-dock">
+            <div class="nabad-editor-tooltray" id="nabad-editor-tooltray" hidden>
+              <div class="nabad-editor-toolpanel" data-panel="edit" hidden>
+                <button type="button" class="nabad-editor-btn" id="nabad-edit-delete">Delete Selected</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-edit-duplicate">Duplicate</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-edit-forward">Bring Forward</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-edit-back">Send Back</button>
               </div>
-            </aside>
+              <div class="nabad-editor-toolpanel" data-panel="ai" hidden>
+                <button type="button" class="nabad-editor-btn" id="nabad-editor-rewrite">✨ Rewrite Copy</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-editor-regenerate">🖼 Swap Background</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-editor-palette">🎨 Color Palette</button>
+              </div>
+              <div class="nabad-editor-toolpanel" data-panel="format" hidden>
+                <button type="button" class="nabad-editor-btn" id="nabad-editor-detect-objects">🔍 Detect Objects</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-editor-detect-text">📝 Detect Text</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-layer-removebg">✂️ Remove BG</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-layer-setbg">🖼 Set as BG</button>
+              </div>
+              <div class="nabad-editor-toolpanel" data-panel="canvas" hidden>
+                <button type="button" class="nabad-editor-btn" id="nabad-add-text">+ Text</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-add-image">+ Image</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-add-shape">+ Shape</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-add-logo">+ Logo</button>
+              </div>
+            </div>
+
+            <div class="nabad-editor-tabs" id="nabad-editor-tabs">
+              <button type="button" class="nabad-editor-tab" data-tab="edit">
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9"/>
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                  </svg>
+                </span>
+                <span class="label">Edit</span>
+              </button>
+              <button type="button" class="nabad-editor-tab" data-tab="ai">
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="8" width="16" height="10" rx="3"/>
+                    <path d="M9 12h.01M15 12h.01"/>
+                    <path d="M12 8V5"/>
+                    <path d="M8 5h8"/>
+                  </svg>
+                </span>
+                <span class="label">AI</span>
+              </button>
+              <button type="button" class="nabad-editor-tab" data-tab="format">
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 20l6-16 6 16"/>
+                    <path d="M5 14h8"/>
+                    <path d="M14 5h7"/>
+                    <path d="M14 9h5"/>
+                    <path d="M14 13h7"/>
+                  </svg>
+                </span>
+                <span class="label">Format</span>
+              </button>
+              <button type="button" class="nabad-editor-tab" data-tab="canvas">
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="14" rx="2"/>
+                    <path d="M8 20h8"/>
+                    <path d="M9 8h6"/>
+                    <path d="M8 12h8"/>
+                  </svg>
+                </span>
+                <span class="label">Canvas</span>
+              </button>
+            </div>
           </div>
 
-          <div class="nabad-editor-bottom-ai">
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-rewrite">✨ Rewrite Copy</button>
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-regenerate">🖼 Swap Background</button>
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-palette">🎨 Color Palette</button>
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-resize">↕ Resize for Platform</button>
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-detect-objects">🧠 Detect Objects</button>
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-detect-text">🔤 Detect Text</button>
-            <button type="button" class="nabad-editor-btn" id="nabad-layer-removebg">Remove BG (Selected)</button>
-            <button type="button" class="nabad-editor-btn" id="nabad-layer-setbg">Set Selected as BG</button>
-          </div>
+          <input id="nabad-pos-x" type="number" step="1" hidden />
+          <input id="nabad-pos-y" type="number" step="1" hidden />
+          <input id="nabad-size-w" type="number" step="1" hidden />
+          <input id="nabad-size-h" type="number" step="1" hidden />
 
           <input id="nabad-editor-object-file" type="file" accept="image/*" hidden />
           <input id="nabad-editor-logo-file" type="file" accept="image/*" hidden />
@@ -6251,15 +6456,24 @@ function finishOnboarding() {
       const undoBtn = document.getElementById('nabad-editor-undo');
       const redoBtn = document.getElementById('nabad-editor-redo');
       const deleteBtn = document.getElementById('nabad-editor-delete');
+      const duplicateBtn = document.getElementById('nabad-editor-duplicate');
+      const bringFrontBtn = document.getElementById('nabad-editor-bring-front');
+      const sendBackBtn = document.getElementById('nabad-editor-send-back');
+      const editDeleteBtn = document.getElementById('nabad-edit-delete');
+      const editDuplicateBtn = document.getElementById('nabad-edit-duplicate');
+      const editForwardBtn = document.getElementById('nabad-edit-forward');
+      const editBackBtn = document.getElementById('nabad-edit-back');
       const regenerateBtn = document.getElementById('nabad-editor-regenerate');
       const rewriteBtn = document.getElementById('nabad-editor-rewrite');
       const paletteBtn = document.getElementById('nabad-editor-palette');
-      const resizeBtn = document.getElementById('nabad-editor-resize');
       const detectObjectsBtn = document.getElementById('nabad-editor-detect-objects');
       const detectTextBtn = document.getElementById('nabad-editor-detect-text');
       const saveBtn = document.getElementById('nabad-editor-save');
       const saveSizeSelect = document.getElementById('nabad-editor-save-size');
-      const rightPanel = document.getElementById('nabad-editor-right-panel');
+      const tabsWrap = document.getElementById('nabad-editor-tabs');
+      const toolTray = document.getElementById('nabad-editor-tooltray');
+      const contextBar = document.getElementById('nabad-editor-contextbar');
+      const contextTextTools = document.getElementById('nabad-context-text-tools');
       const selectedLabel = document.getElementById('nabad-selected-label');
       const posXInput = document.getElementById('nabad-pos-x');
       const posYInput = document.getElementById('nabad-pos-y');
@@ -6698,16 +6912,57 @@ function finishOnboarding() {
         if (deleteBtn) deleteBtn.disabled = !enabled;
       };
 
+      let activeBottomTab = '';
+      const tabButtons = Array.from(tabsWrap?.querySelectorAll?.('.nabad-editor-tab') || []);
+      const tabPanels = Array.from(toolTray?.querySelectorAll?.('.nabad-editor-toolpanel') || []);
+      const openToolTab = (tab = '') => {
+        activeBottomTab = String(tab || '');
+        if (!toolTray || !tabButtons.length) return;
+        const hasActive = !!activeBottomTab;
+        toolTray.hidden = !hasActive;
+        tabButtons.forEach((btn) => {
+          btn.classList.toggle('active', btn.getAttribute('data-tab') === activeBottomTab);
+        });
+        tabPanels.forEach((panel) => {
+          panel.hidden = panel.getAttribute('data-panel') !== activeBottomTab;
+        });
+      };
+      const closeToolTab = () => openToolTab('');
+      tabButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tab = cleanText(btn.getAttribute('data-tab') || '', 24);
+          if (!tab) return;
+          if (activeBottomTab === tab) {
+            closeToolTab();
+          } else {
+            openToolTab(tab);
+          }
+        });
+      });
+      refs.messages?.addEventListener('click', (ev) => {
+        const target = ev?.target;
+        if (!target || !activeBottomTab) return;
+        const inDock = target.closest?.('.nabad-editor-bottom-dock');
+        const inStage = target.closest?.('.nabad-editor-stage');
+        if (!inDock && inStage) closeToolTab();
+      });
+
       const updateControlFromActive = () => {
         const obj = fabricCanvas.getActiveObject();
         const isText = isTextLikeObject(obj);
         if (selectedLabel) {
           selectedLabel.textContent = `SELECTED: ${getObjectLabel(obj)}`;
         }
-        if (rightPanel) rightPanel.hidden = !obj;
+        if (contextBar) contextBar.hidden = !obj;
+        if (tabsWrap) tabsWrap.hidden = !!obj;
+        if (toolTray && obj) toolTray.hidden = true;
+        if (contextTextTools) contextTextTools.hidden = !isText;
         setInspectorEnabled(!!obj, isText);
         if (!obj) {
           updateLayerVisibilityControls();
+          if (tabsWrap) tabsWrap.hidden = false;
+          if (toolTray && !activeBottomTab) toolTray.hidden = true;
+          if (toolTray && activeBottomTab) toolTray.hidden = false;
           try {
             window.dispatchEvent(new CustomEvent('nabad:editor-selection', {
               detail: { hasSelection: false }
@@ -6759,7 +7014,10 @@ function finishOnboarding() {
       fabricCanvas.on('selection:updated', updateControlFromActive);
       fabricCanvas.on('selection:cleared', updateControlFromActive);
       fabricCanvas.on('mouse:down', (ev) => {
-        if (!ev.target) updateControlFromActive();
+        if (!ev.target) {
+          closeToolTab();
+          updateControlFromActive();
+        }
       });
       fabricCanvas.on('object:added', pushHistory);
       fabricCanvas.on('object:modified', pushHistory);
@@ -7021,7 +7279,51 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       };
 
+      const duplicateSelectedObject = () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || obj === backgroundObj) return;
+        obj.clone((cloned) => {
+          if (!cloned) return;
+          cloned.set({
+            left: Number(obj.left || 0) + 18,
+            top: Number(obj.top || 0) + 18
+          });
+          cloned.setCoords();
+          fabricCanvas.add(cloned);
+          fabricCanvas.setActiveObject(cloned);
+          if (obj === ctaObj) {
+            cloned.set('nabadRole', 'cta');
+          }
+          fabricCanvas.renderAll();
+        }, ['nabadRole', 'isCtaText']);
+      };
+
+      const bringSelectedForward = () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || obj === backgroundObj) return;
+        obj.bringForward?.();
+        ctaBg?.bringForward?.();
+        if (obj === ctaObj) ctaObj.bringForward?.();
+        brandMarkObj?.bringToFront?.();
+        fabricCanvas.renderAll();
+      };
+
+      const sendSelectedBack = () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || obj === backgroundObj) return;
+        obj.sendBackwards?.();
+        backgroundObj?.sendToBack?.();
+        fabricCanvas.renderAll();
+      };
+
       deleteBtn?.addEventListener('click', deleteSelectedObject);
+      duplicateBtn?.addEventListener('click', duplicateSelectedObject);
+      bringFrontBtn?.addEventListener('click', bringSelectedForward);
+      sendBackBtn?.addEventListener('click', sendSelectedBack);
+      editDeleteBtn?.addEventListener('click', deleteSelectedObject);
+      editDuplicateBtn?.addEventListener('click', duplicateSelectedObject);
+      editForwardBtn?.addEventListener('click', bringSelectedForward);
+      editBackBtn?.addEventListener('click', sendSelectedBack);
 
       addTextBtn?.addEventListener('click', () => {
         const text = new window.fabric.IText('New text', {
@@ -7408,8 +7710,8 @@ function finishOnboarding() {
         fitCanvasToStage?.();
       };
 
-      resizeBtn?.addEventListener('click', () => {
-        const preset = cleanText(window.prompt('Resize for platform: square / story / landscape', 'square') || 'square', 20).toLowerCase();
+      saveSizeSelect?.addEventListener('change', () => {
+        const preset = cleanText(saveSizeSelect.value || 'landscape', 20).toLowerCase();
         applyResizePreset(preset);
       });
 
@@ -7560,7 +7862,6 @@ function finishOnboarding() {
           if (ai === 'rewrite') rewriteBtn?.click();
           else if (ai === 'swap_bg') regenerateBtn?.click();
           else if (ai === 'palette') paletteBtn?.click();
-          else if (ai === 'resize') resizeBtn?.click();
           else if (ai === 'detect_objects') detectObjectsBtn?.click();
           else if (ai === 'detect_text') detectTextBtn?.click();
           else if (ai === 'remove_bg') removeBgBtn?.click();
