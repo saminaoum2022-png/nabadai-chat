@@ -4165,13 +4165,13 @@ function showPersonalityPill(id) {
         z-index: 25;
         pointer-events: none;
         opacity: 0;
-        transition: opacity .18s ease;
-        backdrop-filter: blur(4px);
-        -webkit-backdrop-filter: blur(4px);
+        transition: opacity .2s ease;
+        backdrop-filter: blur(10px) saturate(1.12);
+        -webkit-backdrop-filter: blur(10px) saturate(1.12);
         background:
-          radial-gradient(ellipse at 18% 20%, rgba(56,189,248,0.16), transparent 48%),
-          radial-gradient(ellipse at 82% 72%, rgba(37,99,235,0.18), transparent 54%),
-          linear-gradient(180deg, rgba(8,47,73,0.18), rgba(15,23,42,0.22));
+          radial-gradient(ellipse at 18% 20%, rgba(56,189,248,0.26), transparent 52%),
+          radial-gradient(ellipse at 82% 72%, rgba(37,99,235,0.3), transparent 56%),
+          linear-gradient(180deg, rgba(8,47,73,0.28), rgba(15,23,42,0.34));
       }
       .nabad-editor-workspace-glow.show {
         opacity: 1;
@@ -4182,11 +4182,12 @@ function showPersonalityPill(id) {
         top: 50%;
         transform: translate(-50%, -50%);
         border-radius: 999px;
-        width: min(72vw, 720px);
-        height: min(72vw, 720px);
-        background: radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(56,189,248,0.10) 34%, rgba(15,23,42,0) 72%);
-        filter: blur(4px);
-        animation: nabadWorkspaceGlowPulse 1.2s ease-in-out infinite;
+        width: min(78vw, 860px);
+        height: min(78vw, 860px);
+        background: radial-gradient(circle, rgba(191,219,254,0.42) 0%, rgba(56,189,248,0.28) 32%, rgba(15,23,42,0) 72%);
+        box-shadow: 0 0 70px rgba(56,189,248,0.34), 0 0 140px rgba(37,99,235,0.26);
+        filter: blur(12px);
+        animation: nabadWorkspaceGlowPulse 1s ease-in-out infinite;
       }
       .nabad-editor-workspace-glow .glow-label {
         position: absolute;
@@ -4195,15 +4196,17 @@ function showPersonalityPill(id) {
         transform: translateX(-50%);
         font-size: 13px;
         font-weight: 800;
-        color: #dbeafe;
+        color: #f0f9ff;
         letter-spacing: .02em;
-        text-shadow: 0 0 20px rgba(56,189,248,0.66);
+        text-shadow: 0 0 24px rgba(56,189,248,0.85), 0 0 44px rgba(37,99,235,0.55);
       }
       .nabad-editor-workspace-glow.mode-rewrite .glow-center {
-        background: radial-gradient(circle, rgba(196,181,253,0.25) 0%, rgba(139,92,246,0.14) 36%, rgba(15,23,42,0) 74%);
+        background: radial-gradient(circle, rgba(221,214,254,0.45) 0%, rgba(167,139,250,0.28) 34%, rgba(15,23,42,0) 74%);
+        box-shadow: 0 0 70px rgba(167,139,250,0.34), 0 0 140px rgba(139,92,246,0.26);
       }
       .nabad-editor-workspace-glow.mode-removebg .glow-center {
-        background: radial-gradient(circle, rgba(125,211,252,0.26) 0%, rgba(14,165,233,0.14) 38%, rgba(15,23,42,0) 74%);
+        background: radial-gradient(circle, rgba(186,230,253,0.45) 0%, rgba(56,189,248,0.3) 36%, rgba(15,23,42,0) 74%);
+        box-shadow: 0 0 70px rgba(56,189,248,0.36), 0 0 140px rgba(14,165,233,0.26);
       }
       .nabad-editor-new-project {
         position: absolute;
@@ -4281,8 +4284,8 @@ function showPersonalityPill(id) {
         justify-content: flex-end;
       }
       @keyframes nabadWorkspaceGlowPulse {
-        0%, 100% { transform: translate(-50%, -50%) scale(0.96); opacity: 0.62; }
-        50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+        0%, 100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.68; }
+        50% { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
       }
       .nabad-editor-inspector {
         display: flex;
