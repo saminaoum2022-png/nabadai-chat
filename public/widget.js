@@ -6926,11 +6926,20 @@ function finishOnboarding() {
       const stageWidth = 1200;
       const fallbackHeight = 675;
       const fabricCanvas = new window.fabric.Canvas(canvasEl, {
-        selection: true,
+        // Disable marquee/drag multi-select to prevent the "always selecting" glitch.
+        // Users can still click objects to select/edit them.
+        selection: false,
         preserveObjectStacking: true
       });
       fabricCanvas.setWidth(stageWidth);
       fabricCanvas.setHeight(fallbackHeight);
+      // Extra safety: empty clicks should clear active object cleanly.
+      fabricCanvas.on('mouse:down', (evt) => {
+        if (!evt?.target) {
+          fabricCanvas.discardActiveObject();
+          fabricCanvas.requestRenderAll();
+        }
+      });
 
       let backgroundObj = null;
       let backgroundLocked = true;
