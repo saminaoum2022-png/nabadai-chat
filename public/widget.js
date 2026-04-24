@@ -4002,6 +4002,7 @@ function showPersonalityPill(id) {
         box-shadow: 0 10px 28px rgba(15,23,42,0.18);
         border: 1px solid rgba(255,255,255,0.62);
         background: #fff;
+        z-index: 3;
       }
       #nabad-card-handle {
         position: absolute;
@@ -4038,6 +4039,56 @@ function showPersonalityPill(id) {
         font-weight: 800;
         cursor: pointer;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      }
+      .nabad-editor-workspace-glow {
+        position: absolute;
+        inset: 0;
+        z-index: 25;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity .18s ease;
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        background:
+          radial-gradient(ellipse at 18% 20%, rgba(56,189,248,0.16), transparent 48%),
+          radial-gradient(ellipse at 82% 72%, rgba(37,99,235,0.18), transparent 54%),
+          linear-gradient(180deg, rgba(8,47,73,0.18), rgba(15,23,42,0.22));
+      }
+      .nabad-editor-workspace-glow.show {
+        opacity: 1;
+      }
+      .nabad-editor-workspace-glow .glow-center {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        border-radius: 999px;
+        width: min(72vw, 720px);
+        height: min(72vw, 720px);
+        background: radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(56,189,248,0.10) 34%, rgba(15,23,42,0) 72%);
+        filter: blur(4px);
+        animation: nabadWorkspaceGlowPulse 1.2s ease-in-out infinite;
+      }
+      .nabad-editor-workspace-glow .glow-label {
+        position: absolute;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%);
+        font-size: 13px;
+        font-weight: 800;
+        color: #dbeafe;
+        letter-spacing: .02em;
+        text-shadow: 0 0 20px rgba(56,189,248,0.66);
+      }
+      .nabad-editor-workspace-glow.mode-rewrite .glow-center {
+        background: radial-gradient(circle, rgba(196,181,253,0.25) 0%, rgba(139,92,246,0.14) 36%, rgba(15,23,42,0) 74%);
+      }
+      .nabad-editor-workspace-glow.mode-removebg .glow-center {
+        background: radial-gradient(circle, rgba(125,211,252,0.26) 0%, rgba(14,165,233,0.14) 38%, rgba(15,23,42,0) 74%);
+      }
+      @keyframes nabadWorkspaceGlowPulse {
+        0%, 100% { transform: translate(-50%, -50%) scale(0.96); opacity: 0.62; }
+        50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
       }
       .nabad-editor-inspector {
         display: flex;
@@ -6403,6 +6454,10 @@ function finishOnboarding() {
                   <button type="button" id="nabad-zoom-out" title="Zoom out">−</button>
                   <button type="button" id="nabad-zoom-reset" title="Reset view">⌂</button>
                 </div>
+                <div id="nabad-workspace-glow" class="nabad-editor-workspace-glow" hidden>
+                  <div class="glow-center"></div>
+                  <div id="nabad-workspace-glow-text" class="glow-label">Nabad is generating...</div>
+                </div>
               </div>
             </div>
           </div>
@@ -6585,6 +6640,8 @@ function finishOnboarding() {
       const textColor = document.getElementById('nabad-editor-text-color');
       const stageEl = refs.messages.querySelector('.nabad-editor-stage');
       const workspaceEl = document.getElementById('nabad-workspace');
+      const workspaceGlowEl = document.getElementById('nabad-workspace-glow');
+      const workspaceGlowTextEl = document.getElementById('nabad-workspace-glow-text');
       const viewportEl = document.getElementById('nabad-canvas-viewport');
       const stageSurfaceEl = document.getElementById('nabad-canvas-stage');
       const campaignCardEl = document.getElementById('nabad-campaign-card');
@@ -6597,19 +6654,30 @@ function finishOnboarding() {
       const showEditorBusy = (label = 'Nabad is working...', mode = '') => {
         if (!aiSheetEl) return;
         aiSheetEl.classList.remove('mode-rewrite', 'mode-regenerate', 'mode-removebg');
+        workspaceGlowEl?.classList?.remove('mode-rewrite', 'mode-regenerate', 'mode-removebg');
         if (mode === 'rewrite') aiSheetEl.classList.add('mode-rewrite');
         if (mode === 'regenerate') aiSheetEl.classList.add('mode-regenerate');
         if (mode === 'removebg') aiSheetEl.classList.add('mode-removebg');
+        if (mode === 'rewrite') workspaceGlowEl?.classList?.add('mode-rewrite');
+        if (mode === 'regenerate') workspaceGlowEl?.classList?.add('mode-regenerate');
+        if (mode === 'removebg') workspaceGlowEl?.classList?.add('mode-removebg');
         if (aiSheetTextEl) aiSheetTextEl.textContent = cleanText(label, 80) || 'Nabad is working...';
+        if (workspaceGlowTextEl) workspaceGlowTextEl.textContent = cleanText(label, 80) || 'Nabad is working...';
         aiSheetEl.hidden = false;
         aiSheetEl.classList.add('show');
+        if (workspaceGlowEl) {
+          workspaceGlowEl.hidden = false;
+          workspaceGlowEl.classList.add('show');
+        }
         stageEl.classList.add('nabad-editor-stage-busy');
       };
       const hideEditorBusy = () => {
         if (!aiSheetEl) return;
         aiSheetEl.classList.remove('show', 'mode-rewrite', 'mode-regenerate', 'mode-removebg');
+        workspaceGlowEl?.classList?.remove('show', 'mode-rewrite', 'mode-regenerate', 'mode-removebg');
         window.setTimeout(() => {
           if (!aiSheetEl.classList.contains('show')) aiSheetEl.hidden = true;
+          if (workspaceGlowEl && !workspaceGlowEl.classList.contains('show')) workspaceGlowEl.hidden = true;
         }, 260);
         stageEl?.classList?.remove('nabad-editor-stage-busy');
       };
@@ -7341,7 +7409,36 @@ function finishOnboarding() {
         try {
           const blob = await removeBackground(src);
           const url = URL.createObjectURL(blob);
-          await addImageObjectFromSource(url);
+          const prev = {
+            left: Number(obj.left || 0),
+            top: Number(obj.top || 0),
+            scaleX: Number(obj.scaleX || 1),
+            scaleY: Number(obj.scaleY || 1),
+            angle: Number(obj.angle || 0),
+            originX: obj.originX || 'left',
+            originY: obj.originY || 'top',
+            flipX: !!obj.flipX,
+            flipY: !!obj.flipY,
+            opacity: Number(obj.opacity ?? 1),
+            selectable: obj.selectable !== false,
+            evented: obj.evented !== false
+          };
+          await new Promise((resolve, reject) => {
+            if (typeof obj.setSrc !== 'function') return reject(new Error('setSrc unavailable'));
+            obj.setSrc(url, () => {
+              try {
+                obj.set(prev);
+                obj.setCoords();
+                fabricCanvas.setActiveObject(obj);
+                fabricCanvas.renderAll();
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            }, { crossOrigin: 'anonymous' });
+          }).catch(async () => {
+            await addImageObjectFromSource(url);
+          });
           setTimeout(() => URL.revokeObjectURL(url), 30_000);
         } catch (err) {
           console.error('[NABAD] remove background error:', err);
