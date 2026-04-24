@@ -3911,6 +3911,7 @@ function showPersonalityPill(id) {
         overflow: hidden;
         background: #dbe6f8;
         position: relative;
+        aspect-ratio: 16 / 9;
       }
       .nabad-editor-canvas {
         width: 100%;
@@ -4008,6 +4009,13 @@ function showPersonalityPill(id) {
           white-space: nowrap;
           -webkit-overflow-scrolling: touch;
         }
+      }
+      .nabad-editor-shell.external-sidebar-mode .nabad-editor-workspace {
+        grid-template-columns: 1fr;
+      }
+      .nabad-editor-shell.external-sidebar-mode .nabad-editor-panel.left,
+      .nabad-editor-shell.external-sidebar-mode .nabad-editor-panel.right {
+        display: none;
       }
       .nabad-editor-stage-busy {
         box-shadow: 0 0 0 1px rgba(37,99,235,0.2), 0 0 24px rgba(37,99,235,0.28);
@@ -6120,7 +6128,8 @@ function finishOnboarding() {
 
   async function openCampaignCanvasEditorFromData(campaignData = {}) {
     const prompt = cleanText(campaignData.imagePrompt || '', 1200);
-    if (!prompt) {
+    const startBlank = !!campaignData.editorStartBlank;
+    if (!prompt && !startBlank) {
       renderMessage('assistant', '<p>Campaign prompt is missing. Please ask Nabad to generate the campaign draft again.</p>');
       return;
     }
@@ -6128,7 +6137,7 @@ function finishOnboarding() {
     try {
       hideChatForEditorMode();
       refs.messages.innerHTML = `
-        <div class="nabad-editor-shell">
+        <div class="nabad-editor-shell ${INLINE_MODE ? 'external-sidebar-mode' : ''}">
           <div class="nabad-editor-topbar">
             <div class="nabad-editor-top-left">
               <button type="button" class="nabad-editor-btn" id="nabad-editor-back">← Back</button>
@@ -6313,10 +6322,37 @@ function finishOnboarding() {
         restoreChatAfterEditorMode();
       });
 
-      showEditorBusy('Generating campaign visual...', 'regenerate');
-
       await loadFabricJsIfNeeded();
-      const image = await fetchCampaignEditorImage(prompt);
+      let image = { url: '', provider: 'blank' };
+      const makeBlankBackground = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1920;
+        canvas.height = 1080;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+          grad.addColorStop(0, '#0b2342');
+          grad.addColorStop(0.5, '#102f55');
+          grad.addColorStop(1, '#0a1d35');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = 'rgba(56,189,248,0.12)';
+          ctx.beginPath();
+          ctx.arc(canvas.width * 0.22, canvas.height * 0.34, 190, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(37,99,235,0.08)';
+          ctx.beginPath();
+          ctx.arc(canvas.width * 0.74, canvas.height * 0.68, 240, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        return canvas.toDataURL('image/png');
+      };
+      if (prompt) {
+        showEditorBusy('Generating campaign visual...', 'regenerate');
+        image = await fetchCampaignEditorImage(prompt);
+      } else {
+        image.url = makeBlankBackground();
+      }
 
       if (!document.getElementById('nabad-editor-fonts')) {
         const fontLink = document.createElement('link');
@@ -6612,11 +6648,21 @@ function finishOnboarding() {
       };
 
       const updateLayerVisibilityControls = () => {
-        if (layerHeadline && headlineObj) layerHeadline.checked = headlineObj.visible !== false;
-        if (layerSubtext && subtextObj) layerSubtext.checked = subtextObj.visible !== false;
-        if (layerCta && ctaObj && ctaBg) layerCta.checked = ctaObj.visible !== false || ctaBg.visible !== false;
-        if (layerLogo && brandMarkObj) layerLogo.checked = brandMarkObj.visible !== false;
-        if (layerBackground && backgroundObj) layerBackground.checked = backgroundObj.visible !== false;
+        const layerState = {
+          headline: !!(headlineObj && headlineObj.visible !== false),
+          subtext: !!(subtextObj && subtextObj.visible !== false),
+          cta: !!(ctaObj && ctaObj.visible !== false),
+          logo: !!(brandMarkObj && brandMarkObj.visible !== false),
+          background: !!(backgroundObj && backgroundObj.visible !== false)
+        };
+        if (layerHeadline) layerHeadline.checked = layerState.headline;
+        if (layerSubtext) layerSubtext.checked = layerState.subtext;
+        if (layerCta) layerCta.checked = layerState.cta;
+        if (layerLogo) layerLogo.checked = layerState.logo;
+        if (layerBackground) layerBackground.checked = layerState.background;
+        try {
+          window.dispatchEvent(new CustomEvent('nabad:editor-layers', { detail: layerState }));
+        } catch {}
       };
 
       const setInspectorEnabled = (enabled = false, isText = false) => {
@@ -6644,6 +6690,11 @@ function finishOnboarding() {
         setInspectorEnabled(!!obj, isText);
         if (!obj) {
           updateLayerVisibilityControls();
+          try {
+            window.dispatchEvent(new CustomEvent('nabad:editor-selection', {
+              detail: { hasSelection: false }
+            }));
+          } catch {}
           return;
         }
         if (isText) {
@@ -6664,6 +6715,26 @@ function finishOnboarding() {
         if (sizeHInput) sizeHInput.value = String(Math.round(height));
         if (opacityInput) opacityInput.value = String(Math.round((Number(obj.opacity ?? 1)) * 100));
         updateLayerVisibilityControls();
+        try {
+          window.dispatchEvent(new CustomEvent('nabad:editor-selection', {
+            detail: {
+              hasSelection: true,
+              label: getObjectLabel(obj),
+              isText,
+              fontFamily: isText ? String(obj.fontFamily || defaultFont) : defaultFont,
+              fontSize: isText ? Math.round(Number(obj.fontSize || 34)) : Math.round(Number(obj.fontSize || 0)),
+              color: isText ? toHexColor(String(obj.fill || '#ffffff')) : '#ffffff',
+              bold: isText ? String(obj.fontWeight || 'normal') !== 'normal' : false,
+              italic: isText ? String(obj.fontStyle || 'normal') === 'italic' : false,
+              underline: isText ? !!obj.underline : false,
+              x: Math.round(Number(obj.left || 0)),
+              y: Math.round(Number(obj.top || 0)),
+              w: Math.round(Number((obj.getScaledWidth && obj.getScaledWidth()) || obj.width || 0)),
+              h: Math.round(Number((obj.getScaledHeight && obj.getScaledHeight()) || obj.height || 0)),
+              opacity: Math.round((Number(obj.opacity ?? 1)) * 100)
+            }
+          }));
+        } catch {}
       };
 
       fabricCanvas.on('selection:created', updateControlFromActive);
@@ -7408,6 +7479,84 @@ function finishOnboarding() {
               fabricCanvas.renderAll();
             }
           }
+          return true;
+        }
+        if (key === 'set_layer_visibility') {
+          const layer = cleanText(payload?.layer || '', 20).toLowerCase();
+          const visible = payload?.visible !== false;
+          if (layer === 'headline' && headlineObj) headlineObj.set('visible', visible);
+          if (layer === 'subtext' && subtextObj) subtextObj.set('visible', visible);
+          if (layer === 'cta') {
+            ctaObj?.set('visible', visible);
+            ctaBg?.set('visible', visible);
+          }
+          if (layer === 'logo' && brandMarkObj) brandMarkObj.set('visible', visible);
+          if (layer === 'background' && backgroundObj) backgroundObj.set('visible', visible);
+          fabricCanvas.renderAll();
+          updateLayerVisibilityControls();
+          return true;
+        }
+        if (key === 'editor_add') {
+          const type = cleanText(payload?.type || '', 20).toLowerCase();
+          if (type === 'text') addTextBtn?.click();
+          else if (type === 'image') addImageBtn?.click();
+          else if (type === 'logo') addLogoBtn?.click();
+          else if (type === 'shape') addShapeBtn?.click();
+          else return false;
+          return true;
+        }
+        if (key === 'delete_selected') {
+          deleteBtn?.click();
+          return true;
+        }
+        if (key === 'set_save_size') {
+          const size = cleanText(payload?.size || '', 20).toLowerCase();
+          if (saveSizeSelect && ['square', 'story', 'landscape'].includes(size)) {
+            saveSizeSelect.value = size;
+          }
+          return true;
+        }
+        if (key === 'run_ai_action') {
+          const ai = cleanText(payload?.type || '', 30).toLowerCase();
+          if (ai === 'rewrite') rewriteBtn?.click();
+          else if (ai === 'swap_bg') regenerateBtn?.click();
+          else if (ai === 'palette') paletteBtn?.click();
+          else if (ai === 'resize') resizeBtn?.click();
+          else if (ai === 'detect_objects') detectObjectsBtn?.click();
+          else if (ai === 'detect_text') detectTextBtn?.click();
+          else if (ai === 'remove_bg') removeBgBtn?.click();
+          else if (ai === 'set_bg') setBgBtn?.click();
+          else return false;
+          return true;
+        }
+        if (key === 'set_selected_style') {
+          const obj = fabricCanvas.getActiveObject();
+          if (!obj) return false;
+          const isText = isTextLikeObject(obj);
+          if (isText) {
+            if (payload.fontFamily) obj.set('fontFamily', cleanText(payload.fontFamily, 48));
+            if (payload.fontSize) obj.set('fontSize', Math.max(8, Number(payload.fontSize)));
+            if (payload.color) obj.set('fill', cleanText(payload.color, 20));
+            if (payload.bold !== undefined) obj.set('fontWeight', payload.bold ? '700' : 'normal');
+            if (payload.italic !== undefined) obj.set('fontStyle', payload.italic ? 'italic' : 'normal');
+            if (payload.underline !== undefined) obj.set('underline', !!payload.underline);
+          }
+          const x = Number(payload.x);
+          const y = Number(payload.y);
+          const w = Number(payload.w);
+          const h = Number(payload.h);
+          const opacity = Number(payload.opacity);
+          if (Number.isFinite(x)) obj.set('left', x);
+          if (Number.isFinite(y)) obj.set('top', y);
+          if (Number.isFinite(opacity)) obj.set('opacity', Math.max(0, Math.min(1, opacity / 100)));
+          if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+            const baseW = Math.max(1, Number(obj.width || 1));
+            const baseH = Math.max(1, Number(obj.height || 1));
+            obj.set({ scaleX: w / baseW, scaleY: h / baseH });
+          }
+          if (obj === ctaObj) syncCtaBackground();
+          fabricCanvas.renderAll();
+          updateControlFromActive();
           return true;
         }
         return false;
@@ -8284,19 +8433,15 @@ function openNabadEditorFromMenu() {
   const p = state.userProfile || {};
   const brand = cleanText(p.businessName || p.ideaSummary || 'NabadAi', 120);
   const offer = cleanText(p.whatYouSell || p.biggestChallenge || 'premium AI business support', 220);
-  const audience = cleanText(p.targetCustomer || 'founders and creators', 180);
-  const goal = cleanText(p.mainGoal || p.revenue || 'higher conversion', 180);
 
   const editorPayload = {
     headline: `${brand}`,
     subtext: `${offer}`,
     ctaText: 'Start now',
-    imagePrompt: cleanText(
-      `Premium campaign background for ${brand}. Audience: ${audience}. Goal: ${goal}. Visual style: modern, clean, conversion-focused. Background only. Do not add text except tiny "nabadai.com" top-right.`,
-      1200
-    ),
+    editorStartBlank: true,
+    imagePrompt: '',
     platform: 'social',
-    format: '1:1',
+    format: '16:9',
     typography: {
       fontFamily: 'Inter',
       headlineSize: 58,
