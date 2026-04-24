@@ -493,6 +493,21 @@ export default function AppPage() {
           min-height: 680px;
         }
 
+        .nabad-app-shell.editor-open {
+          grid-template-columns: 1fr;
+        }
+        .nabad-app-shell.editor-open .nabad-left-rail {
+          display: none;
+        }
+        .nabad-app-shell.editor-open .nabad-chat-stage {
+          padding: 8px;
+          border-radius: 16px;
+        }
+        .nabad-app-shell.editor-open .nabad-chat-mount {
+          height: calc(100dvh - 36px);
+          min-height: 0;
+        }
+
         @media (max-width: 1100px) {
           .nabad-app-shell {
             grid-template-columns: 1fr;
