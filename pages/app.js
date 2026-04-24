@@ -16,6 +16,27 @@ export default function AppPage() {
   const [activePersonality, setActivePersonality] = useState('auto');
   const [imageProvider, setImageProvider] = useState('gemini');
   const [editorMode, setEditorMode] = useState(false);
+  const [editorLayers, setEditorLayers] = useState({
+    headline: true,
+    subtext: true,
+    cta: true,
+    logo: true,
+    background: true
+  });
+  const [editorSelection, setEditorSelection] = useState({ hasSelection: false });
+  const [inspectorDraft, setInspectorDraft] = useState({
+    fontFamily: 'Inter',
+    fontSize: 34,
+    color: '#ffffff',
+    bold: false,
+    italic: false,
+    underline: false,
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0,
+    opacity: 100
+  });
 
   const providerOptions = useMemo(() => ([
     { id: 'auto', label: 'Let Nabad choose' },
@@ -43,9 +64,42 @@ export default function AppPage() {
       const open = !!event?.detail?.open;
       setEditorMode(open);
     };
+    const onEditorLayers = (event) => {
+      const d = event?.detail || {};
+      setEditorLayers({
+        headline: !!d.headline,
+        subtext: !!d.subtext,
+        cta: !!d.cta,
+        logo: !!d.logo,
+        background: !!d.background
+      });
+    };
+    const onEditorSelection = (event) => {
+      const d = event?.detail || {};
+      setEditorSelection(d);
+      if (d?.hasSelection) {
+        setInspectorDraft({
+          fontFamily: d.fontFamily || 'Inter',
+          fontSize: Number(d.fontSize || 34),
+          color: d.color || '#ffffff',
+          bold: !!d.bold,
+          italic: !!d.italic,
+          underline: !!d.underline,
+          x: Number(d.x || 0),
+          y: Number(d.y || 0),
+          w: Number(d.w || 0),
+          h: Number(d.h || 0),
+          opacity: Number(d.opacity || 100)
+        });
+      }
+    };
     window.addEventListener('nabad:editor-mode', onEditorMode);
+    window.addEventListener('nabad:editor-layers', onEditorLayers);
+    window.addEventListener('nabad:editor-selection', onEditorSelection);
     return () => {
       window.removeEventListener('nabad:editor-mode', onEditorMode);
+      window.removeEventListener('nabad:editor-layers', onEditorLayers);
+      window.removeEventListener('nabad:editor-selection', onEditorSelection);
     };
   }, []);
 
@@ -68,6 +122,17 @@ export default function AppPage() {
     }
   }
 
+  function updateLayer(layer, visible) {
+    setEditorLayers((prev) => ({ ...prev, [layer]: !!visible }));
+    doEditorAction('set_layer_visibility', { layer, visible: !!visible });
+  }
+
+  function updateInspector(next) {
+    const draft = { ...inspectorDraft, ...next };
+    setInspectorDraft(draft);
+    doEditorAction('set_selected_style', draft);
+  }
+
   return (
     <>
       <Head>
@@ -87,7 +152,7 @@ export default function AppPage() {
           };
         `}
       </Script>
-      <Script id="nabad-widget-script-app" src="/widget.js?v=64" strategy="afterInteractive" />
+      <Script id="nabad-widget-script-app" src="/widget.js?v=65" strategy="afterInteractive" />
 
       <main className="nabad-app-page">
         <div className={`nabad-app-shell ${editorMode ? 'editor-open' : ''}`}>
@@ -134,17 +199,61 @@ export default function AppPage() {
             {editorMode ? (
               <section className="nabad-rail-card">
                 <h3>Editor Tools</h3>
-                <div className="nabad-actions">
-                  <button type="button" onClick={() => doEditorAction('undo')}>Undo</button>
-                  <button type="button" onClick={() => doEditorAction('redo')}>Redo</button>
-                  <button type="button" onClick={() => doEditorAction('save')}>Save PNG</button>
-                  <button type="button" onClick={() => doEditorAction('upload')}>Upload Photo</button>
-                  <button type="button" onClick={() => doEditorAction('set_layer_action', { value: 'add-image-object' })}>Add Image Object</button>
-                  <button type="button" onClick={() => doEditorAction('set_layer_action', { value: 'remove-bg' })}>Remove BG (Selected)</button>
-                  <button type="button" onClick={() => doEditorAction('set_layer_action', { value: 'set-background' })}>Set as Background</button>
-                  <button type="button" onClick={() => doEditorAction('back_chat')}>Back to Chat</button>
-                  <button type="button" onClick={() => doEditorAction('open_settings')}>Back to Settings</button>
-                </div>
+                {!editorSelection?.hasSelection ? (
+                  <>
+                    <div className="nabad-subtitle">Layers</div>
+                    <div className="nabad-layer-list">
+                      <label><input type="checkbox" checked={editorLayers.headline} onChange={(e) => updateLayer('headline', e.target.checked)} /> 👁 Headline text</label>
+                      <label><input type="checkbox" checked={editorLayers.subtext} onChange={(e) => updateLayer('subtext', e.target.checked)} /> 👁 Subtext</label>
+                      <label><input type="checkbox" checked={editorLayers.cta} onChange={(e) => updateLayer('cta', e.target.checked)} /> 👁 CTA button</label>
+                      <label><input type="checkbox" checked={editorLayers.logo} onChange={(e) => updateLayer('logo', e.target.checked)} /> 👁 Logo</label>
+                      <label><input type="checkbox" checked={editorLayers.background} onChange={(e) => updateLayer('background', e.target.checked)} /> 👁 Background image</label>
+                    </div>
+                    <div className="nabad-subtitle" style={{ marginTop: 10 }}>Add</div>
+                    <div className="nabad-actions">
+                      <button type="button" onClick={() => doEditorAction('editor_add', { type: 'text' })}>+ Text</button>
+                      <button type="button" onClick={() => doEditorAction('editor_add', { type: 'image' })}>+ Image</button>
+                      <button type="button" onClick={() => doEditorAction('editor_add', { type: 'shape' })}>+ Shape</button>
+                      <button type="button" onClick={() => doEditorAction('editor_add', { type: 'logo' })}>+ Logo</button>
+                      <button type="button" onClick={() => doEditorAction('back_chat')}>Back to Chat</button>
+                      <button type="button" onClick={() => doEditorAction('open_settings')}>Back to Settings</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="nabad-subtitle">Selected: {editorSelection?.label || 'Object'}</div>
+                    <div className="nabad-inspector-grid">
+                      <label>Font
+                        <select value={inspectorDraft.fontFamily} onChange={(e) => updateInspector({ fontFamily: e.target.value })}>
+                          <option value="Inter">Inter</option>
+                          <option value="Poppins">Poppins</option>
+                          <option value="Montserrat">Montserrat</option>
+                          <option value="Playfair Display">Playfair Display</option>
+                          <option value="Merriweather">Merriweather</option>
+                        </select>
+                      </label>
+                      <label>Size
+                        <input type="range" min="10" max="160" value={inspectorDraft.fontSize} onChange={(e) => updateInspector({ fontSize: Number(e.target.value) })} />
+                      </label>
+                      <label>Color
+                        <input type="color" value={inspectorDraft.color} onChange={(e) => updateInspector({ color: e.target.value })} />
+                      </label>
+                      <div className="nabad-inline-row">
+                        <button type="button" className={inspectorDraft.bold ? 'active' : ''} onClick={() => updateInspector({ bold: !inspectorDraft.bold })}>B</button>
+                        <button type="button" className={inspectorDraft.italic ? 'active' : ''} onClick={() => updateInspector({ italic: !inspectorDraft.italic })}>I</button>
+                        <button type="button" className={inspectorDraft.underline ? 'active' : ''} onClick={() => updateInspector({ underline: !inspectorDraft.underline })}>U</button>
+                      </div>
+                      <label>X<input type="number" value={inspectorDraft.x} onChange={(e) => updateInspector({ x: Number(e.target.value) })} /></label>
+                      <label>Y<input type="number" value={inspectorDraft.y} onChange={(e) => updateInspector({ y: Number(e.target.value) })} /></label>
+                      <label>W<input type="number" value={inspectorDraft.w} onChange={(e) => updateInspector({ w: Number(e.target.value) })} /></label>
+                      <label>H<input type="number" value={inspectorDraft.h} onChange={(e) => updateInspector({ h: Number(e.target.value) })} /></label>
+                      <label>Opacity
+                        <input type="range" min="0" max="100" value={inspectorDraft.opacity} onChange={(e) => updateInspector({ opacity: Number(e.target.value) })} />
+                      </label>
+                      <button type="button" onClick={() => doEditorAction('delete_selected')}>Delete element</button>
+                    </div>
+                  </>
+                )}
               </section>
             ) : (
               <section className="nabad-rail-card">
@@ -285,6 +394,66 @@ export default function AppPage() {
           display: grid;
           grid-template-columns: 1fr;
           gap: 8px;
+        }
+        .nabad-subtitle {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: .06em;
+          color: #1e3a8a;
+          font-weight: 800;
+          margin-bottom: 8px;
+        }
+        .nabad-layer-list {
+          display: grid;
+          gap: 8px;
+        }
+        .nabad-layer-list label {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          border: 1px solid rgba(37,99,235,.16);
+          border-radius: 10px;
+          padding: 8px 10px;
+          font-size: 13px;
+          color: #1e3a8a;
+          background: #fff;
+          font-weight: 700;
+        }
+        .nabad-inspector-grid {
+          display: grid;
+          gap: 8px;
+        }
+        .nabad-inspector-grid label {
+          display: grid;
+          gap: 4px;
+          font-size: 12px;
+          color: #334155;
+          font-weight: 700;
+        }
+        .nabad-inspector-grid input,
+        .nabad-inspector-grid select,
+        .nabad-inspector-grid button {
+          border: 1px solid rgba(37,99,235,.16);
+          border-radius: 10px;
+          background: #fff;
+          color: #1e3a8a;
+          padding: 8px 10px;
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .nabad-inline-row {
+          display: flex;
+          gap: 6px;
+        }
+        .nabad-inline-row button {
+          width: 34px;
+          text-align: center;
+          padding: 7px 0;
+        }
+        .nabad-inline-row button.active {
+          color: #fff;
+          border-color: transparent;
+          background: linear-gradient(135deg, #2563eb, #06b6d4);
         }
 
         .nabad-actions button {
