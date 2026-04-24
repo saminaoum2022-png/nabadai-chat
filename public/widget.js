@@ -3951,14 +3951,15 @@ function showPersonalityPill(id) {
         min-height: 320px;
         border: 1px solid rgba(37,99,235,0.16);
         border-radius: 12px;
-        overflow: hidden;
+        overflow: auto;
         background: #dbe6f8;
         position: relative;
         aspect-ratio: 16 / 9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .nabad-editor-canvas {
-        width: 100%;
-        height: 100%;
         display: block;
       }
       .nabad-editor-inspector {
@@ -6296,7 +6297,7 @@ function finishOnboarding() {
     try {
       hideChatForEditorMode();
       refs.messages.innerHTML = `
-        <div class="nabad-editor-shell ${INLINE_MODE ? 'external-sidebar-mode' : ''}">
+        <div class="nabad-editor-shell">
           <div class="nabad-editor-topbar">
             <div class="nabad-editor-top-left">
               <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-back">
@@ -6339,6 +6340,10 @@ function finishOnboarding() {
                 <input id="nabad-editor-custom-w" type="number" min="240" max="4096" step="1" value="1920" title="Custom width" />
                 <span class="sep">×</span>
                 <input id="nabad-editor-custom-h" type="number" min="240" max="4096" step="1" value="1080" title="Custom height" />
+              </div>
+              <div class="nabad-editor-custom-size" id="nabad-editor-zoom-wrap">
+                <input id="nabad-editor-zoom" type="range" min="40" max="180" step="5" value="100" title="Zoom" />
+                <span class="sep" id="nabad-editor-zoom-value">100%</span>
               </div>
               <button type="button" class="nabad-editor-btn primary with-icon" id="nabad-editor-save">
                 <span class="nabad-btn-icon" aria-hidden="true">
@@ -6503,6 +6508,8 @@ function finishOnboarding() {
       const saveSizeCustomWrap = document.getElementById('nabad-editor-custom-size');
       const customSizeWInput = document.getElementById('nabad-editor-custom-w');
       const customSizeHInput = document.getElementById('nabad-editor-custom-h');
+      const zoomRangeInput = document.getElementById('nabad-editor-zoom');
+      const zoomValueLabel = document.getElementById('nabad-editor-zoom-value');
       const tabsWrap = document.getElementById('nabad-editor-tabs');
       const toolTray = document.getElementById('nabad-editor-tooltray');
       const contextBar = document.getElementById('nabad-editor-contextbar');
@@ -6635,8 +6642,8 @@ function finishOnboarding() {
         ? cleanText(typography.fontFamily || '', 40)
         : 'Inter';
 
-      const stageWidth = Math.max(260, (stageEl?.clientWidth || 900) - 2);
-      const fallbackHeight = Math.max(160, Math.round(stageWidth * 0.5625));
+      const stageWidth = 1200;
+      const fallbackHeight = 675;
       const fabricCanvas = new window.fabric.Canvas(canvasEl, {
         selection: true,
         preserveObjectStacking: true
@@ -7718,6 +7725,7 @@ function finishOnboarding() {
 
       let currentAspect = 16 / 9;
       let selectedSizePreset = 'landscape';
+      let currentZoom = Math.max(0.4, Math.min(1.8, (Number(zoomRangeInput?.value || 100) || 100) / 100));
       let customSize = {
         w: Math.max(240, Number(customSizeWInput?.value || 1920)),
         h: Math.max(240, Number(customSizeHInput?.value || 1080))
@@ -7738,51 +7746,69 @@ function finishOnboarding() {
         }
         return { w: 1920, h: 1080 };
       };
-      fitCanvasToStage = () => {
-        if (!stageEl || !fabricCanvas) return;
-        const stageRect = stageEl.getBoundingClientRect();
-        const viewportW = window.innerWidth || stageRect.width || 900;
-        const viewportH = window.innerHeight || 900;
-        const maxStageW = Math.max(240, Math.min((stageRect.width || 900) - 2, viewportW - 20));
-        const mobile = viewportW <= 700;
-        const maxStageH = Math.max(170, mobile ? Math.round(viewportH * 0.46) : 9999);
-
-        let w = maxStageW;
-        let h = Math.round(w / Math.max(0.1, currentAspect));
-        if (mobile && h > maxStageH) {
-          h = maxStageH;
-          w = Math.round(h * currentAspect);
-        }
-        w = Math.max(220, w);
-        h = Math.max(140, h);
-
-        stageEl.style.height = `${h}px`;
-        stageEl.style.maxWidth = '100%';
-        fabricCanvas.setWidth(w);
-        fabricCanvas.setHeight(h);
-        if (canvasEl) {
-          canvasEl.style.width = '100%';
-          canvasEl.style.height = '100%';
-        }
+      const getCanvasViewportSize = (exportSize = { w: 1920, h: 1080 }) => {
+        const vw = window.innerWidth || 1400;
+        const maxLong = vw <= 700 ? 740 : 1260;
+        const scale = Math.min(1, maxLong / Math.max(1, Math.max(exportSize.w, exportSize.h)));
+        return {
+          w: Math.max(260, Math.round(exportSize.w * scale)),
+          h: Math.max(220, Math.round(exportSize.h * scale))
+        };
+      };
+      const applyZoom = (zoomValue = currentZoom) => {
+        currentZoom = Math.max(0.4, Math.min(1.8, Number(zoomValue || 1) || 1));
+        if (zoomRangeInput) zoomRangeInput.value = String(Math.round(currentZoom * 100));
+        if (zoomValueLabel) zoomValueLabel.textContent = `${Math.round(currentZoom * 100)}%`;
+        const cw = fabricCanvas.getWidth();
+        const ch = fabricCanvas.getHeight();
+        const tx = (cw - cw * currentZoom) / 2;
+        const ty = (ch - ch * currentZoom) / 2;
+        fabricCanvas.setViewportTransform([currentZoom, 0, 0, currentZoom, tx, ty]);
+        fabricCanvas.requestRenderAll();
+      };
+      const resizeCanvasPreservingLayout = (nextW, nextH) => {
+        const prevW = Math.max(1, Number(fabricCanvas.getWidth() || nextW || 1));
+        const prevH = Math.max(1, Number(fabricCanvas.getHeight() || nextH || 1));
+        const width = Math.max(220, Number(nextW || prevW));
+        const height = Math.max(140, Number(nextH || prevH));
+        const sx = width / prevW;
+        const sy = height / prevH;
+        const objects = fabricCanvas.getObjects();
+        objects.forEach((obj) => {
+          if (!obj || obj === backgroundObj) return;
+          obj.set({
+            left: Number(obj.left || 0) * sx,
+            top: Number(obj.top || 0) * sy,
+            scaleX: Number(obj.scaleX || 1) * sx,
+            scaleY: Number(obj.scaleY || 1) * sy
+          });
+          obj.setCoords();
+        });
+        fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+        fabricCanvas.setWidth(width);
+        fabricCanvas.setHeight(height);
         if (backgroundObj) fitBackground(backgroundObj);
         syncCtaBackground();
         fabricCanvas.renderAll();
+        applyZoom(currentZoom);
         updateControlFromActive();
       };
+      fitCanvasToStage = () => {};
 
       const applyResizePreset = (preset = 'landscape') => {
         const next = String(preset || 'landscape').toLowerCase();
         selectedSizePreset = ['square', 'story', 'landscape', 'custom'].includes(next) ? next : 'landscape';
         if (saveSizeSelect && saveSizeSelect.value !== selectedSizePreset) saveSizeSelect.value = selectedSizePreset;
-        if (selectedSizePreset === 'custom') {
-          clampCustomSize();
+        if (selectedSizePreset === 'custom') clampCustomSize();
+        const exportSize = getExportSizeFromPreset(selectedSizePreset);
+        currentAspect = Math.max(0.1, exportSize.w / Math.max(1, exportSize.h));
+        if (stageEl) {
+          stageEl.style.aspectRatio = `${exportSize.w} / ${exportSize.h}`;
+          stageEl.style.height = '100%';
         }
-        const baseSize = getExportSizeFromPreset(selectedSizePreset);
-        currentAspect = Math.max(0.1, baseSize.w / Math.max(1, baseSize.h));
-        const ratio = `${baseSize.w} / ${baseSize.h}`;
-        if (stageEl) stageEl.style.aspectRatio = ratio;
         if (saveSizeCustomWrap) saveSizeCustomWrap.hidden = selectedSizePreset !== 'custom';
-        fitCanvasToStage?.();
+        const viewportSize = getCanvasViewportSize(exportSize);
+        resizeCanvasPreservingLayout(viewportSize.w, viewportSize.h);
       };
 
       saveSizeSelect?.addEventListener('change', () => {
@@ -7798,6 +7824,9 @@ function finishOnboarding() {
         if (selectedSizePreset !== 'custom') return;
         clampCustomSize();
         applyResizePreset('custom');
+      });
+      zoomRangeInput?.addEventListener('input', () => {
+        applyZoom((Number(zoomRangeInput.value || 100) || 100) / 100);
       });
 
       const exportCanvasAtSize = async (width, height) => {
@@ -8005,11 +8034,6 @@ function finishOnboarding() {
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
       if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj.fontSize || 58));
       applyResizePreset(cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase());
-      window.addEventListener('resize', fitCanvasToStage);
-      if (stageEl && 'ResizeObserver' in window) {
-        resizeObserver = new ResizeObserver(() => fitCanvasToStage?.());
-        resizeObserver.observe(stageEl);
-      }
       setBackgroundLockState(true);
       historyMuted = false;
       undoStack = [snapshotEditorState()];
