@@ -3930,7 +3930,7 @@ function showPersonalityPill(id) {
         min-height: 0;
         display: grid;
         grid-template-columns: 260px minmax(0, 1fr);
-        gap: 10px;
+        gap: 0;
       }
       .nabad-editor-panel {
         background: #fff;
@@ -4055,12 +4055,14 @@ function showPersonalityPill(id) {
       }
       .nabad-editor-stage {
         min-height: 320px;
-        border: 1px solid rgba(37,99,235,0.16);
-        border-radius: 12px;
+        border: 0;
+        border-radius: 0;
         overflow: hidden;
-        background: #dbe6f8;
+        background: transparent;
         position: relative;
         display: block;
+        margin: 0;
+        padding: 0;
       }
       .nabad-editor-canvas {
         display: block;
@@ -4075,6 +4077,8 @@ function showPersonalityPill(id) {
         background-size: 24px 24px;
         position: relative;
         overflow: hidden;
+        margin: 0;
+        padding: 0;
         user-select: none;
         -webkit-user-select: none;
         -webkit-user-drag: none;
@@ -4085,6 +4089,8 @@ function showPersonalityPill(id) {
         height: 100%;
         position: relative;
         overflow: hidden;
+        margin: 0;
+        padding: 0;
         user-select: none;
         -webkit-user-select: none;
         -webkit-user-drag: none;
@@ -4416,6 +4422,7 @@ function showPersonalityPill(id) {
       }
       .nabad-editor-shell.external-sidebar-mode .nabad-editor-workspace {
         grid-template-columns: 1fr;
+        gap: 0;
       }
       .nabad-editor-shell.external-sidebar-mode .nabad-editor-panel.left,
       .nabad-editor-shell.external-sidebar-mode .nabad-editor-panel.right {
