@@ -6827,11 +6827,43 @@ function finishOnboarding() {
         }
         return canvas.toDataURL('image/png');
       };
+      const makeWhiteBackground = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1920;
+        canvas.height = 1080;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        return canvas.toDataURL('image/png');
+      };
+      const applyBlankProjectState = async () => {
+        try {
+          await setBackgroundFromUrl(makeWhiteBackground(), false);
+          setBackgroundLockState(true);
+          if (headlineObj) headlineObj.set({ text: '', visible: false });
+          if (subtextObj) subtextObj.set({ text: '', visible: false });
+          if (ctaObj) ctaObj.set({ text: '', visible: false });
+          if (ctaBg) ctaBg.set({ visible: false });
+          if (brandMarkObj) brandMarkObj.set({ text: '', visible: false });
+          layerHeadline && (layerHeadline.checked = false);
+          layerSubtext && (layerSubtext.checked = false);
+          layerCta && (layerCta.checked = false);
+          layerLogo && (layerLogo.checked = false);
+          layerBackground && (layerBackground.checked = true);
+          fabricCanvas.discardActiveObject();
+          fabricCanvas.renderAll();
+          updateControlFromActive();
+        } catch (err) {
+          console.error('[NABAD] apply blank project state error:', err);
+        }
+      };
       if (prompt) {
         showEditorBusy('Generating campaign visual...', 'regenerate');
         image = await fetchCampaignEditorImage(prompt);
       } else {
-        image.url = makeBlankBackground();
+        image.url = isNewProjectFlow ? makeWhiteBackground() : makeBlankBackground();
       }
 
       if (!document.getElementById('nabad-editor-fonts')) {
@@ -8123,6 +8155,7 @@ function finishOnboarding() {
           if (customSizeHInput) customSizeHInput.value = String(Math.round(h));
         }
         applyResizePreset(selectedNewProjectRatio);
+        applyBlankProjectState();
         if (newProjectGateEl) {
           newProjectGateEl.classList.remove('show');
           window.setTimeout(() => { newProjectGateEl.hidden = true; }, 180);
@@ -8152,21 +8185,42 @@ function finishOnboarding() {
       });
 
       let isPanningStage = false;
+      let isPinchingStage = false;
       let panStartX = 0;
       let panStartY = 0;
+      let pinchStartDistance = 0;
+      let pinchStartScale = 1;
+      const getTouchDistance = (touchA, touchB) => {
+        if (!touchA || !touchB) return 0;
+        const dx = Number(touchA.clientX || 0) - Number(touchB.clientX || 0);
+        const dy = Number(touchA.clientY || 0) - Number(touchB.clientY || 0);
+        return Math.sqrt(dx * dx + dy * dy);
+      };
       const onViewportMouseDown = (e) => {
         const target = e.target;
         if (!target) return;
         if (target.closest('#nabad-campaign-card') || target.closest('#nabad-zoom-controls') || target.closest('.nabad-editor-bottom-dock')) return;
+        isPinchingStage = false;
         isPanningStage = true;
         panStartX = e.clientX - stageOffsetX;
         panStartY = e.clientY - stageOffsetY;
       };
       const onViewportTouchStart = (e) => {
+        if (e.touches?.length >= 2) {
+          const t1 = e.touches[0];
+          const t2 = e.touches[1];
+          pinchStartDistance = getTouchDistance(t1, t2);
+          pinchStartScale = stageScale;
+          isPinchingStage = pinchStartDistance > 0;
+          isPanningStage = false;
+          if (isPinchingStage) e.preventDefault();
+          return;
+        }
         const touch = e.touches?.[0];
         if (!touch) return;
         const target = e.target;
         if (target?.closest?.('#nabad-campaign-card') || target?.closest?.('#nabad-zoom-controls') || target?.closest?.('.nabad-editor-bottom-dock')) return;
+        isPinchingStage = false;
         isPanningStage = true;
         panStartX = touch.clientX - stageOffsetX;
         panStartY = touch.clientY - stageOffsetY;
@@ -8179,7 +8233,7 @@ function finishOnboarding() {
       };
       if (viewportEl) {
         viewportEl.addEventListener('mousedown', onViewportMouseDown);
-        viewportEl.addEventListener('touchstart', onViewportTouchStart, { passive: true });
+        viewportEl.addEventListener('touchstart', onViewportTouchStart, { passive: false });
         viewportEl.addEventListener('wheel', onViewportWheel, { passive: false });
       }
       const onWindowMouseMoveStage = (e) => {
@@ -8190,6 +8244,17 @@ function finishOnboarding() {
         applyStageTransform();
       };
       const onWindowTouchMoveStage = (e) => {
+        if (isPinchingStage) {
+          if (!e.touches || e.touches.length < 2) return;
+          const nextDistance = getTouchDistance(e.touches[0], e.touches[1]);
+          if (!pinchStartDistance || !nextDistance) return;
+          const ratio = nextDistance / pinchStartDistance;
+          stageScale = Math.min(3, Math.max(0.2, pinchStartScale * ratio));
+          hasUserPannedOrZoomed = true;
+          applyStageTransform();
+          e.preventDefault();
+          return;
+        }
         if (!isPanningStage) return;
         const touch = e.touches?.[0];
         if (!touch) return;
@@ -8197,33 +8262,76 @@ function finishOnboarding() {
         stageOffsetY = touch.clientY - panStartY;
         hasUserPannedOrZoomed = true;
         applyStageTransform();
+        e.preventDefault();
       };
-      const onWindowMouseUpStage = () => { isPanningStage = false; };
+      const onWindowMouseUpStage = () => {
+        isPanningStage = false;
+        isPinchingStage = false;
+      };
+      const onWindowTouchEndStage = (e) => {
+        if (isPinchingStage && e.touches?.length >= 2) {
+          pinchStartDistance = getTouchDistance(e.touches[0], e.touches[1]);
+          pinchStartScale = stageScale;
+          return;
+        }
+        isPinchingStage = false;
+        if (!e.touches || !e.touches.length) isPanningStage = false;
+      };
       window.addEventListener('mousemove', onWindowMouseMoveStage);
-      window.addEventListener('touchmove', onWindowTouchMoveStage, { passive: true });
+      window.addEventListener('touchmove', onWindowTouchMoveStage, { passive: false });
       window.addEventListener('mouseup', onWindowMouseUpStage);
-      window.addEventListener('touchend', onWindowMouseUpStage);
+      window.addEventListener('touchend', onWindowTouchEndStage);
+      window.addEventListener('touchcancel', onWindowTouchEndStage);
 
       let isDraggingCard = false;
       let cardStartX = 0;
       let cardStartY = 0;
-      const onCardHandleMouseDown = (e) => {
+      const canStartCardDrag = (e) => {
+        const target = e.target;
+        if (!target) return false;
+        if (target.closest('#nabad-card-handle') || target.closest('#nabad-zoom-controls') || target.closest('.nabad-editor-bottom-dock') || target.closest('.nabad-editor-topbar')) return false;
+        if (fabricCanvas?.isEditing?.()) return false;
+        try {
+          const fabricTarget = fabricCanvas?.findTarget?.(e, false);
+          if (fabricTarget) return false;
+        } catch {}
+        return !!target.closest('#nabad-campaign-card');
+      };
+      const startCardDrag = (clientX, clientY) => {
         isDraggingCard = true;
-        cardStartX = e.clientX - cardOffsetX;
-        cardStartY = e.clientY - cardOffsetY;
+        cardStartX = clientX - cardOffsetX;
+        cardStartY = clientY - cardOffsetY;
+      };
+      const onCardHandleMouseDown = (e) => {
+        startCardDrag(e.clientX, e.clientY);
         e.preventDefault();
         e.stopPropagation();
       };
       const onCardHandleTouchStart = (e) => {
         const touch = e.touches?.[0];
         if (!touch) return;
-        isDraggingCard = true;
-        cardStartX = touch.clientX - cardOffsetX;
-        cardStartY = touch.clientY - cardOffsetY;
+        startCardDrag(touch.clientX, touch.clientY);
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      const onCardSurfaceMouseDown = (e) => {
+        if (!canStartCardDrag(e)) return;
+        startCardDrag(e.clientX, e.clientY);
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      const onCardSurfaceTouchStart = (e) => {
+        const touch = e.touches?.[0];
+        if (!touch) return;
+        if (!canStartCardDrag(e)) return;
+        startCardDrag(touch.clientX, touch.clientY);
+        e.preventDefault();
         e.stopPropagation();
       };
       cardHandleEl?.addEventListener('mousedown', onCardHandleMouseDown);
-      cardHandleEl?.addEventListener('touchstart', onCardHandleTouchStart, { passive: true });
+      cardHandleEl?.addEventListener('touchstart', onCardHandleTouchStart, { passive: false });
+      campaignCardEl?.addEventListener('mousedown', onCardSurfaceMouseDown);
+      campaignCardEl?.addEventListener('touchstart', onCardSurfaceTouchStart, { passive: false });
       const onWindowMouseMoveCard = (e) => {
         if (!isDraggingCard) return;
         cardOffsetX = e.clientX - cardStartX;
@@ -8242,9 +8350,10 @@ function finishOnboarding() {
       };
       const onWindowMouseUpCard = () => { isDraggingCard = false; };
       window.addEventListener('mousemove', onWindowMouseMoveCard);
-      window.addEventListener('touchmove', onWindowTouchMoveCard, { passive: true });
+      window.addEventListener('touchmove', onWindowTouchMoveCard, { passive: false });
       window.addEventListener('mouseup', onWindowMouseUpCard);
       window.addEventListener('touchend', onWindowMouseUpCard);
+      window.addEventListener('touchcancel', onWindowMouseUpCard);
 
       const cleanupWorkspaceListeners = () => {
         window.removeEventListener('resize', onWindowResizeEditor);
@@ -8254,13 +8363,17 @@ function finishOnboarding() {
         window.removeEventListener('mousemove', onWindowMouseMoveStage);
         window.removeEventListener('touchmove', onWindowTouchMoveStage);
         window.removeEventListener('mouseup', onWindowMouseUpStage);
-        window.removeEventListener('touchend', onWindowMouseUpStage);
+        window.removeEventListener('touchend', onWindowTouchEndStage);
+        window.removeEventListener('touchcancel', onWindowTouchEndStage);
         cardHandleEl?.removeEventListener('mousedown', onCardHandleMouseDown);
         cardHandleEl?.removeEventListener('touchstart', onCardHandleTouchStart);
+        campaignCardEl?.removeEventListener('mousedown', onCardSurfaceMouseDown);
+        campaignCardEl?.removeEventListener('touchstart', onCardSurfaceTouchStart);
         window.removeEventListener('mousemove', onWindowMouseMoveCard);
         window.removeEventListener('touchmove', onWindowTouchMoveCard);
         window.removeEventListener('mouseup', onWindowMouseUpCard);
         window.removeEventListener('touchend', onWindowMouseUpCard);
+        window.removeEventListener('touchcancel', onWindowMouseUpCard);
       };
 
       const exportCanvasAtSize = async (width, height) => {
