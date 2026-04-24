@@ -617,6 +617,15 @@
       .replace(/'/g,  '&#39;');
   }
 
+  let __editorRuntimePromise = null;
+  async function getEditorRuntime() {
+    if (!__editorRuntimePromise) {
+      __editorRuntimePromise = import('/editor/editor.js')
+        .then((mod) => mod.createNabadEditorRuntime());
+    }
+    return __editorRuntimePromise;
+  }
+
   function getSelectedPersonalityMeta() {
     return (
       PERSONALITIES.find(p => p.id === state.personality) ||
@@ -3903,7 +3912,7 @@ function showPersonalityPill(id) {
         flex: 1;
         min-height: 0;
         display: grid;
-        grid-template-columns: 230px minmax(0, 1fr);
+        grid-template-columns: 260px minmax(0, 1fr);
         gap: 10px;
       }
       .nabad-editor-panel {
@@ -3951,16 +3960,84 @@ function showPersonalityPill(id) {
         min-height: 320px;
         border: 1px solid rgba(37,99,235,0.16);
         border-radius: 12px;
-        overflow: auto;
+        overflow: hidden;
         background: #dbe6f8;
         position: relative;
-        aspect-ratio: 16 / 9;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: block;
       }
       .nabad-editor-canvas {
         display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #nabad-workspace {
+        width: 100%;
+        height: 100%;
+        background: #e8edf3;
+        background-image: radial-gradient(circle, #c5cdd8 1px, transparent 1px);
+        background-size: 24px 24px;
+        position: relative;
+        overflow: hidden;
+      }
+      #nabad-canvas-viewport {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+      }
+      #nabad-canvas-stage {
+        position: absolute;
+        inset: 0;
+        transform-origin: 0 0;
+        cursor: grab;
+        user-select: none;
+      }
+      #nabad-canvas-stage:active {
+        cursor: grabbing;
+      }
+      #nabad-campaign-card {
+        position: absolute;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 28px rgba(15,23,42,0.18);
+        border: 1px solid rgba(255,255,255,0.62);
+        background: #fff;
+      }
+      #nabad-card-handle {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 12;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.4);
+        background: rgba(15,23,42,0.42);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: move;
+      }
+      #nabad-zoom-controls {
+        position: fixed;
+        right: 20px;
+        bottom: 90px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        z-index: 200;
+      }
+      #nabad-zoom-controls button {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        border: 1px solid rgba(37,99,235,0.12);
+        background: #fff;
+        color: #0f172a;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       }
       .nabad-editor-inspector {
         display: flex;
@@ -4178,48 +4255,35 @@ function showPersonalityPill(id) {
         display: none;
       }
       .nabad-editor-stage-busy {
-        box-shadow: 0 0 0 1px rgba(37,99,235,0.2), 0 0 24px rgba(37,99,235,0.28);
+        box-shadow: 0 0 0 1px rgba(37,99,235,0.2), 0 0 24px rgba(37,99,235,0.16);
       }
-      .nabad-editor-busy-overlay {
+      .nabad-ai-sheet {
         position: absolute;
-        inset: 0;
-        z-index: 8;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 14px;
-        background: radial-gradient(120% 120% at 10% 0%, rgba(96,165,250,0.26) 0%, rgba(37,99,235,0.16) 34%, rgba(236,242,255,0.72) 100%);
-        backdrop-filter: blur(5px);
-        overflow: hidden;
+        left: 50%;
+        bottom: 10px;
+        transform: translate(-50%, 130%);
+        width: min(92%, 680px);
+        max-height: 40vh;
+        z-index: 60;
+        opacity: 0;
+        transition: transform .22s ease, opacity .22s ease;
+        pointer-events: none;
       }
-      .nabad-editor-busy-overlay.show {
-        display: flex;
+      .nabad-ai-sheet.show {
+        transform: translate(-50%, 0);
+        opacity: 1;
       }
-      .nabad-editor-busy-overlay::before {
-        content: '';
-        position: absolute;
-        top: -45%;
-        left: -60%;
-        width: 58%;
-        height: 190%;
-        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 52%, rgba(255,255,255,0) 100%);
-        transform: rotate(16deg);
-        animation: nabadEditorBusySweep 1.7s linear infinite;
-      }
-      .nabad-editor-busy-content {
-        position: relative;
-        z-index: 2;
+      .nabad-ai-sheet-content {
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        background: rgba(255,255,255,0.76);
-        border: 1px solid rgba(37,99,235,0.2);
-        border-radius: 999px;
+        border-radius: 12px;
         padding: 10px 14px;
-        box-shadow: 0 0 24px rgba(37,99,235,0.2);
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(37,99,235,0.2);
+        box-shadow: 0 10px 24px rgba(15,23,42,0.14);
       }
-      .nabad-editor-busy-dot {
+      .nabad-ai-sheet-dot {
         width: 8px;
         height: 8px;
         border-radius: 999px;
@@ -4227,40 +4291,27 @@ function showPersonalityPill(id) {
         box-shadow: 0 0 12px rgba(37,99,235,0.75);
         animation: nabadEditorBusyDot 0.95s ease-in-out infinite;
       }
-      .nabad-editor-busy-text {
+      #nabad-ai-sheet-text {
         font-size: 12px;
         font-weight: 800;
         letter-spacing: 0.2px;
         color: #1e3a8a;
       }
-      .nabad-editor-busy-overlay.mode-rewrite .nabad-editor-busy-dot {
+      .nabad-ai-sheet.mode-rewrite .nabad-ai-sheet-dot {
         background: #7c3aed;
         box-shadow: 0 0 14px rgba(124,58,237,0.85);
       }
-      .nabad-editor-busy-overlay.mode-rewrite {
-        background: radial-gradient(120% 120% at 10% 0%, rgba(196,181,253,0.28) 0%, rgba(139,92,246,0.16) 34%, rgba(241,236,255,0.72) 100%);
-      }
-      .nabad-editor-busy-overlay.mode-regenerate .nabad-editor-busy-dot {
+      .nabad-ai-sheet.mode-regenerate .nabad-ai-sheet-dot {
         background: #06b6d4;
         box-shadow: 0 0 14px rgba(6,182,212,0.85);
       }
-      .nabad-editor-busy-overlay.mode-regenerate {
-        background: radial-gradient(120% 120% at 10% 0%, rgba(165,243,252,0.28) 0%, rgba(6,182,212,0.16) 34%, rgba(235,252,255,0.72) 100%);
-      }
-      .nabad-editor-busy-overlay.mode-removebg .nabad-editor-busy-dot {
+      .nabad-ai-sheet.mode-removebg .nabad-ai-sheet-dot {
         background: #0ea5e9;
         box-shadow: 0 0 14px rgba(14,165,233,0.85);
-      }
-      .nabad-editor-busy-overlay.mode-removebg {
-        background: radial-gradient(120% 120% at 10% 0%, rgba(147,197,253,0.28) 0%, rgba(14,165,233,0.16) 34%, rgba(237,249,255,0.72) 100%);
       }
       @keyframes nabadEditorBusyDot {
         0%, 100% { transform: scale(0.72); opacity: 0.5; }
         50% { transform: scale(1.22); opacity: 1; }
-      }
-      @keyframes nabadEditorBusySweep {
-        0% { transform: translateX(-18%) rotate(16deg); }
-        100% { transform: translateX(215%) rotate(16deg); }
       }
       
       /* ── Settings Page ── */
@@ -6167,67 +6218,35 @@ function finishOnboarding() {
     </div>`;
   }
 
-  let fabricLoadPromise = null;
   function loadFabricJsIfNeeded() {
-    if (window.fabric) return Promise.resolve(window.fabric);
-    if (fabricLoadPromise) return fabricLoadPromise;
-    fabricLoadPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js';
-      script.async = true;
-      script.onload = () => resolve(window.fabric);
-      script.onerror = () => reject(new Error('Failed to load Fabric.js'));
-      document.head.appendChild(script);
-    });
-    return fabricLoadPromise;
+    return getEditorRuntime().then((runtime) => runtime.loadFabricJsIfNeeded());
   }
 
-  let bgRemovalLoadPromise = null;
   async function loadBackgroundRemovalIfNeeded() {
-    if (window.__NABAD_BG_REMOVAL__?.removeBackground) {
-      return window.__NABAD_BG_REMOVAL__.removeBackground;
-    }
-    if (!bgRemovalLoadPromise) {
-      bgRemovalLoadPromise = import('https://esm.sh/@imgly/background-removal?bundle')
-        .then((mod) => {
-          const removeBackgroundFn =
-            mod?.removeBackground ||
-            mod?.default?.removeBackground ||
-            mod?.default;
-          if (typeof removeBackgroundFn !== 'function') {
-            throw new Error('Background removal module did not expose removeBackground().');
-          }
-          window.__NABAD_BG_REMOVAL__ = { removeBackground: removeBackgroundFn };
-          return removeBackgroundFn;
-        });
-    }
-    return bgRemovalLoadPromise;
+    const runtime = await getEditorRuntime();
+    return runtime.loadBackgroundRemovalIfNeeded();
   }
 
   async function fetchCampaignEditorImage(promptText = '') {
-    const resp = await fetch(CONFIG.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        campaignAction: 'generate_image',
-        campaignImagePrompt: cleanText(promptText, 1200),
-        imageProvider: state.imageProvider || 'auto',
-        memoryKey: getMemoryKey()
-      })
+    const runtime = await getEditorRuntime();
+    const result = await runtime.fetchCampaignEditorImage({
+      apiUrl: CONFIG.apiUrl,
+      promptText: cleanText(promptText, 1200),
+      imageProvider: state.imageProvider || 'auto',
+      memoryKey: getMemoryKey()
     });
-    if (!resp.ok) throw new Error(`Campaign image generation failed (${resp.status})`);
-    const data = await resp.json();
-    if (!data?.campaignImageUrl) throw new Error('No campaign image URL returned');
     return {
-      url: String(data.campaignImageUrl),
-      provider: cleanText(data.campaignImageProvider || '', 32)
+      url: String(result?.url || ''),
+      provider: cleanText(result?.provider || '', 32)
     };
   }
 
   async function fetchCampaignRewriteCopy(context = {}) {
-    const payload = {
-      campaignAction: 'rewrite_copy',
-      campaignCopyContext: {
+    const runtime = await getEditorRuntime();
+    const data = await runtime.fetchCampaignRewriteCopy({
+      apiUrl: CONFIG.apiUrl,
+      memoryKey: getMemoryKey(),
+      copyContext: {
         headline: cleanText(context.headline || '', 220),
         subtext: cleanText(context.subtext || '', 260),
         ctaText: cleanText(context.ctaText || '', 120),
@@ -6239,20 +6258,12 @@ function finishOnboarding() {
         platform: cleanText(context.platform || '', 80),
         format: cleanText(context.format || '', 50),
         rewriteHint: cleanText(context.rewriteHint || '', 220)
-      },
-      memoryKey: getMemoryKey()
-    };
-    const resp = await fetch(CONFIG.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      }
     });
-    if (!resp.ok) throw new Error(`Campaign copy rewrite failed (${resp.status})`);
-    const data = await resp.json();
     return {
-      headline: cleanText(data?.campaignCopy?.headline || '', 220),
-      subtext: cleanText(data?.campaignCopy?.subtext || '', 260),
-      ctaText: cleanText(data?.campaignCopy?.ctaText || '', 120)
+      headline: cleanText(data?.headline || '', 220),
+      subtext: cleanText(data?.subtext || '', 260),
+      ctaText: cleanText(data?.ctaText || '', 120)
     };
   }
 
@@ -6263,6 +6274,7 @@ function finishOnboarding() {
     if (refs.header) refs.header.style.display = 'none';
     const inputWrap = document.getElementById('nabad-input-wrap');
     if (inputWrap) inputWrap.style.display = 'none';
+    getEditorRuntime().then((runtime) => runtime.hideChatForEditorMode(refs)).catch(() => {});
   }
 
   function restoreChatAfterEditorMode() {
@@ -6274,6 +6286,9 @@ function finishOnboarding() {
     if (inputWrap) inputWrap.style.display = 'flex';
     renderInitialState();
     scrollToBottom();
+    getEditorRuntime().then((runtime) =>
+      runtime.restoreChatAfterEditorMode(refs, { renderInitialState, scrollToBottom })
+    ).catch(() => {});
   }
 
   function makeRoundedRectPath(ctx, x, y, w, h, r) {
@@ -6341,10 +6356,6 @@ function finishOnboarding() {
                 <span class="sep">×</span>
                 <input id="nabad-editor-custom-h" type="number" min="240" max="4096" step="1" value="1080" title="Custom height" />
               </div>
-              <div class="nabad-editor-custom-size" id="nabad-editor-zoom-wrap">
-                <input id="nabad-editor-zoom" type="range" min="40" max="180" step="5" value="100" title="Zoom" />
-                <span class="sep" id="nabad-editor-zoom-value">100%</span>
-              </div>
               <button type="button" class="nabad-editor-btn primary with-icon" id="nabad-editor-save">
                 <span class="nabad-btn-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -6368,10 +6379,31 @@ function finishOnboarding() {
                 <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-logo" checked /> 👁 Logo</span></label>
                 <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-background" checked /> 👁 Background image</span></label>
               </div>
+              <h4 style="margin-top:12px">Add</h4>
+              <div class="add-grid">
+                <button type="button" class="nabad-editor-btn" id="nabad-side-add-text">+ Text</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-side-add-image">+ Image</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-side-add-shape">+ Shape</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-side-add-logo">+ Logo</button>
+              </div>
             </aside>
 
             <div class="nabad-editor-stage">
-              <canvas id="nabad-editor-canvas" class="nabad-editor-canvas"></canvas>
+              <div id="nabad-workspace">
+                <div id="nabad-canvas-viewport">
+                  <div id="nabad-canvas-stage">
+                    <div id="nabad-campaign-card">
+                      <button type="button" id="nabad-card-handle" title="Move card">⠿</button>
+                      <canvas id="nabad-editor-canvas" class="nabad-editor-canvas"></canvas>
+                    </div>
+                  </div>
+                </div>
+                <div id="nabad-zoom-controls">
+                  <button type="button" id="nabad-zoom-in" title="Zoom in">+</button>
+                  <button type="button" id="nabad-zoom-out" title="Zoom out">−</button>
+                  <button type="button" id="nabad-zoom-reset" title="Reset view">⌂</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -6475,6 +6507,12 @@ function finishOnboarding() {
               </button>
             </div>
           </div>
+          <div id="nabad-ai-sheet" class="nabad-ai-sheet" aria-live="polite" hidden>
+            <div class="nabad-ai-sheet-content">
+              <span class="nabad-ai-sheet-dot"></span>
+              <span id="nabad-ai-sheet-text">Nabad is working...</span>
+            </div>
+          </div>
 
           <input id="nabad-pos-x" type="number" step="1" hidden />
           <input id="nabad-pos-y" type="number" step="1" hidden />
@@ -6508,8 +6546,9 @@ function finishOnboarding() {
       const saveSizeCustomWrap = document.getElementById('nabad-editor-custom-size');
       const customSizeWInput = document.getElementById('nabad-editor-custom-w');
       const customSizeHInput = document.getElementById('nabad-editor-custom-h');
-      const zoomRangeInput = document.getElementById('nabad-editor-zoom');
-      const zoomValueLabel = document.getElementById('nabad-editor-zoom-value');
+      const zoomInBtn = document.getElementById('nabad-zoom-in');
+      const zoomOutBtn = document.getElementById('nabad-zoom-out');
+      const zoomResetBtn = document.getElementById('nabad-zoom-reset');
       const tabsWrap = document.getElementById('nabad-editor-tabs');
       const toolTray = document.getElementById('nabad-editor-tooltray');
       const contextBar = document.getElementById('nabad-editor-contextbar');
@@ -6523,6 +6562,10 @@ function finishOnboarding() {
       const textBoldBtn = document.getElementById('nabad-text-bold');
       const textItalicBtn = document.getElementById('nabad-text-italic');
       const textUnderlineBtn = document.getElementById('nabad-text-underline');
+      const sideAddTextBtn = document.getElementById('nabad-side-add-text');
+      const sideAddImageBtn = document.getElementById('nabad-side-add-image');
+      const sideAddShapeBtn = document.getElementById('nabad-side-add-shape');
+      const sideAddLogoBtn = document.getElementById('nabad-side-add-logo');
       const addTextBtn = document.getElementById('nabad-add-text');
       const addImageBtn = document.getElementById('nabad-add-image');
       const addShapeBtn = document.getElementById('nabad-add-shape');
@@ -6541,43 +6584,38 @@ function finishOnboarding() {
       const textSizeRange = document.getElementById('nabad-editor-text-size');
       const textColor = document.getElementById('nabad-editor-text-color');
       const stageEl = refs.messages.querySelector('.nabad-editor-stage');
+      const workspaceEl = document.getElementById('nabad-workspace');
+      const viewportEl = document.getElementById('nabad-canvas-viewport');
+      const stageSurfaceEl = document.getElementById('nabad-canvas-stage');
+      const campaignCardEl = document.getElementById('nabad-campaign-card');
+      const cardHandleEl = document.getElementById('nabad-card-handle');
+      const aiSheetEl = document.getElementById('nabad-ai-sheet');
+      const aiSheetTextEl = document.getElementById('nabad-ai-sheet-text');
       const canvasEl = document.getElementById('nabad-editor-canvas');
       let resizeObserver = null;
       let fitCanvasToStage = null;
-
-      let busyOverlay = null;
-      const ensureBusyOverlay = () => {
-        if (busyOverlay || !stageEl) return busyOverlay;
-        busyOverlay = document.createElement('div');
-        busyOverlay.className = 'nabad-editor-busy-overlay';
-        busyOverlay.innerHTML = `
-          <div class="nabad-editor-busy-content">
-            <span class="nabad-editor-busy-dot"></span>
-            <span class="nabad-editor-busy-text">Nabad is working...</span>
-          </div>
-        `;
-        stageEl.appendChild(busyOverlay);
-        return busyOverlay;
-      };
       const showEditorBusy = (label = 'Nabad is working...', mode = '') => {
-        const overlay = ensureBusyOverlay();
-        if (!overlay) return;
-        overlay.classList.remove('mode-rewrite', 'mode-regenerate', 'mode-removebg');
-        if (mode === 'rewrite') overlay.classList.add('mode-rewrite');
-        if (mode === 'regenerate') overlay.classList.add('mode-regenerate');
-        if (mode === 'removebg') overlay.classList.add('mode-removebg');
-        const textEl = overlay.querySelector('.nabad-editor-busy-text');
-        if (textEl) textEl.textContent = cleanText(label, 80) || 'Nabad is working...';
-        overlay.classList.add('show');
+        if (!aiSheetEl) return;
+        aiSheetEl.classList.remove('mode-rewrite', 'mode-regenerate', 'mode-removebg');
+        if (mode === 'rewrite') aiSheetEl.classList.add('mode-rewrite');
+        if (mode === 'regenerate') aiSheetEl.classList.add('mode-regenerate');
+        if (mode === 'removebg') aiSheetEl.classList.add('mode-removebg');
+        if (aiSheetTextEl) aiSheetTextEl.textContent = cleanText(label, 80) || 'Nabad is working...';
+        aiSheetEl.hidden = false;
+        aiSheetEl.classList.add('show');
         stageEl.classList.add('nabad-editor-stage-busy');
       };
       const hideEditorBusy = () => {
-        if (!busyOverlay) return;
-        busyOverlay.classList.remove('show', 'mode-rewrite', 'mode-regenerate', 'mode-removebg');
+        if (!aiSheetEl) return;
+        aiSheetEl.classList.remove('show', 'mode-rewrite', 'mode-regenerate', 'mode-removebg');
+        window.setTimeout(() => {
+          if (!aiSheetEl.classList.contains('show')) aiSheetEl.hidden = true;
+        }, 260);
         stageEl?.classList?.remove('nabad-editor-stage-busy');
       };
 
       backBtn?.addEventListener('click', () => {
+        try { cleanupWorkspaceListeners(); } catch {}
         if (fitCanvasToStage) {
           try { window.removeEventListener('resize', fitCanvasToStage); } catch {}
         }
@@ -7394,13 +7432,17 @@ function finishOnboarding() {
         fabricCanvas.setActiveObject(text);
         fabricCanvas.renderAll();
       });
+      sideAddTextBtn?.addEventListener('click', () => addTextBtn?.click());
       addImageBtn?.addEventListener('click', () => objectFile?.click());
+      sideAddImageBtn?.addEventListener('click', () => addImageBtn?.click());
       addLogoBtn?.addEventListener('click', () => logoFile?.click());
+      sideAddLogoBtn?.addEventListener('click', () => addLogoBtn?.click());
       addShapeBtn?.addEventListener('click', () => {
         const choice = cleanText(window.prompt('Shape type: rect / circle / line / star / blob', 'rect') || 'rect', 20).toLowerCase();
         const allowed = ['rect', 'circle', 'line', 'star', 'blob'];
         addShape(allowed.includes(choice) ? choice : 'rect');
       });
+      sideAddShapeBtn?.addEventListener('click', () => addShapeBtn?.click());
 
       const toggleLayer = (obj, checked) => {
         if (!obj) return;
@@ -7725,7 +7767,6 @@ function finishOnboarding() {
 
       let currentAspect = 16 / 9;
       let selectedSizePreset = 'landscape';
-      let currentZoom = Math.max(0.4, Math.min(1.8, (Number(zoomRangeInput?.value || 100) || 100) / 100));
       let customSize = {
         w: Math.max(240, Number(customSizeWInput?.value || 1920)),
         h: Math.max(240, Number(customSizeHInput?.value || 1080))
@@ -7745,26 +7786,6 @@ function finishOnboarding() {
           return { w: Math.round(customSize.w), h: Math.round(customSize.h) };
         }
         return { w: 1920, h: 1080 };
-      };
-      const getCanvasViewportSize = (exportSize = { w: 1920, h: 1080 }) => {
-        const vw = window.innerWidth || 1400;
-        const maxLong = vw <= 700 ? 740 : 1260;
-        const scale = Math.min(1, maxLong / Math.max(1, Math.max(exportSize.w, exportSize.h)));
-        return {
-          w: Math.max(260, Math.round(exportSize.w * scale)),
-          h: Math.max(220, Math.round(exportSize.h * scale))
-        };
-      };
-      const applyZoom = (zoomValue = currentZoom) => {
-        currentZoom = Math.max(0.4, Math.min(1.8, Number(zoomValue || 1) || 1));
-        if (zoomRangeInput) zoomRangeInput.value = String(Math.round(currentZoom * 100));
-        if (zoomValueLabel) zoomValueLabel.textContent = `${Math.round(currentZoom * 100)}%`;
-        const cw = fabricCanvas.getWidth();
-        const ch = fabricCanvas.getHeight();
-        const tx = (cw - cw * currentZoom) / 2;
-        const ty = (ch - ch * currentZoom) / 2;
-        fabricCanvas.setViewportTransform([currentZoom, 0, 0, currentZoom, tx, ty]);
-        fabricCanvas.requestRenderAll();
       };
       const resizeCanvasPreservingLayout = (nextW, nextH) => {
         const prevW = Math.max(1, Number(fabricCanvas.getWidth() || nextW || 1));
@@ -7790,10 +7811,56 @@ function finishOnboarding() {
         if (backgroundObj) fitBackground(backgroundObj);
         syncCtaBackground();
         fabricCanvas.renderAll();
-        applyZoom(currentZoom);
         updateControlFromActive();
       };
       fitCanvasToStage = () => {};
+
+      let stageScale = 1;
+      let stageOffsetX = 0;
+      let stageOffsetY = 0;
+      let cardOffsetX = 0;
+      let cardOffsetY = 0;
+      let hasUserPannedOrZoomed = false;
+      const applyStageTransform = () => {
+        if (!stageSurfaceEl) return;
+        stageSurfaceEl.style.transform = `translate(${Math.round(stageOffsetX)}px, ${Math.round(stageOffsetY)}px) scale(${stageScale.toFixed(3)})`;
+      };
+      const applyCardTransform = () => {
+        if (!campaignCardEl) return;
+        campaignCardEl.style.left = `${Math.round(cardOffsetX)}px`;
+        campaignCardEl.style.top = `${Math.round(cardOffsetY)}px`;
+      };
+      const centerCardInViewport = () => {
+        if (!viewportEl || !campaignCardEl) return;
+        const vw = viewportEl.clientWidth || 800;
+        const vh = viewportEl.clientHeight || 560;
+        const cardW = Math.max(1, Number(fabricCanvas.getWidth() || campaignCardEl.offsetWidth || 1));
+        const cardH = Math.max(1, Number(fabricCanvas.getHeight() || campaignCardEl.offsetHeight || 1));
+        cardOffsetX = Math.max(0, (vw - cardW) / 2);
+        cardOffsetY = Math.max(0, (vh - cardH) / 2);
+        applyCardTransform();
+      };
+      const fitWorkspaceToViewport = () => {
+        if (!viewportEl || !campaignCardEl) return;
+        const vw = Math.max(320, viewportEl.clientWidth || 320);
+        const vh = Math.max(220, viewportEl.clientHeight || 220);
+        const cardW = Math.max(1, Number(fabricCanvas.getWidth() || campaignCardEl.offsetWidth || 1));
+        const cardH = Math.max(1, Number(fabricCanvas.getHeight() || campaignCardEl.offsetHeight || 1));
+        const fitScale = Math.min(1, Math.max(0.2, Math.min((vw - 24) / cardW, (vh - 24) / cardH)));
+        stageScale = fitScale;
+        stageOffsetX = 0;
+        stageOffsetY = 0;
+        centerCardInViewport();
+        applyStageTransform();
+      };
+      const resetWorkspaceView = () => {
+        hasUserPannedOrZoomed = false;
+        stageScale = 1;
+        stageOffsetX = 0;
+        stageOffsetY = 0;
+        applyStageTransform();
+        centerCardInViewport();
+      };
 
       const applyResizePreset = (preset = 'landscape') => {
         const next = String(preset || 'landscape').toLowerCase();
@@ -7802,13 +7869,13 @@ function finishOnboarding() {
         if (selectedSizePreset === 'custom') clampCustomSize();
         const exportSize = getExportSizeFromPreset(selectedSizePreset);
         currentAspect = Math.max(0.1, exportSize.w / Math.max(1, exportSize.h));
-        if (stageEl) {
-          stageEl.style.aspectRatio = `${exportSize.w} / ${exportSize.h}`;
-          stageEl.style.height = '100%';
-        }
         if (saveSizeCustomWrap) saveSizeCustomWrap.hidden = selectedSizePreset !== 'custom';
-        const viewportSize = getCanvasViewportSize(exportSize);
-        resizeCanvasPreservingLayout(viewportSize.w, viewportSize.h);
+        resizeCanvasPreservingLayout(exportSize.w, exportSize.h);
+        if (campaignCardEl) {
+          campaignCardEl.style.width = `${exportSize.w}px`;
+          campaignCardEl.style.height = `${exportSize.h}px`;
+        }
+        fitWorkspaceToViewport();
       };
 
       saveSizeSelect?.addEventListener('change', () => {
@@ -7825,9 +7892,140 @@ function finishOnboarding() {
         clampCustomSize();
         applyResizePreset('custom');
       });
-      zoomRangeInput?.addEventListener('input', () => {
-        applyZoom((Number(zoomRangeInput.value || 100) || 100) / 100);
+      const onWindowResizeEditor = () => {
+        if (!hasUserPannedOrZoomed) {
+          fitWorkspaceToViewport();
+          return;
+        }
+        applyStageTransform();
+        applyCardTransform();
+      };
+      window.addEventListener('resize', onWindowResizeEditor);
+      zoomInBtn?.addEventListener('click', () => {
+        stageScale = Math.min(3, stageScale + 0.1);
+        hasUserPannedOrZoomed = true;
+        applyStageTransform();
       });
+      zoomOutBtn?.addEventListener('click', () => {
+        stageScale = Math.max(0.2, stageScale - 0.1);
+        hasUserPannedOrZoomed = true;
+        applyStageTransform();
+      });
+      zoomResetBtn?.addEventListener('click', () => {
+        resetWorkspaceView();
+      });
+
+      let isPanningStage = false;
+      let panStartX = 0;
+      let panStartY = 0;
+      const onViewportMouseDown = (e) => {
+        const target = e.target;
+        if (!target) return;
+        if (target.closest('#nabad-campaign-card') || target.closest('#nabad-zoom-controls') || target.closest('.nabad-editor-bottom-dock')) return;
+        isPanningStage = true;
+        panStartX = e.clientX - stageOffsetX;
+        panStartY = e.clientY - stageOffsetY;
+      };
+      const onViewportTouchStart = (e) => {
+        const touch = e.touches?.[0];
+        if (!touch) return;
+        const target = e.target;
+        if (target?.closest?.('#nabad-campaign-card') || target?.closest?.('#nabad-zoom-controls') || target?.closest?.('.nabad-editor-bottom-dock')) return;
+        isPanningStage = true;
+        panStartX = touch.clientX - stageOffsetX;
+        panStartY = touch.clientY - stageOffsetY;
+      };
+      const onViewportWheel = (e) => {
+        e.preventDefault();
+        stageScale = Math.min(3, Math.max(0.2, stageScale + (e.deltaY > 0 ? -0.1 : 0.1)));
+        hasUserPannedOrZoomed = true;
+        applyStageTransform();
+      };
+      if (viewportEl) {
+        viewportEl.addEventListener('mousedown', onViewportMouseDown);
+        viewportEl.addEventListener('touchstart', onViewportTouchStart, { passive: true });
+        viewportEl.addEventListener('wheel', onViewportWheel, { passive: false });
+      }
+      const onWindowMouseMoveStage = (e) => {
+        if (!isPanningStage) return;
+        stageOffsetX = e.clientX - panStartX;
+        stageOffsetY = e.clientY - panStartY;
+        hasUserPannedOrZoomed = true;
+        applyStageTransform();
+      };
+      const onWindowTouchMoveStage = (e) => {
+        if (!isPanningStage) return;
+        const touch = e.touches?.[0];
+        if (!touch) return;
+        stageOffsetX = touch.clientX - panStartX;
+        stageOffsetY = touch.clientY - panStartY;
+        hasUserPannedOrZoomed = true;
+        applyStageTransform();
+      };
+      const onWindowMouseUpStage = () => { isPanningStage = false; };
+      window.addEventListener('mousemove', onWindowMouseMoveStage);
+      window.addEventListener('touchmove', onWindowTouchMoveStage, { passive: true });
+      window.addEventListener('mouseup', onWindowMouseUpStage);
+      window.addEventListener('touchend', onWindowMouseUpStage);
+
+      let isDraggingCard = false;
+      let cardStartX = 0;
+      let cardStartY = 0;
+      const onCardHandleMouseDown = (e) => {
+        isDraggingCard = true;
+        cardStartX = e.clientX - cardOffsetX;
+        cardStartY = e.clientY - cardOffsetY;
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      const onCardHandleTouchStart = (e) => {
+        const touch = e.touches?.[0];
+        if (!touch) return;
+        isDraggingCard = true;
+        cardStartX = touch.clientX - cardOffsetX;
+        cardStartY = touch.clientY - cardOffsetY;
+        e.stopPropagation();
+      };
+      cardHandleEl?.addEventListener('mousedown', onCardHandleMouseDown);
+      cardHandleEl?.addEventListener('touchstart', onCardHandleTouchStart, { passive: true });
+      const onWindowMouseMoveCard = (e) => {
+        if (!isDraggingCard) return;
+        cardOffsetX = e.clientX - cardStartX;
+        cardOffsetY = e.clientY - cardStartY;
+        hasUserPannedOrZoomed = true;
+        applyCardTransform();
+      };
+      const onWindowTouchMoveCard = (e) => {
+        if (!isDraggingCard) return;
+        const touch = e.touches?.[0];
+        if (!touch) return;
+        cardOffsetX = touch.clientX - cardStartX;
+        cardOffsetY = touch.clientY - cardStartY;
+        hasUserPannedOrZoomed = true;
+        applyCardTransform();
+      };
+      const onWindowMouseUpCard = () => { isDraggingCard = false; };
+      window.addEventListener('mousemove', onWindowMouseMoveCard);
+      window.addEventListener('touchmove', onWindowTouchMoveCard, { passive: true });
+      window.addEventListener('mouseup', onWindowMouseUpCard);
+      window.addEventListener('touchend', onWindowMouseUpCard);
+
+      const cleanupWorkspaceListeners = () => {
+        window.removeEventListener('resize', onWindowResizeEditor);
+        viewportEl?.removeEventListener('mousedown', onViewportMouseDown);
+        viewportEl?.removeEventListener('touchstart', onViewportTouchStart);
+        viewportEl?.removeEventListener('wheel', onViewportWheel);
+        window.removeEventListener('mousemove', onWindowMouseMoveStage);
+        window.removeEventListener('touchmove', onWindowTouchMoveStage);
+        window.removeEventListener('mouseup', onWindowMouseUpStage);
+        window.removeEventListener('touchend', onWindowMouseUpStage);
+        cardHandleEl?.removeEventListener('mousedown', onCardHandleMouseDown);
+        cardHandleEl?.removeEventListener('touchstart', onCardHandleTouchStart);
+        window.removeEventListener('mousemove', onWindowMouseMoveCard);
+        window.removeEventListener('touchmove', onWindowTouchMoveCard);
+        window.removeEventListener('mouseup', onWindowMouseUpCard);
+        window.removeEventListener('touchend', onWindowMouseUpCard);
+      };
 
       const exportCanvasAtSize = async (width, height) => {
         const srcW = Math.max(1, fabricCanvas.getWidth());
@@ -8044,6 +8242,7 @@ function finishOnboarding() {
       hideEditorBusy();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
+      try { cleanupWorkspaceListeners(); } catch {}
       if (fitCanvasToStage) {
         try { window.removeEventListener('resize', fitCanvasToStage); } catch {}
       }
@@ -8081,30 +8280,12 @@ function finishOnboarding() {
 
   function ensureCampaignTemplateStage(bubble) {
     if (!bubble || !campaignBubbleHasActions(bubble)) return null;
-    let stage = bubble.querySelector('.nabad-campaign-template-stage');
-    if (stage) return stage;
-
-    const imageWrap = bubble.querySelector('.nabad-inline-image-wrap');
-    const baseImg = imageWrap?.querySelector?.('img.nabad-bubble-img');
-    if (!imageWrap || !baseImg || !baseImg.src) return null;
-
-    stage = document.createElement('div');
-    stage.className = 'nabad-campaign-template-stage';
-    stage.innerHTML = `
-      <img class="nabad-campaign-template-bg" src="${baseImg.src}" alt="${escapeHtml(baseImg.alt || 'Campaign visual')}" />
-      <div class="nabad-campaign-template-layer">
-        <div class="nabad-campaign-template-text" data-field="headline" contenteditable="true" spellcheck="false">Your headline</div>
-        <div class="nabad-campaign-template-text" data-field="subline" contenteditable="true" spellcheck="false">Your subtitle</div>
-        <div class="nabad-campaign-template-text" data-field="cta" contenteditable="true" spellcheck="false">Start now</div>
-        <img class="nabad-campaign-template-logo" alt="Campaign logo overlay" />
-      </div>
-    `;
-    const hint = document.createElement('div');
-    hint.className = 'nabad-campaign-template-hint';
-    hint.textContent = 'Tip: click any text directly on the visual to edit it.';
-    imageWrap.replaceWith(stage);
-    stage.insertAdjacentElement('afterend', hint);
-    return stage;
+    const existing = bubble.querySelector('.nabad-campaign-template-stage');
+    if (existing) return existing;
+    getEditorRuntime().then((runtime) =>
+      runtime.ensureCampaignTemplateStage(bubble, { escapeHtml })
+    ).catch(() => {});
+    return bubble.querySelector('.nabad-campaign-template-stage');
   }
 
   function focusCampaignTextField(stage, field = 'headline') {
@@ -8119,6 +8300,9 @@ function finishOnboarding() {
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
+    getEditorRuntime().then((runtime) =>
+      runtime.focusCampaignTextField(stage, field)
+    ).catch(() => {});
   }
 
   function applyLogoToCampaignStage(stage, imageDataUrl = '') {
@@ -8127,6 +8311,9 @@ function finishOnboarding() {
     if (!logo) return;
     logo.src = imageDataUrl;
     logo.style.display = 'block';
+    getEditorRuntime().then((runtime) =>
+      runtime.applyLogoToCampaignStage(stage, imageDataUrl)
+    ).catch(() => {});
   }
 
   async function downloadCampaignTemplateImage(stage) {
