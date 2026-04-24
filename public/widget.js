@@ -329,7 +329,8 @@
   function loadImageProvider() {
     try {
       const raw = (localStorage.getItem(STORAGE_KEYS.imageProvider) || '').toLowerCase().trim();
-      const valid = ['auto', 'openai', 'gemini', 'nanobanana', 'ideogram', 'pollinations', 'replicate'];
+      if (raw === 'nanobanana') return 'gemini';
+      const valid = ['auto', 'openai', 'gemini', 'ideogram', 'pollinations', 'replicate', 'huggingface'];
       return valid.includes(raw) ? raw : 'gemini';
     } catch {
       return 'gemini';
@@ -3983,7 +3984,9 @@ function showPersonalityPill(id) {
         }
         .nabad-editor-stage {
           order: 1;
-          min-height: 360px;
+          min-height: 0;
+          height: min(56vh, 420px);
+          max-height: calc(100dvh - 260px);
         }
       }
       @media (max-width: 700px) {
@@ -3995,6 +3998,8 @@ function showPersonalityPill(id) {
           position: sticky;
           top: 0;
           z-index: 20;
+          flex-wrap: wrap;
+          align-items: flex-start;
         }
         .nabad-editor-top-left .nabad-editor-title {
           font-size: 13px;
@@ -4008,6 +4013,10 @@ function showPersonalityPill(id) {
           overflow-x: auto;
           white-space: nowrap;
           -webkit-overflow-scrolling: touch;
+        }
+        .nabad-editor-stage {
+          height: min(48vh, 320px);
+          max-height: calc(100dvh - 280px);
         }
       }
       .nabad-editor-shell.external-sidebar-mode .nabad-editor-workspace {
@@ -6279,6 +6288,8 @@ function finishOnboarding() {
       const textColor = document.getElementById('nabad-editor-text-color');
       const stageEl = refs.messages.querySelector('.nabad-editor-stage');
       const canvasEl = document.getElementById('nabad-editor-canvas');
+      let resizeObserver = null;
+      let fitCanvasToStage = null;
 
       let busyOverlay = null;
       const ensureBusyOverlay = () => {
@@ -6313,6 +6324,13 @@ function finishOnboarding() {
       };
 
       backBtn?.addEventListener('click', () => {
+        if (fitCanvasToStage) {
+          try { window.removeEventListener('resize', fitCanvasToStage); } catch {}
+        }
+        if (resizeObserver) {
+          try { resizeObserver.disconnect(); } catch {}
+          resizeObserver = null;
+        }
         if (state.campaignEditorContext?.keyHandler) {
           document.removeEventListener('keydown', state.campaignEditorContext.keyHandler);
         }
@@ -6370,8 +6388,8 @@ function finishOnboarding() {
         ? cleanText(typography.fontFamily || '', 40)
         : 'Inter';
 
-      const stageWidth = Math.max(320, (stageEl?.clientWidth || 900) - 2);
-      const fallbackHeight = Math.round(stageWidth * 0.5625);
+      const stageWidth = Math.max(260, (stageEl?.clientWidth || 900) - 2);
+      const fallbackHeight = Math.max(160, Math.round(stageWidth * 0.5625));
       const fabricCanvas = new window.fabric.Canvas(canvasEl, {
         selection: true,
         preserveObjectStacking: true
@@ -6801,9 +6819,15 @@ function finishOnboarding() {
         const nextW = Math.max(1, Number(sizeWInput?.value || (obj.getScaledWidth?.() || obj.width || 1)));
         const nextH = Math.max(1, Number(sizeHInput?.value || (obj.getScaledHeight?.() || obj.height || 1)));
         obj.set({ left: nextX, top: nextY });
-        const baseW = Math.max(1, Number(obj.width || 1));
-        const baseH = Math.max(1, Number(obj.height || 1));
-        obj.set({ scaleX: nextW / baseW, scaleY: nextH / baseH });
+        if (isTextLikeObject(obj)) {
+          const currentW = Math.max(1, Number(obj.width || nextW));
+          obj.set({ scaleX: 1, scaleY: 1, width: Math.max(20, nextW) });
+          if (Math.abs(currentW - nextW) > 2 && ctaObj && obj === ctaObj) syncCtaBackground();
+        } else {
+          const baseW = Math.max(1, Number(obj.width || 1));
+          const baseH = Math.max(1, Number(obj.height || 1));
+          obj.set({ scaleX: nextW / baseW, scaleY: nextH / baseH });
+        }
         if (obj === ctaObj) syncCtaBackground();
         fabricCanvas.renderAll();
       };
@@ -7103,12 +7127,16 @@ function finishOnboarding() {
       });
 
       regenerateBtn?.addEventListener('click', async () => {
+        const promptValue = window.prompt('Swap Background: optional hint (style, mood, colors)', '');
+        if (promptValue === null) return;
+        const tweak = cleanText(promptValue || '', 220);
+        if (!tweak || tweak.length < 2) return;
+
         const previousLabel = regenerateBtn.textContent;
         regenerateBtn.disabled = true;
         regenerateBtn.textContent = 'Regenerating...';
         showEditorBusy('Regenerating image...', 'regenerate');
         try {
-          const tweak = cleanText(window.prompt('Swap Background: optional hint (style, mood, colors)', '') || '', 220);
           const basePrompt = cleanText(campaignData.imagePrompt || prompt, 1200);
           const variantPrompt = cleanText(
             `${basePrompt} Create a distinctly different composition and scene from previous version. ${tweak ? `Extra direction: ${tweak}.` : ''}`,
@@ -7339,34 +7367,45 @@ function finishOnboarding() {
         }
       });
 
-      const applyResizePreset = (preset = 'landscape') => {
-        const next = String(preset || 'landscape');
-        const dims = next === 'square'
-          ? { w: 1080, h: 1080 }
-          : next === 'story'
-            ? { w: 1080, h: 1920 }
-            : { w: 1920, h: 1080 };
-        const cw = fabricCanvas.getWidth();
-        const ch = fabricCanvas.getHeight();
-        const scaleX = dims.w / Math.max(1, cw);
-        const scaleY = dims.h / Math.max(1, ch);
-        fabricCanvas.getObjects().forEach((obj) => {
-          obj.set({
-            left: Number(obj.left || 0) * scaleX,
-            top: Number(obj.top || 0) * scaleY,
-            scaleX: Number(obj.scaleX || 1) * scaleX,
-            scaleY: Number(obj.scaleY || 1) * scaleY
-          });
-          obj.setCoords();
-        });
-        fabricCanvas.setWidth(dims.w);
-        fabricCanvas.setHeight(dims.h);
+      let currentAspect = 16 / 9;
+      fitCanvasToStage = () => {
+        if (!stageEl || !fabricCanvas) return;
+        const stageRect = stageEl.getBoundingClientRect();
+        const viewportW = window.innerWidth || stageRect.width || 900;
+        const viewportH = window.innerHeight || 900;
+        const maxStageW = Math.max(240, Math.min((stageRect.width || 900) - 2, viewportW - 20));
+        const mobile = viewportW <= 700;
+        const maxStageH = Math.max(170, mobile ? Math.round(viewportH * 0.46) : Math.round(viewportH * 0.58));
+
+        let w = maxStageW;
+        let h = Math.round(w / Math.max(0.1, currentAspect));
+        if (h > maxStageH) {
+          h = maxStageH;
+          w = Math.round(h * currentAspect);
+        }
+        w = Math.max(220, w);
+        h = Math.max(140, h);
+
+        stageEl.style.height = `${h}px`;
+        stageEl.style.maxWidth = '100%';
+        fabricCanvas.setWidth(w);
+        fabricCanvas.setHeight(h);
         if (canvasEl) {
           canvasEl.style.width = '100%';
           canvasEl.style.height = '100%';
         }
+        if (backgroundObj) fitBackground(backgroundObj);
+        syncCtaBackground();
         fabricCanvas.renderAll();
         updateControlFromActive();
+      };
+
+      const applyResizePreset = (preset = 'landscape') => {
+        const next = String(preset || 'landscape').toLowerCase();
+        currentAspect = next === 'square' ? 1 : next === 'story' ? (9 / 16) : (16 / 9);
+        const ratio = next === 'square' ? '1 / 1' : next === 'story' ? '9 / 16' : '16 / 9';
+        if (stageEl) stageEl.style.aspectRatio = ratio;
+        fitCanvasToStage?.();
       };
 
       resizeBtn?.addEventListener('click', () => {
@@ -7533,23 +7572,24 @@ function finishOnboarding() {
           const obj = fabricCanvas.getActiveObject();
           if (!obj) return false;
           const isText = isTextLikeObject(obj);
+          const has = (prop) => Object.prototype.hasOwnProperty.call(payload || {}, prop);
           if (isText) {
-            if (payload.fontFamily) obj.set('fontFamily', cleanText(payload.fontFamily, 48));
-            if (payload.fontSize) obj.set('fontSize', Math.max(8, Number(payload.fontSize)));
-            if (payload.color) obj.set('fill', cleanText(payload.color, 20));
-            if (payload.bold !== undefined) obj.set('fontWeight', payload.bold ? '700' : 'normal');
-            if (payload.italic !== undefined) obj.set('fontStyle', payload.italic ? 'italic' : 'normal');
-            if (payload.underline !== undefined) obj.set('underline', !!payload.underline);
+            if (has('fontFamily')) obj.set('fontFamily', cleanText(payload.fontFamily, 48));
+            if (has('fontSize')) obj.set('fontSize', Math.max(8, Number(payload.fontSize)));
+            if (has('color')) obj.set('fill', cleanText(payload.color, 20));
+            if (has('bold')) obj.set('fontWeight', payload.bold ? '700' : 'normal');
+            if (has('italic')) obj.set('fontStyle', payload.italic ? 'italic' : 'normal');
+            if (has('underline')) obj.set('underline', !!payload.underline);
           }
           const x = Number(payload.x);
           const y = Number(payload.y);
           const w = Number(payload.w);
           const h = Number(payload.h);
           const opacity = Number(payload.opacity);
-          if (Number.isFinite(x)) obj.set('left', x);
-          if (Number.isFinite(y)) obj.set('top', y);
-          if (Number.isFinite(opacity)) obj.set('opacity', Math.max(0, Math.min(1, opacity / 100)));
-          if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+          if (has('x') && Number.isFinite(x)) obj.set('left', x);
+          if (has('y') && Number.isFinite(y)) obj.set('top', y);
+          if (has('opacity') && Number.isFinite(opacity)) obj.set('opacity', Math.max(0, Math.min(1, opacity / 100)));
+          if (has('w') && has('h') && Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 && !isText) {
             const baseW = Math.max(1, Number(obj.width || 1));
             const baseH = Math.max(1, Number(obj.height || 1));
             obj.set({ scaleX: w / baseW, scaleY: h / baseH });
@@ -7574,6 +7614,12 @@ function finishOnboarding() {
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
       if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj.fontSize || 58));
+      applyResizePreset(cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase());
+      window.addEventListener('resize', fitCanvasToStage);
+      if (stageEl && 'ResizeObserver' in window) {
+        resizeObserver = new ResizeObserver(() => fitCanvasToStage?.());
+        resizeObserver.observe(stageEl);
+      }
       setBackgroundLockState(true);
       historyMuted = false;
       undoStack = [snapshotEditorState()];
@@ -7584,6 +7630,12 @@ function finishOnboarding() {
       hideEditorBusy();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
+      if (fitCanvasToStage) {
+        try { window.removeEventListener('resize', fitCanvasToStage); } catch {}
+      }
+      if (resizeObserver) {
+        try { resizeObserver.disconnect(); } catch {}
+      }
       if (state.campaignEditorContext?.keyHandler) {
         document.removeEventListener('keydown', state.campaignEditorContext.keyHandler);
       }
@@ -8105,7 +8157,7 @@ function finishOnboarding() {
         body: JSON.stringify({
           messages:    outboundMessages,
           personality: state.autoDetectMode ? 'auto' : state.personality,
-          imageProvider: state.imageProvider || 'gemini',
+          imageProvider: state.imageProvider || 'auto',
           liveResearchMode: state.liveResearchMode || 'auto',
           userProfile: profile,
           memoryKey: getMemoryKey(),
@@ -8529,10 +8581,10 @@ function openSettingsPage() {
               <option value="auto" ${state.imageProvider === 'auto' ? 'selected' : ''}>Let Nabad choose</option>
               <option value="openai" ${state.imageProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
               <option value="gemini" ${state.imageProvider === 'gemini' ? 'selected' : ''}>Gemini</option>
-              <option value="nanobanana" ${state.imageProvider === 'nanobanana' ? 'selected' : ''}>Nano Banana (Gemini)</option>
               <option value="ideogram" ${state.imageProvider === 'ideogram' ? 'selected' : ''}>Ideogram</option>
               <option value="replicate" ${state.imageProvider === 'replicate' ? 'selected' : ''}>Replicate</option>
-              <option value="pollinations" ${state.imageProvider === 'pollinations' ? 'selected' : ''}>Draft (Free)</option>
+              <option value="pollinations" ${state.imageProvider === 'pollinations' ? 'selected' : ''}>Pollinations</option>
+              <option value="huggingface" ${state.imageProvider === 'huggingface' ? 'selected' : ''}>Hugging Face</option>
             </select>
           </div>
 
@@ -8705,7 +8757,7 @@ function openSettingsPage() {
   if (imageProviderSelect) {
     imageProviderSelect.addEventListener('change', () => {
       const next = (imageProviderSelect.value || 'auto').toLowerCase();
-      state.imageProvider = ['auto', 'openai', 'gemini', 'nanobanana', 'ideogram', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
+      state.imageProvider = ['auto', 'openai', 'gemini', 'ideogram', 'pollinations', 'replicate', 'huggingface'].includes(next) ? next : 'auto';
       saveImageProvider(state.imageProvider);
     });
   }
@@ -9773,7 +9825,8 @@ function setSendState(stateLabel) {
     window.__NABAD_SET_PERSONALITY__ = (id) => setActivePersonality(String(id || 'auto'));
     window.__NABAD_SET_IMAGE_PROVIDER__ = (provider) => {
       const next = String(provider || 'auto').toLowerCase();
-      state.imageProvider = ['auto', 'openai', 'gemini', 'nanobanana', 'ideogram', 'pollinations', 'replicate'].includes(next) ? next : 'auto';
+      const normalized = next === 'nanobanana' ? 'gemini' : next;
+      state.imageProvider = ['auto', 'openai', 'gemini', 'ideogram', 'pollinations', 'replicate', 'huggingface'].includes(normalized) ? normalized : 'auto';
       saveImageProvider(state.imageProvider);
     };
     window.__NABAD_NEW_CHAT__ = () => newChat();
