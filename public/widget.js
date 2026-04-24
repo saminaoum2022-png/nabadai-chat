@@ -3865,6 +3865,30 @@ function showPersonalityPill(id) {
         height: 100%;
         display: block;
       }
+      @media (max-width: 900px) {
+        .nabad-editor-shell {
+          padding: 8px 6px 10px;
+          gap: 8px;
+        }
+        .nabad-editor-topbar {
+          position: sticky;
+          top: 0;
+          z-index: 12;
+          padding: 6px 4px;
+          background: linear-gradient(180deg, rgba(238,243,251,0.96), rgba(238,243,251,0.86));
+          border-radius: 10px;
+        }
+        .nabad-editor-toolbar {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          overflow-y: hidden;
+          -webkit-overflow-scrolling: touch;
+          white-space: nowrap;
+        }
+        .nabad-editor-tool {
+          flex: 0 0 auto;
+        }
+      }
       .nabad-editor-stage-busy {
         box-shadow: 0 0 0 1px rgba(37,99,235,0.2), 0 0 24px rgba(37,99,235,0.28);
       }
@@ -5945,12 +5969,18 @@ function finishOnboarding() {
   }
 
   function hideChatForEditorMode() {
+    try {
+      window.dispatchEvent(new CustomEvent('nabad:editor-mode', { detail: { open: true } }));
+    } catch {}
     if (refs.header) refs.header.style.display = 'none';
     const inputWrap = document.getElementById('nabad-input-wrap');
     if (inputWrap) inputWrap.style.display = 'none';
   }
 
   function restoreChatAfterEditorMode() {
+    try {
+      window.dispatchEvent(new CustomEvent('nabad:editor-mode', { detail: { open: false } }));
+    } catch {}
     if (refs.header) refs.header.style.display = '';
     const inputWrap = document.getElementById('nabad-input-wrap');
     if (inputWrap) inputWrap.style.display = 'flex';
@@ -5983,6 +6013,9 @@ function finishOnboarding() {
             <div class="nabad-editor-title">Nabad Editor</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button type="button" class="nabad-editor-btn" id="nabad-editor-back">Back</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-undo">Undo</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-redo">Redo</button>
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-upload">Upload photo</button>
               <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete selected</button>
               <button type="button" class="nabad-editor-btn" id="nabad-editor-regenerate">Regenerate image</button>
               <button type="button" class="nabad-editor-btn" id="nabad-editor-rewrite">Rewrite copy</button>
@@ -6057,6 +6090,9 @@ function finishOnboarding() {
       `;
 
       const backBtn = document.getElementById('nabad-editor-back');
+      const undoBtn = document.getElementById('nabad-editor-undo');
+      const redoBtn = document.getElementById('nabad-editor-redo');
+      const uploadBtn = document.getElementById('nabad-editor-upload');
       const deleteBtn = document.getElementById('nabad-editor-delete');
       const regenerateBtn = document.getElementById('nabad-editor-regenerate');
       const rewriteBtn = document.getElementById('nabad-editor-rewrite');
@@ -6116,6 +6152,7 @@ function finishOnboarding() {
         }
         try { state.campaignEditorContext?.canvas?.dispose?.(); } catch {}
         state.campaignEditorContext = null;
+        try { delete window.__NABAD_EDITOR_DO__; } catch {}
         restoreChatAfterEditorMode();
       });
 
@@ -6216,6 +6253,7 @@ function finishOnboarding() {
             fabricCanvas.remove(backgroundObj);
           }
           backgroundObj = img;
+          backgroundObj.set('nabadRole', 'background');
           fabricCanvas.insertAt(backgroundObj, 0, false);
           setBackgroundLockState(backgroundLocked);
           backgroundObj.sendToBack();
@@ -6226,7 +6264,7 @@ function finishOnboarding() {
 
       await setBackgroundFromUrl(image.url);
 
-      const headlineObj = new window.fabric.IText(cleanText(campaignData.headline || 'Your headline', 180), {
+      let headlineObj = new window.fabric.IText(cleanText(campaignData.headline || 'Your headline', 180), {
         left: fabricCanvas.getWidth() * 0.08,
         top: fabricCanvas.getHeight() * 0.11,
         fontSize: Number(typography.headlineSize || 0) || Math.max(26, Math.round(fabricCanvas.getWidth() * 0.055)),
@@ -6236,8 +6274,9 @@ function finishOnboarding() {
         shadow: 'rgba(0,0,0,0.35) 0 2px 10px',
         editable: true
       });
+      headlineObj.set('nabadRole', 'headline');
 
-      const subtextObj = new window.fabric.IText(cleanText(campaignData.subtext || 'Your subtext', 220), {
+      let subtextObj = new window.fabric.IText(cleanText(campaignData.subtext || 'Your subtext', 220), {
         left: fabricCanvas.getWidth() * 0.08,
         top: fabricCanvas.getHeight() * 0.73,
         fontSize: Number(typography.subtextSize || 0) || Math.max(16, Math.round(fabricCanvas.getWidth() * 0.025)),
@@ -6247,8 +6286,9 @@ function finishOnboarding() {
         shadow: 'rgba(0,0,0,0.35) 0 2px 10px',
         editable: true
       });
+      subtextObj.set('nabadRole', 'subtext');
 
-      const ctaObj = new window.fabric.IText(cleanText(campaignData.ctaText || 'Start now', 120), {
+      let ctaObj = new window.fabric.IText(cleanText(campaignData.ctaText || 'Start now', 120), {
         left: fabricCanvas.getWidth() * 0.66,
         top: fabricCanvas.getHeight() * 0.78,
         fontSize: Number(typography.ctaSize || 0) || Math.max(14, Math.round(fabricCanvas.getWidth() * 0.022)),
@@ -6258,8 +6298,9 @@ function finishOnboarding() {
         editable: true
       });
       ctaObj.isCtaText = true;
+      ctaObj.set('nabadRole', 'cta');
 
-      const brandMarkObj = new window.fabric.IText('nabadai.com', {
+      let brandMarkObj = new window.fabric.IText('nabadai.com', {
         left: fabricCanvas.getWidth() * 0.79,
         top: fabricCanvas.getHeight() * 0.04,
         fontSize: Math.max(11, Math.round(fabricCanvas.getWidth() * 0.015)),
@@ -6268,8 +6309,9 @@ function finishOnboarding() {
         fontFamily: defaultFont,
         editable: true
       });
+      brandMarkObj.set('nabadRole', 'brand');
 
-      const ctaBg = new window.fabric.Rect({
+      let ctaBg = new window.fabric.Rect({
         left: ctaObj.left - 14,
         top: ctaObj.top - 8,
         width: Math.max(140, (ctaObj.width || 120) + 28),
@@ -6282,6 +6324,7 @@ function finishOnboarding() {
         selectable: false,
         evented: false
       });
+      ctaBg.set('nabadRole', 'ctaBg');
 
       const syncCtaBackground = () => {
         const padX = 14;
@@ -6314,19 +6357,79 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       };
 
-      ctaObj.on('moving', syncCtaBackground);
-      ctaObj.on('scaling', syncCtaBackground);
-      ctaObj.on('changed', () => {
-        syncCtaBackground();
-        fabricCanvas.renderAll();
-      });
-      ctaObj.on('modified', syncCtaBackground);
+      const attachCtaListeners = () => {
+        if (!ctaObj) return;
+        ctaObj.off('moving', syncCtaBackground);
+        ctaObj.off('scaling', syncCtaBackground);
+        ctaObj.off('modified', syncCtaBackground);
+        ctaObj.off('changed');
+        ctaObj.on('moving', syncCtaBackground);
+        ctaObj.on('scaling', syncCtaBackground);
+        ctaObj.on('modified', syncCtaBackground);
+        ctaObj.on('changed', () => {
+          syncCtaBackground();
+          fabricCanvas.renderAll();
+        });
+      };
+      attachCtaListeners();
 
       fabricCanvas.add(ctaBg, headlineObj, subtextObj, ctaObj, brandMarkObj);
       syncCtaBackground();
       applyCtaStyle('solid');
       fabricCanvas.setActiveObject(headlineObj);
       fabricCanvas.renderAll();
+
+      const getByRole = (role = '') => fabricCanvas.getObjects().find((obj) => cleanText(obj?.nabadRole || '', 24) === role);
+      const refreshCoreRefs = () => {
+        headlineObj = getByRole('headline') || headlineObj;
+        subtextObj = getByRole('subtext') || subtextObj;
+        ctaObj = getByRole('cta') || ctaObj;
+        ctaBg = getByRole('ctaBg') || ctaBg;
+        brandMarkObj = getByRole('brand') || brandMarkObj;
+        backgroundObj = getByRole('background') || backgroundObj;
+        if (backgroundObj) {
+          backgroundObj.set({
+            selectable: !backgroundLocked,
+            evented: !backgroundLocked,
+            hasControls: !backgroundLocked,
+            hasBorders: !backgroundLocked
+          });
+          backgroundObj.sendToBack();
+        }
+        attachCtaListeners();
+        syncCtaBackground();
+      };
+
+      let undoStack = [];
+      let redoStack = [];
+      let historyMuted = true;
+      const updateHistoryButtons = () => {
+        if (undoBtn) undoBtn.disabled = undoStack.length <= 1;
+        if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+      };
+      const snapshotEditorState = () => JSON.stringify(fabricCanvas.toJSON(['nabadRole', 'isCtaText']));
+      const pushHistory = () => {
+        if (historyMuted) return;
+        const snap = snapshotEditorState();
+        if (undoStack[undoStack.length - 1] === snap) return;
+        undoStack.push(snap);
+        if (undoStack.length > 60) undoStack.shift();
+        redoStack = [];
+        updateHistoryButtons();
+      };
+      const restoreSnapshot = async (snap) => {
+        if (!snap) return;
+        historyMuted = true;
+        await new Promise((resolve) => {
+          fabricCanvas.loadFromJSON(JSON.parse(snap), () => {
+            fabricCanvas.renderAll();
+            resolve();
+          });
+        });
+        refreshCoreRefs();
+        historyMuted = false;
+        updateControlFromActive();
+      };
 
       const isTextLikeObject = (obj) => !!obj && (
         obj.type === 'i-text' ||
@@ -6368,6 +6471,10 @@ function finishOnboarding() {
       fabricCanvas.on('mouse:down', (ev) => {
         if (!ev.target) updateControlFromActive();
       });
+      fabricCanvas.on('object:added', pushHistory);
+      fabricCanvas.on('object:modified', pushHistory);
+      fabricCanvas.on('object:removed', pushHistory);
+      fabricCanvas.on('text:changed', pushHistory);
 
       fontFamilySelect?.addEventListener('change', () => {
         const obj = fabricCanvas.getActiveObject();
@@ -6593,6 +6700,23 @@ function finishOnboarding() {
         shapeSelect.value = '';
       });
       deleteBtn?.addEventListener('click', deleteSelectedObject);
+      uploadBtn?.addEventListener('click', () => objectFile?.click());
+      undoBtn?.addEventListener('click', async () => {
+        if (undoStack.length <= 1) return;
+        const current = undoStack.pop();
+        if (current) redoStack.push(current);
+        const prev = undoStack[undoStack.length - 1];
+        await restoreSnapshot(prev);
+        updateHistoryButtons();
+      });
+      redoBtn?.addEventListener('click', async () => {
+        if (!redoStack.length) return;
+        const snap = redoStack.pop();
+        if (!snap) return;
+        undoStack.push(snap);
+        await restoreSnapshot(snap);
+        updateHistoryButtons();
+      });
 
       objectFile?.addEventListener('change', () => {
         const file = objectFile.files?.[0];
@@ -6730,12 +6854,52 @@ function finishOnboarding() {
         }
       });
 
+      const runExternalEditorAction = async (action = '', payload = {}) => {
+        const key = cleanText(action, 40).toLowerCase();
+        if (!key) return false;
+        if (key === 'undo') {
+          undoBtn?.click();
+          return true;
+        }
+        if (key === 'redo') {
+          redoBtn?.click();
+          return true;
+        }
+        if (key === 'save') {
+          saveBtn?.click();
+          return true;
+        }
+        if (key === 'upload') {
+          uploadBtn?.click();
+          return true;
+        }
+        if (key === 'back_chat') {
+          backBtn?.click();
+          return true;
+        }
+        if (key === 'open_settings') {
+          backBtn?.click();
+          setTimeout(() => openSettingsPage(), 120);
+          return true;
+        }
+        if (key === 'set_layer_action') {
+          const nextAction = cleanText(payload?.value || '', 40);
+          if (!nextAction || !layerActionSelect) return false;
+          layerActionSelect.value = nextAction;
+          layerActionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
+        return false;
+      };
+      window.__NABAD_EDITOR_DO__ = runExternalEditorAction;
+
       state.campaignEditorContext = {
         canvas: fabricCanvas,
         payload: campaignData,
         imageUrl: image.url,
         background: backgroundObj,
-        keyHandler
+        keyHandler,
+        runExternalEditorAction
       };
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
@@ -6743,12 +6907,17 @@ function finishOnboarding() {
       if (textTargetInput) textTargetInput.value = 'Headline';
       setBackgroundLockState(true);
       setTextControlsEnabled(true);
+      historyMuted = false;
+      undoStack = [snapshotEditorState()];
+      redoStack = [];
+      updateHistoryButtons();
       hideEditorBusy();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
       if (state.campaignEditorContext?.keyHandler) {
         document.removeEventListener('keydown', state.campaignEditorContext.keyHandler);
       }
+      try { delete window.__NABAD_EDITOR_DO__; } catch {}
       restoreChatAfterEditorMode();
       renderMessage('assistant', '<p>⚠️ Could not open campaign editor right now. Please try again.</p>');
       hideEditorBusy();
