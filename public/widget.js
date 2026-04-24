@@ -3841,6 +3841,11 @@ function showPersonalityPill(id) {
         display: inline-flex;
         align-items: center;
         gap: 8px;
+        min-width: 0;
+      }
+      .nabad-editor-top-right {
+        flex-wrap: wrap;
+        justify-content: flex-end;
       }
       .nabad-editor-title {
         font-size: 14px;
@@ -4369,17 +4374,29 @@ function showPersonalityPill(id) {
           top: 0;
           z-index: 20;
           flex-wrap: wrap;
-          align-items: flex-start;
+          align-items: stretch;
+        }
+        .nabad-editor-top-left,
+        .nabad-editor-top-right {
+          width: 100%;
+        }
+        .nabad-editor-top-left {
+          justify-content: flex-start;
+        }
+        .nabad-editor-top-right {
+          justify-content: flex-start;
+          gap: 6px;
+        }
+        .nabad-editor-top-right .nabad-editor-select {
+          flex: 1 1 180px;
+          max-width: 100%;
         }
         .nabad-editor-top-left .nabad-editor-title {
           font-size: 13px;
         }
         .nabad-editor-panel.left,
         .nabad-editor-panel.right {
-          max-height: 220px;
-        }
-        .nabad-editor-panel.left {
-          display: none;
+          max-height: min(34vh, 320px);
         }
         .nabad-editor-context-row {
           flex-wrap: nowrap;
