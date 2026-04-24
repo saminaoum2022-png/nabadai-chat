@@ -22,18 +22,31 @@ export async function loadBackgroundRemovalIfNeeded() {
     return window.__NABAD_BG_REMOVAL__.removeBackground;
   }
   if (!bgRemovalLoadPromise) {
-    bgRemovalLoadPromise = import('https://esm.sh/@imgly/background-removal?bundle')
-      .then((mod) => {
-        const removeBackgroundFn =
-          mod?.removeBackground ||
-          mod?.default?.removeBackground ||
-          mod?.default;
-        if (typeof removeBackgroundFn !== 'function') {
-          throw new Error('Background removal module did not expose removeBackground().');
+    const candidates = [
+      'https://esm.sh/@imgly/background-removal?bundle',
+      'https://cdn.jsdelivr.net/npm/@imgly/background-removal/+esm',
+      'https://unpkg.com/@imgly/background-removal?module'
+    ];
+    bgRemovalLoadPromise = (async () => {
+      let lastErr = null;
+      for (const url of candidates) {
+        try {
+          const mod = await import(url);
+          const removeBackgroundFn =
+            mod?.removeBackground ||
+            mod?.default?.removeBackground ||
+            mod?.default;
+          if (typeof removeBackgroundFn !== 'function') {
+            throw new Error('removeBackground() missing');
+          }
+          window.__NABAD_BG_REMOVAL__ = { removeBackground: removeBackgroundFn };
+          return removeBackgroundFn;
+        } catch (err) {
+          lastErr = err;
         }
-        window.__NABAD_BG_REMOVAL__ = { removeBackground: removeBackgroundFn };
-        return removeBackgroundFn;
-      });
+      }
+      throw lastErr || new Error('Failed to load background removal module.');
+    })();
   }
   return bgRemovalLoadPromise;
 }
