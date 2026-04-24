@@ -4086,6 +4086,81 @@ function showPersonalityPill(id) {
       .nabad-editor-workspace-glow.mode-removebg .glow-center {
         background: radial-gradient(circle, rgba(125,211,252,0.26) 0%, rgba(14,165,233,0.14) 38%, rgba(15,23,42,0) 74%);
       }
+      .nabad-editor-new-project {
+        position: absolute;
+        inset: 0;
+        z-index: 40;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        background: rgba(15,23,42,0.42);
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+      }
+      .nabad-editor-new-project.show {
+        display: flex;
+      }
+      .nabad-editor-new-project-card {
+        width: min(92vw, 520px);
+        background: #fff;
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 14px;
+        box-shadow: 0 18px 36px rgba(15,23,42,0.2);
+        padding: 14px;
+      }
+      .nabad-editor-new-project-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 4px;
+      }
+      .nabad-editor-new-project-sub {
+        font-size: 12px;
+        color: #334155;
+        margin-bottom: 10px;
+      }
+      .nabad-editor-new-project-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .nabad-editor-new-project-btn {
+        border: 1px solid rgba(37,99,235,0.18);
+        background: #fff;
+        color: #1e3a8a;
+        border-radius: 10px;
+        padding: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .nabad-editor-new-project-btn.active {
+        background: linear-gradient(135deg,#2563eb,#06b6d4);
+        color: #fff;
+        border-color: transparent;
+      }
+      .nabad-editor-new-project-custom {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .nabad-editor-new-project-custom input {
+        width: 100px;
+        height: 32px;
+        border: 1px solid rgba(37,99,235,0.2);
+        border-radius: 10px;
+        padding: 0 8px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #1e3a8a;
+      }
+      .nabad-editor-new-project-actions {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-end;
+      }
       @keyframes nabadWorkspaceGlowPulse {
         0%, 100% { transform: translate(-50%, -50%) scale(0.96); opacity: 0.62; }
         50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
@@ -6355,6 +6430,7 @@ function finishOnboarding() {
   async function openCampaignCanvasEditorFromData(campaignData = {}) {
     const prompt = cleanText(campaignData.imagePrompt || '', 1200);
     const startBlank = !!campaignData.editorStartBlank;
+    const isNewProjectFlow = !!campaignData.editorNeedsNewProject;
     if (!prompt && !startBlank) {
       renderMessage('assistant', '<p>Campaign prompt is missing. Please ask Nabad to generate the campaign draft again.</p>');
       return;
@@ -6457,6 +6533,26 @@ function finishOnboarding() {
                 <div id="nabad-workspace-glow" class="nabad-editor-workspace-glow" hidden>
                   <div class="glow-center"></div>
                   <div id="nabad-workspace-glow-text" class="glow-label">Nabad is generating...</div>
+                </div>
+                <div id="nabad-new-project-gate" class="nabad-editor-new-project ${startBlank && campaignData.editorNeedsNewProject ? 'show' : ''}">
+                  <div class="nabad-editor-new-project-card">
+                    <div class="nabad-editor-new-project-title">Create New Project</div>
+                    <div class="nabad-editor-new-project-sub">Choose your working ratio to start an empty canvas.</div>
+                    <div class="nabad-editor-new-project-grid" id="nabad-new-project-ratios">
+                      <button type="button" class="nabad-editor-new-project-btn active" data-ratio="landscape">Landscape 1920×1080</button>
+                      <button type="button" class="nabad-editor-new-project-btn" data-ratio="story">Story 1080×1920</button>
+                      <button type="button" class="nabad-editor-new-project-btn" data-ratio="square">Square 1080×1080</button>
+                      <button type="button" class="nabad-editor-new-project-btn" data-ratio="custom">Custom</button>
+                    </div>
+                    <div id="nabad-new-project-custom" class="nabad-editor-new-project-custom" hidden>
+                      <input id="nabad-new-project-custom-w" type="number" min="240" max="4096" step="1" value="1920" />
+                      <span>×</span>
+                      <input id="nabad-new-project-custom-h" type="number" min="240" max="4096" step="1" value="1080" />
+                    </div>
+                    <div class="nabad-editor-new-project-actions">
+                      <button type="button" class="nabad-editor-btn primary" id="nabad-new-project-create">Create Project</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -6642,6 +6738,12 @@ function finishOnboarding() {
       const workspaceEl = document.getElementById('nabad-workspace');
       const workspaceGlowEl = document.getElementById('nabad-workspace-glow');
       const workspaceGlowTextEl = document.getElementById('nabad-workspace-glow-text');
+      const newProjectGateEl = document.getElementById('nabad-new-project-gate');
+      const newProjectRatiosWrap = document.getElementById('nabad-new-project-ratios');
+      const newProjectCustomWrap = document.getElementById('nabad-new-project-custom');
+      const newProjectCustomW = document.getElementById('nabad-new-project-custom-w');
+      const newProjectCustomH = document.getElementById('nabad-new-project-custom-h');
+      const newProjectCreateBtn = document.getElementById('nabad-new-project-create');
       const viewportEl = document.getElementById('nabad-canvas-viewport');
       const stageSurfaceEl = document.getElementById('nabad-canvas-stage');
       const campaignCardEl = document.getElementById('nabad-campaign-card');
@@ -6832,7 +6934,7 @@ function finishOnboarding() {
 
       await setBackgroundFromUrl(image.url);
 
-      let headlineObj = new window.fabric.IText(cleanText(campaignData.headline || 'Your headline', 180), {
+      let headlineObj = new window.fabric.IText(cleanText(campaignData.headline || (isNewProjectFlow ? '' : 'Your headline'), 180), {
         left: fabricCanvas.getWidth() * 0.08,
         top: fabricCanvas.getHeight() * 0.11,
         fontSize: Number(typography.headlineSize || 0) || Math.max(26, Math.round(fabricCanvas.getWidth() * 0.055)),
@@ -6844,7 +6946,7 @@ function finishOnboarding() {
       });
       headlineObj.set('nabadRole', 'headline');
 
-      let subtextObj = new window.fabric.IText(cleanText(campaignData.subtext || 'Your subtext', 220), {
+      let subtextObj = new window.fabric.IText(cleanText(campaignData.subtext || (isNewProjectFlow ? '' : 'Your subtext'), 220), {
         left: fabricCanvas.getWidth() * 0.08,
         top: fabricCanvas.getHeight() * 0.73,
         fontSize: Number(typography.subtextSize || 0) || Math.max(16, Math.round(fabricCanvas.getWidth() * 0.025)),
@@ -6856,7 +6958,7 @@ function finishOnboarding() {
       });
       subtextObj.set('nabadRole', 'subtext');
 
-      let ctaObj = new window.fabric.IText(cleanText(campaignData.ctaText || 'Start now', 120), {
+      let ctaObj = new window.fabric.IText(cleanText(campaignData.ctaText || (isNewProjectFlow ? '' : 'Start now'), 120), {
         left: fabricCanvas.getWidth() * 0.66,
         top: fabricCanvas.getHeight() * 0.78,
         fontSize: Number(typography.ctaSize || 0) || Math.max(14, Math.round(fabricCanvas.getWidth() * 0.022)),
@@ -6868,7 +6970,7 @@ function finishOnboarding() {
       ctaObj.isCtaText = true;
       ctaObj.set('nabadRole', 'cta');
 
-      let brandMarkObj = new window.fabric.IText('nabadai.com', {
+      let brandMarkObj = new window.fabric.IText(isNewProjectFlow ? '' : 'nabadai.com', {
         left: fabricCanvas.getWidth() * 0.79,
         top: fabricCanvas.getHeight() * 0.04,
         fontSize: Math.max(11, Math.round(fabricCanvas.getWidth() * 0.015)),
@@ -6943,6 +7045,13 @@ function finishOnboarding() {
       attachCtaListeners();
 
       fabricCanvas.add(ctaBg, headlineObj, subtextObj, ctaObj, brandMarkObj);
+      if (isNewProjectFlow) {
+        headlineObj.set({ visible: false });
+        subtextObj.set({ visible: false });
+        ctaObj.set({ visible: false });
+        ctaBg.set({ visible: false });
+        brandMarkObj.set({ visible: false });
+      }
       syncCtaBackground();
       applyCtaStyle('solid');
       fabricCanvas.setActiveObject(headlineObj);
@@ -7988,6 +8097,36 @@ function finishOnboarding() {
         if (selectedSizePreset !== 'custom') return;
         clampCustomSize();
         applyResizePreset('custom');
+      });
+      let selectedNewProjectRatio = 'landscape';
+      const setNewProjectRatio = (nextRatio = 'landscape') => {
+        selectedNewProjectRatio = ['landscape', 'story', 'square', 'custom'].includes(nextRatio) ? nextRatio : 'landscape';
+        const ratioButtons = Array.from(newProjectRatiosWrap?.querySelectorAll?.('.nabad-editor-new-project-btn') || []);
+        ratioButtons.forEach((btn) => {
+          btn.classList.toggle('active', btn.getAttribute('data-ratio') === selectedNewProjectRatio);
+        });
+        if (newProjectCustomWrap) newProjectCustomWrap.hidden = selectedNewProjectRatio !== 'custom';
+      };
+      if (newProjectRatiosWrap) {
+        newProjectRatiosWrap.addEventListener('click', (e) => {
+          const btn = e.target?.closest?.('.nabad-editor-new-project-btn');
+          if (!btn) return;
+          setNewProjectRatio(cleanText(btn.getAttribute('data-ratio') || '', 20).toLowerCase());
+        });
+      }
+      setNewProjectRatio('landscape');
+      newProjectCreateBtn?.addEventListener('click', () => {
+        if (selectedNewProjectRatio === 'custom') {
+          const w = Math.max(240, Math.min(4096, Number(newProjectCustomW?.value || 1920)));
+          const h = Math.max(240, Math.min(4096, Number(newProjectCustomH?.value || 1080)));
+          if (customSizeWInput) customSizeWInput.value = String(Math.round(w));
+          if (customSizeHInput) customSizeHInput.value = String(Math.round(h));
+        }
+        applyResizePreset(selectedNewProjectRatio);
+        if (newProjectGateEl) {
+          newProjectGateEl.classList.remove('show');
+          window.setTimeout(() => { newProjectGateEl.hidden = true; }, 180);
+        }
       });
       const onWindowResizeEditor = () => {
         if (!hasUserPannedOrZoomed) {
@@ -9180,15 +9319,12 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
 
   // ── SETTINGS PAGE ─────────────────────────────────────────────
 function openNabadEditorFromMenu() {
-  const p = state.userProfile || {};
-  const brand = cleanText(p.businessName || p.ideaSummary || 'NabadAi', 120);
-  const offer = cleanText(p.whatYouSell || p.biggestChallenge || 'premium AI business support', 220);
-
   const editorPayload = {
-    headline: `${brand}`,
-    subtext: `${offer}`,
-    ctaText: 'Start now',
+    headline: '',
+    subtext: '',
+    ctaText: '',
     editorStartBlank: true,
+    editorNeedsNewProject: true,
     imagePrompt: '',
     platform: 'social',
     format: '16:9',
