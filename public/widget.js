@@ -3801,7 +3801,7 @@ function showPersonalityPill(id) {
         display: flex;
         flex-direction: column;
         gap: 10px;
-        padding: 10px 10px 14px;
+        padding: 10px 10px 12px;
         background: #eef3fb;
       }
       .nabad-editor-topbar {
@@ -3809,11 +3809,27 @@ function showPersonalityPill(id) {
         align-items: center;
         justify-content: space-between;
         gap: 10px;
+        background: #ffffff;
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 12px;
+        padding: 8px 10px;
+      }
+      .nabad-editor-top-left,
+      .nabad-editor-top-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
       }
       .nabad-editor-title {
         font-size: 14px;
         font-weight: 800;
         color: #0f172a;
+        letter-spacing: .01em;
+      }
+      .nabad-editor-divider {
+        width: 1px;
+        height: 22px;
+        background: rgba(148,163,184,0.45);
       }
       .nabad-editor-btn {
         border: 1px solid rgba(37,99,235,0.2);
@@ -3830,29 +3846,65 @@ function showPersonalityPill(id) {
         border-color: transparent;
         color: #fff;
       }
-      .nabad-editor-toolbar {
-        display: flex;
-        gap: 7px;
-        flex-wrap: wrap;
-        align-items: center;
+      .nabad-editor-select {
+        height: 32px;
+        border: 1px solid rgba(37,99,235,0.2);
+        border-radius: 10px;
+        padding: 0 8px;
+        background: #fff;
+        color: #1e3a8a;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .nabad-editor-workspace {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 230px minmax(0, 1fr) 270px;
+        gap: 10px;
+      }
+      .nabad-editor-panel {
         background: #fff;
         border: 1px solid rgba(37,99,235,0.12);
-        border-radius: 10px;
-        padding: 6px;
+        border-radius: 12px;
+        padding: 10px;
+        overflow: auto;
       }
-      .nabad-editor-tool {
+      .nabad-editor-panel h4 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: #2563eb;
+      }
+      .nabad-editor-layer-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .nabad-editor-layer-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 10px;
+        padding: 6px 8px;
+        font-size: 12px;
+        color: #1e293b;
+      }
+      .nabad-editor-layer-item .left {
         display: inline-flex;
         align-items: center;
-        gap: 5px;
-        font-size: 11px;
-        font-weight: 700;
-        color: #334155;
+        gap: 6px;
       }
-      .nabad-editor-tool input[type="range"] {
-        width: 92px;
+      .nabad-editor-panel .add-grid {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 7px;
       }
       .nabad-editor-stage {
-        flex: 1;
         min-height: 320px;
         border: 1px solid rgba(37,99,235,0.16);
         border-radius: 12px;
@@ -3865,28 +3917,96 @@ function showPersonalityPill(id) {
         height: 100%;
         display: block;
       }
-      @media (max-width: 900px) {
+      .nabad-editor-inspector {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .nabad-editor-inspector[hidden] {
+        display: none !important;
+      }
+      .nabad-editor-selected {
+        font-size: 12px;
+        font-weight: 800;
+        color: #1e3a8a;
+      }
+      .nabad-editor-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 11px;
+        color: #334155;
+      }
+      .nabad-editor-field input,
+      .nabad-editor-field select {
+        height: 30px;
+        border: 1px solid rgba(37,99,235,0.2);
+        border-radius: 8px;
+        padding: 0 8px;
+        font-size: 12px;
+        color: #1e3a8a;
+        font-weight: 700;
+        background: #fff;
+      }
+      .nabad-editor-two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .nabad-editor-inline-actions {
+        display: inline-flex;
+        gap: 6px;
+      }
+      .nabad-editor-inline-actions button {
+        min-width: 34px;
+      }
+      .nabad-editor-bottom-ai {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        background: #fff;
+        border: 1px solid rgba(37,99,235,0.16);
+        border-radius: 12px;
+        padding: 8px;
+      }
+      @media (max-width: 1100px) {
+        .nabad-editor-workspace {
+          grid-template-columns: 1fr;
+        }
+        .nabad-editor-panel.left {
+          order: 2;
+        }
+        .nabad-editor-panel.right {
+          order: 3;
+        }
+        .nabad-editor-stage {
+          order: 1;
+          min-height: 360px;
+        }
+      }
+      @media (max-width: 700px) {
         .nabad-editor-shell {
-          padding: 8px 6px 10px;
+          padding: 6px;
           gap: 8px;
         }
         .nabad-editor-topbar {
           position: sticky;
           top: 0;
-          z-index: 12;
-          padding: 6px 4px;
-          background: linear-gradient(180deg, rgba(238,243,251,0.96), rgba(238,243,251,0.86));
-          border-radius: 10px;
+          z-index: 20;
         }
-        .nabad-editor-toolbar {
+        .nabad-editor-top-left .nabad-editor-title {
+          font-size: 13px;
+        }
+        .nabad-editor-panel.left,
+        .nabad-editor-panel.right {
+          max-height: 220px;
+        }
+        .nabad-editor-bottom-ai {
           flex-wrap: nowrap;
           overflow-x: auto;
-          overflow-y: hidden;
-          -webkit-overflow-scrolling: touch;
           white-space: nowrap;
-        }
-        .nabad-editor-tool {
-          flex: 0 0 auto;
+          -webkit-overflow-scrolling: touch;
         }
       }
       .nabad-editor-stage-busy {
@@ -6010,107 +6130,144 @@ function finishOnboarding() {
       refs.messages.innerHTML = `
         <div class="nabad-editor-shell">
           <div class="nabad-editor-topbar">
-            <div class="nabad-editor-title">Nabad Editor</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-back">Back</button>
+            <div class="nabad-editor-top-left">
+              <button type="button" class="nabad-editor-btn" id="nabad-editor-back">← Back</button>
+              <div class="nabad-editor-title">Nabad Editor</div>
+            </div>
+            <div class="nabad-editor-top-right">
               <button type="button" class="nabad-editor-btn" id="nabad-editor-undo">Undo</button>
               <button type="button" class="nabad-editor-btn" id="nabad-editor-redo">Redo</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-upload">Upload photo</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete selected</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-regenerate">Regenerate image</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-rewrite">Rewrite copy</button>
+              <span class="nabad-editor-divider"></span>
+              <select id="nabad-editor-save-size" class="nabad-editor-select" title="Save size">
+                <option value="square">Square 1080×1080</option>
+                <option value="story">Story 1080×1920</option>
+                <option value="landscape" selected>Landscape 1920×1080</option>
+              </select>
               <button type="button" class="nabad-editor-btn primary" id="nabad-editor-save">Save PNG</button>
             </div>
           </div>
-          <div class="nabad-editor-toolbar">
-            <label class="nabad-editor-tool">Image hint
-              <input id="nabad-editor-image-hint" type="text" placeholder="optional visual tweak" style="height:30px;width:170px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:600;" />
-            </label>
-            <label class="nabad-editor-tool">Rewrite hint
-              <input id="nabad-editor-copy-hint" type="text" placeholder="optional messaging angle" style="height:30px;width:170px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:600;" />
-            </label>
-            <label class="nabad-editor-tool">Layering
-              <select id="nabad-editor-layer-action" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
-                <option value="">Layer actions…</option>
-                <option value="add-image-object">Upload image as object</option>
-                <option value="remove-bg">Remove background (selected image)</option>
-                <option value="set-background">Set selected image as background</option>
-                <option value="bring-front">Bring selected to front</option>
-                <option value="send-back">Send selected to back</option>
-              </select>
-            </label>
-            <input id="nabad-editor-object-file" type="file" accept="image/*" hidden />
-            <label class="nabad-editor-tool">Text target
-              <input id="nabad-editor-text-target" type="text" value="No text selected" readonly style="height:30px;width:150px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#f8fbff;color:#1e3a8a;font-weight:700;" />
-            </label>
-            <label class="nabad-editor-tool">Font
-              <select id="nabad-editor-font-family" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
-                <option value="Inter">Inter</option>
-                <option value="Poppins">Poppins</option>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Playfair Display">Playfair Display</option>
-                <option value="Merriweather">Merriweather</option>
-              </select>
-            </label>
-            <label class="nabad-editor-tool">Text size
-              <input id="nabad-editor-text-size" type="range" min="10" max="140" step="1" value="34" />
-            </label>
-            <label class="nabad-editor-tool">Text
-              <input id="nabad-editor-text-color" type="color" value="#ffffff" />
-            </label>
-            <label class="nabad-editor-tool">CTA Fill
-              <input id="nabad-editor-cta-color" type="color" value="#2563eb" />
-            </label>
-            <label class="nabad-editor-tool">CTA Style
-              <select id="nabad-editor-cta-style" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
-                <option value="solid">Solid</option>
-                <option value="outline">Outline</option>
-                <option value="pill">Pill</option>
-                <option value="glass">Glass</option>
-              </select>
-            </label>
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-bg">Replace background</button>
-            <button type="button" class="nabad-editor-btn" id="nabad-editor-bg-lock">Unlock background</button>
-            <label class="nabad-editor-tool">Add object
-              <select id="nabad-editor-shape-select" style="height:30px;border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:0 8px;background:#fff;color:#1e3a8a;font-weight:700;">
-                <option value="">Choose shape…</option>
-                <option value="rect">Rectangle</option>
-                <option value="circle">Circle</option>
-                <option value="line">Line</option>
-                <option value="star">Star</option>
-                <option value="blob">Accent</option>
-              </select>
-            </label>
-            <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
+
+          <div class="nabad-editor-workspace">
+            <aside class="nabad-editor-panel left">
+              <h4>Layers</h4>
+              <div class="nabad-editor-layer-list">
+                <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-headline" checked /> 👁 Headline text</span></label>
+                <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-subtext" checked /> 👁 Subtext</span></label>
+                <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-cta" checked /> 👁 CTA button</span></label>
+                <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-logo" checked /> 👁 Logo</span></label>
+                <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-background" checked /> 👁 Background image</span></label>
+              </div>
+
+              <h4 style="margin-top:14px">Add</h4>
+              <div class="add-grid">
+                <button type="button" class="nabad-editor-btn" id="nabad-add-text">+ Text</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-add-image">+ Image</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-add-shape">+ Shape</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-add-logo">+ Logo</button>
+              </div>
+            </aside>
+
+            <div class="nabad-editor-stage">
+              <canvas id="nabad-editor-canvas" class="nabad-editor-canvas"></canvas>
+            </div>
+
+            <aside class="nabad-editor-panel right" id="nabad-editor-right-panel" hidden>
+              <div class="nabad-editor-inspector">
+                <div class="nabad-editor-selected" id="nabad-selected-label">SELECTED: None</div>
+
+                <h4>Typography</h4>
+                <label class="nabad-editor-field">Font
+                  <select id="nabad-editor-font-family">
+                    <option value="Inter">Inter</option>
+                    <option value="Poppins">Poppins</option>
+                    <option value="Montserrat">Montserrat</option>
+                    <option value="Playfair Display">Playfair Display</option>
+                    <option value="Merriweather">Merriweather</option>
+                  </select>
+                </label>
+                <label class="nabad-editor-field">Size
+                  <input id="nabad-editor-text-size" type="range" min="10" max="160" step="1" value="34" />
+                </label>
+                <div class="nabad-editor-inline-actions">
+                  <button type="button" class="nabad-editor-btn" id="nabad-text-bold">B</button>
+                  <button type="button" class="nabad-editor-btn" id="nabad-text-italic">I</button>
+                  <button type="button" class="nabad-editor-btn" id="nabad-text-underline">U</button>
+                </div>
+                <label class="nabad-editor-field">Color
+                  <input id="nabad-editor-text-color" type="color" value="#ffffff" />
+                </label>
+
+                <h4>Position</h4>
+                <div class="nabad-editor-two-col">
+                  <label class="nabad-editor-field">X<input id="nabad-pos-x" type="number" step="1" /></label>
+                  <label class="nabad-editor-field">Y<input id="nabad-pos-y" type="number" step="1" /></label>
+                  <label class="nabad-editor-field">W<input id="nabad-size-w" type="number" step="1" /></label>
+                  <label class="nabad-editor-field">H<input id="nabad-size-h" type="number" step="1" /></label>
+                </div>
+                <label class="nabad-editor-field">Opacity
+                  <input id="nabad-editor-opacity" type="range" min="0" max="100" step="1" value="100" />
+                </label>
+                <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete element</button>
+              </div>
+            </aside>
           </div>
-          <div class="nabad-editor-stage">
-            <canvas id="nabad-editor-canvas" class="nabad-editor-canvas"></canvas>
+
+          <div class="nabad-editor-bottom-ai">
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-rewrite">✨ Rewrite Copy</button>
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-regenerate">🖼 Swap Background</button>
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-palette">🎨 Color Palette</button>
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-resize">↕ Resize for Platform</button>
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-detect-objects">🧠 Detect Objects</button>
+            <button type="button" class="nabad-editor-btn" id="nabad-editor-detect-text">🔤 Detect Text</button>
+            <button type="button" class="nabad-editor-btn" id="nabad-layer-removebg">Remove BG (Selected)</button>
+            <button type="button" class="nabad-editor-btn" id="nabad-layer-setbg">Set Selected as BG</button>
           </div>
+
+          <input id="nabad-editor-object-file" type="file" accept="image/*" hidden />
+          <input id="nabad-editor-logo-file" type="file" accept="image/*" hidden />
+          <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
         </div>
       `;
 
       const backBtn = document.getElementById('nabad-editor-back');
       const undoBtn = document.getElementById('nabad-editor-undo');
       const redoBtn = document.getElementById('nabad-editor-redo');
-      const uploadBtn = document.getElementById('nabad-editor-upload');
       const deleteBtn = document.getElementById('nabad-editor-delete');
       const regenerateBtn = document.getElementById('nabad-editor-regenerate');
       const rewriteBtn = document.getElementById('nabad-editor-rewrite');
+      const paletteBtn = document.getElementById('nabad-editor-palette');
+      const resizeBtn = document.getElementById('nabad-editor-resize');
+      const detectObjectsBtn = document.getElementById('nabad-editor-detect-objects');
+      const detectTextBtn = document.getElementById('nabad-editor-detect-text');
       const saveBtn = document.getElementById('nabad-editor-save');
-      const bgBtn = document.getElementById('nabad-editor-bg');
-      const bgLockBtn = document.getElementById('nabad-editor-bg-lock');
+      const saveSizeSelect = document.getElementById('nabad-editor-save-size');
+      const rightPanel = document.getElementById('nabad-editor-right-panel');
+      const selectedLabel = document.getElementById('nabad-selected-label');
+      const posXInput = document.getElementById('nabad-pos-x');
+      const posYInput = document.getElementById('nabad-pos-y');
+      const sizeWInput = document.getElementById('nabad-size-w');
+      const sizeHInput = document.getElementById('nabad-size-h');
+      const opacityInput = document.getElementById('nabad-editor-opacity');
+      const textBoldBtn = document.getElementById('nabad-text-bold');
+      const textItalicBtn = document.getElementById('nabad-text-italic');
+      const textUnderlineBtn = document.getElementById('nabad-text-underline');
+      const addTextBtn = document.getElementById('nabad-add-text');
+      const addImageBtn = document.getElementById('nabad-add-image');
+      const addShapeBtn = document.getElementById('nabad-add-shape');
+      const addLogoBtn = document.getElementById('nabad-add-logo');
+      const removeBgBtn = document.getElementById('nabad-layer-removebg');
+      const setBgBtn = document.getElementById('nabad-layer-setbg');
+      const layerHeadline = document.getElementById('nabad-layer-headline');
+      const layerSubtext = document.getElementById('nabad-layer-subtext');
+      const layerCta = document.getElementById('nabad-layer-cta');
+      const layerLogo = document.getElementById('nabad-layer-logo');
+      const layerBackground = document.getElementById('nabad-layer-background');
       const bgFile = document.getElementById('nabad-editor-bg-file');
-      const layerActionSelect = document.getElementById('nabad-editor-layer-action');
       const objectFile = document.getElementById('nabad-editor-object-file');
-      const shapeSelect = document.getElementById('nabad-editor-shape-select');
-      const imageHintInput = document.getElementById('nabad-editor-image-hint');
-      const copyHintInput = document.getElementById('nabad-editor-copy-hint');
-      const textTargetInput = document.getElementById('nabad-editor-text-target');
+      const logoFile = document.getElementById('nabad-editor-logo-file');
       const fontFamilySelect = document.getElementById('nabad-editor-font-family');
       const textSizeRange = document.getElementById('nabad-editor-text-size');
       const textColor = document.getElementById('nabad-editor-text-color');
-      const ctaColor = document.getElementById('nabad-editor-cta-color');
-      const ctaStyleSelect = document.getElementById('nabad-editor-cta-style');
       const stageEl = refs.messages.querySelector('.nabad-editor-stage');
       const canvasEl = document.getElementById('nabad-editor-canvas');
 
@@ -6225,9 +6382,6 @@ function finishOnboarding() {
             fabricCanvas.discardActiveObject();
           }
         }
-        if (bgLockBtn) {
-          bgLockBtn.textContent = backgroundLocked ? 'Unlock background' : 'Lock background';
-        }
         fabricCanvas.renderAll();
       };
 
@@ -6341,17 +6495,18 @@ function finishOnboarding() {
 
       const applyCtaStyle = (styleName = 'solid') => {
         const s = String(styleName || 'solid');
+        const ctaFill = toHexColor(String(ctaBg.fill || '#2563eb'));
         if (s === 'outline') {
-          ctaBg.set({ fill: 'rgba(15,23,42,0.02)', stroke: '#2563eb', strokeWidth: 2, rx: 12, ry: 12, opacity: 1 });
-          ctaObj.set({ fill: '#2563eb' });
+          ctaBg.set({ fill: 'rgba(15,23,42,0.02)', stroke: ctaFill, strokeWidth: 2, rx: 12, ry: 12, opacity: 1 });
+          ctaObj.set({ fill: ctaFill });
         } else if (s === 'pill') {
-          ctaBg.set({ fill: ctaColor.value || '#2563eb', stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1, rx: 22, ry: 22, opacity: 1 });
+          ctaBg.set({ fill: ctaFill, stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1, rx: 22, ry: 22, opacity: 1 });
           ctaObj.set({ fill: '#ffffff' });
         } else if (s === 'glass') {
           ctaBg.set({ fill: 'rgba(255,255,255,0.18)', stroke: 'rgba(255,255,255,0.58)', strokeWidth: 1.4, rx: 16, ry: 16, opacity: 1 });
           ctaObj.set({ fill: '#ffffff' });
         } else {
-          ctaBg.set({ fill: ctaColor.value || '#2563eb', stroke: 'rgba(255,255,255,0.30)', strokeWidth: 1.2, rx: 14, ry: 14, opacity: 1 });
+          ctaBg.set({ fill: ctaFill, stroke: 'rgba(255,255,255,0.30)', strokeWidth: 1.2, rx: 14, ry: 14, opacity: 1 });
           ctaObj.set({ fill: '#ffffff' });
         }
         fabricCanvas.renderAll();
@@ -6446,28 +6601,74 @@ function finishOnboarding() {
         return 'Text object';
       };
 
-      const setTextControlsEnabled = (enabled = false) => {
-        const on = !!enabled;
-        if (fontFamilySelect) fontFamilySelect.disabled = !on;
-        if (textSizeRange) textSizeRange.disabled = !on;
-        if (textColor) textColor.disabled = !on;
+      const getObjectLabel = (obj) => {
+        if (!obj) return 'None';
+        if (obj === headlineObj) return 'Headline';
+        if (obj === subtextObj) return 'Subtext';
+        if (obj === ctaObj || obj === ctaBg) return 'CTA Button';
+        if (obj === brandMarkObj) return 'Logo';
+        if (obj === backgroundObj) return 'Background image';
+        return (obj.type || 'Object').replace('-', ' ');
+      };
+
+      const updateLayerVisibilityControls = () => {
+        if (layerHeadline && headlineObj) layerHeadline.checked = headlineObj.visible !== false;
+        if (layerSubtext && subtextObj) layerSubtext.checked = subtextObj.visible !== false;
+        if (layerCta && ctaObj && ctaBg) layerCta.checked = ctaObj.visible !== false || ctaBg.visible !== false;
+        if (layerLogo && brandMarkObj) layerLogo.checked = brandMarkObj.visible !== false;
+        if (layerBackground && backgroundObj) layerBackground.checked = backgroundObj.visible !== false;
+      };
+
+      const setInspectorEnabled = (enabled = false, isText = false) => {
+        if (fontFamilySelect) fontFamilySelect.disabled = !enabled || !isText;
+        if (textSizeRange) textSizeRange.disabled = !enabled || !isText;
+        if (textColor) textColor.disabled = !enabled || !isText;
+        if (textBoldBtn) textBoldBtn.disabled = !enabled || !isText;
+        if (textItalicBtn) textItalicBtn.disabled = !enabled || !isText;
+        if (textUnderlineBtn) textUnderlineBtn.disabled = !enabled || !isText;
+        if (posXInput) posXInput.disabled = !enabled;
+        if (posYInput) posYInput.disabled = !enabled;
+        if (sizeWInput) sizeWInput.disabled = !enabled;
+        if (sizeHInput) sizeHInput.disabled = !enabled;
+        if (opacityInput) opacityInput.disabled = !enabled;
+        if (deleteBtn) deleteBtn.disabled = !enabled;
       };
 
       const updateControlFromActive = () => {
         const obj = fabricCanvas.getActiveObject();
         const isText = isTextLikeObject(obj);
-        if (textTargetInput) textTargetInput.value = getTextTargetLabel(obj);
-        setTextControlsEnabled(isText);
+        if (selectedLabel) {
+          selectedLabel.textContent = `SELECTED: ${getObjectLabel(obj)}`;
+        }
+        if (rightPanel) rightPanel.hidden = !obj;
+        setInspectorEnabled(!!obj, isText);
+        if (!obj) {
+          updateLayerVisibilityControls();
+          return;
+        }
         if (isText) {
           fontFamilySelect.value = allowedFonts.includes(String(obj.fontFamily || '')) ? String(obj.fontFamily) : defaultFont;
           textColor.value = toHexColor(String(obj.fill || '#ffffff'));
           textSizeRange.value = String(Math.round(obj.fontSize || 34));
+          textBoldBtn.classList.toggle('primary', String(obj.fontWeight || 'normal') !== 'normal');
+          textItalicBtn.classList.toggle('primary', String(obj.fontStyle || 'normal') === 'italic');
+          textUnderlineBtn.classList.toggle('primary', !!obj.underline);
         }
-        ctaColor.value = toHexColor(String(ctaBg.fill || '#2563eb'));
+        const left = Number(obj.left || 0);
+        const top = Number(obj.top || 0);
+        const width = Number((obj.getScaledWidth && obj.getScaledWidth()) || obj.width || 0);
+        const height = Number((obj.getScaledHeight && obj.getScaledHeight()) || obj.height || 0);
+        if (posXInput) posXInput.value = String(Math.round(left));
+        if (posYInput) posYInput.value = String(Math.round(top));
+        if (sizeWInput) sizeWInput.value = String(Math.round(width));
+        if (sizeHInput) sizeHInput.value = String(Math.round(height));
+        if (opacityInput) opacityInput.value = String(Math.round((Number(obj.opacity ?? 1)) * 100));
+        updateLayerVisibilityControls();
       };
 
       fabricCanvas.on('selection:created', updateControlFromActive);
       fabricCanvas.on('selection:updated', updateControlFromActive);
+      fabricCanvas.on('selection:cleared', updateControlFromActive);
       fabricCanvas.on('mouse:down', (ev) => {
         if (!ev.target) updateControlFromActive();
       });
@@ -6497,18 +6698,54 @@ function finishOnboarding() {
         obj.set('fill', textColor.value || '#ffffff');
         fabricCanvas.renderAll();
       });
-      ctaColor?.addEventListener('input', () => {
-        ctaBg.set('fill', ctaColor.value || '#2563eb');
-        if ((ctaStyleSelect?.value || 'solid') === 'outline') {
-          ctaBg.set('stroke', ctaColor.value || '#2563eb');
-          ctaObj.set('fill', ctaColor.value || '#2563eb');
-        }
+
+      textBoldBtn?.addEventListener('click', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!isTextLikeObject(obj)) return;
+        const next = String(obj.fontWeight || 'normal') === 'normal' ? '700' : 'normal';
+        obj.set('fontWeight', next);
+        fabricCanvas.renderAll();
+        updateControlFromActive();
+      });
+      textItalicBtn?.addEventListener('click', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!isTextLikeObject(obj)) return;
+        obj.set('fontStyle', String(obj.fontStyle || 'normal') === 'italic' ? 'normal' : 'italic');
+        fabricCanvas.renderAll();
+        updateControlFromActive();
+      });
+      textUnderlineBtn?.addEventListener('click', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!isTextLikeObject(obj)) return;
+        obj.set('underline', !obj.underline);
+        fabricCanvas.renderAll();
+        updateControlFromActive();
+      });
+
+      const applyPositionAndSize = () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj) return;
+        const nextX = Number(posXInput?.value || obj.left || 0);
+        const nextY = Number(posYInput?.value || obj.top || 0);
+        const nextW = Math.max(1, Number(sizeWInput?.value || (obj.getScaledWidth?.() || obj.width || 1)));
+        const nextH = Math.max(1, Number(sizeHInput?.value || (obj.getScaledHeight?.() || obj.height || 1)));
+        obj.set({ left: nextX, top: nextY });
+        const baseW = Math.max(1, Number(obj.width || 1));
+        const baseH = Math.max(1, Number(obj.height || 1));
+        obj.set({ scaleX: nextW / baseW, scaleY: nextH / baseH });
+        if (obj === ctaObj) syncCtaBackground();
+        fabricCanvas.renderAll();
+      };
+      posXInput?.addEventListener('change', applyPositionAndSize);
+      posYInput?.addEventListener('change', applyPositionAndSize);
+      sizeWInput?.addEventListener('change', applyPositionAndSize);
+      sizeHInput?.addEventListener('change', applyPositionAndSize);
+      opacityInput?.addEventListener('input', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj) return;
+        obj.set('opacity', Math.max(0, Math.min(1, Number(opacityInput.value || 100) / 100)));
         fabricCanvas.renderAll();
       });
-      ctaStyleSelect?.addEventListener('change', () => applyCtaStyle(ctaStyleSelect.value || 'solid'));
-
-      bgBtn?.addEventListener('click', () => bgFile?.click());
-      bgLockBtn?.addEventListener('click', () => setBackgroundLockState(!backgroundLocked));
 
       bgFile?.addEventListener('change', () => {
         const file = bgFile.files?.[0];
@@ -6654,8 +6891,7 @@ function finishOnboarding() {
           return;
         }
         const removeBackground = await loadBackgroundRemovalIfNeeded();
-        const previousLabel = layerActionSelect?.value || '';
-        if (layerActionSelect) layerActionSelect.disabled = true;
+        if (removeBgBtn) removeBgBtn.disabled = true;
         showEditorBusy('Removing background...', 'removebg');
         try {
           const blob = await removeBackground(src);
@@ -6666,10 +6902,7 @@ function finishOnboarding() {
           console.error('[NABAD] remove background error:', err);
           alert('Background remover failed on this image. Try another image or run again.');
         } finally {
-          if (layerActionSelect) {
-            layerActionSelect.disabled = false;
-            layerActionSelect.value = '';
-          }
+          if (removeBgBtn) removeBgBtn.disabled = false;
           hideEditorBusy();
         }
       };
@@ -6693,14 +6926,57 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       };
 
-      shapeSelect?.addEventListener('change', () => {
-        const shape = cleanText(shapeSelect.value || '', 24);
-        if (!shape) return;
-        addShape(shape);
-        shapeSelect.value = '';
-      });
       deleteBtn?.addEventListener('click', deleteSelectedObject);
-      uploadBtn?.addEventListener('click', () => objectFile?.click());
+
+      addTextBtn?.addEventListener('click', () => {
+        const text = new window.fabric.IText('New text', {
+          left: fabricCanvas.getWidth() * 0.35,
+          top: fabricCanvas.getHeight() * 0.45,
+          fontSize: 34,
+          fill: '#ffffff',
+          fontWeight: 700,
+          fontFamily: defaultFont,
+          editable: true,
+          shadow: 'rgba(0,0,0,0.28) 0 2px 8px'
+        });
+        fabricCanvas.add(text);
+        fabricCanvas.setActiveObject(text);
+        fabricCanvas.renderAll();
+      });
+      addImageBtn?.addEventListener('click', () => objectFile?.click());
+      addLogoBtn?.addEventListener('click', () => logoFile?.click());
+      addShapeBtn?.addEventListener('click', () => {
+        const choice = cleanText(window.prompt('Shape type: rect / circle / line / star / blob', 'rect') || 'rect', 20).toLowerCase();
+        const allowed = ['rect', 'circle', 'line', 'star', 'blob'];
+        addShape(allowed.includes(choice) ? choice : 'rect');
+      });
+
+      const toggleLayer = (obj, checked) => {
+        if (!obj) return;
+        obj.set('visible', !!checked);
+      };
+      layerHeadline?.addEventListener('change', () => {
+        toggleLayer(headlineObj, !!layerHeadline.checked);
+        fabricCanvas.renderAll();
+      });
+      layerSubtext?.addEventListener('change', () => {
+        toggleLayer(subtextObj, !!layerSubtext.checked);
+        fabricCanvas.renderAll();
+      });
+      layerCta?.addEventListener('change', () => {
+        toggleLayer(ctaObj, !!layerCta.checked);
+        toggleLayer(ctaBg, !!layerCta.checked);
+        fabricCanvas.renderAll();
+      });
+      layerLogo?.addEventListener('change', () => {
+        toggleLayer(brandMarkObj, !!layerLogo.checked);
+        fabricCanvas.renderAll();
+      });
+      layerBackground?.addEventListener('change', () => {
+        toggleLayer(backgroundObj, !!layerBackground.checked);
+        fabricCanvas.renderAll();
+      });
+
       undoBtn?.addEventListener('click', async () => {
         if (undoStack.length <= 1) return;
         const current = undoStack.pop();
@@ -6731,41 +7007,28 @@ function finishOnboarding() {
         };
         reader.readAsDataURL(file);
       });
-
-      layerActionSelect?.addEventListener('change', async () => {
-        const action = cleanText(layerActionSelect.value || '', 40);
-        if (!action) return;
-        try {
-          if (action === 'add-image-object') {
-            objectFile?.click();
-          } else if (action === 'remove-bg') {
-            await removeSelectedImageBackground();
-          } else if (action === 'set-background') {
-            await setSelectedAsBackground();
-          } else if (action === 'bring-front') {
-            const obj = fabricCanvas.getActiveObject();
-            if (!obj) alert('Select an object first.');
-            else {
-              obj.bringToFront();
-              brandMarkObj.bringToFront();
-              ctaBg.bringToFront();
-              ctaObj.bringToFront();
+      logoFile?.addEventListener('change', () => {
+        const file = logoFile.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const logoObj = await addImageObjectFromSource(String(reader.result || ''));
+            if (logoObj) {
+              logoObj.set('nabadRole', 'brand');
+              logoObj.set({ left: fabricCanvas.getWidth() * 0.78, top: fabricCanvas.getHeight() * 0.05 });
+              if (brandMarkObj && brandMarkObj !== logoObj) {
+                fabricCanvas.remove(brandMarkObj);
+              }
+              brandMarkObj = logoObj;
               fabricCanvas.renderAll();
+              updateLayerVisibilityControls();
             }
-          } else if (action === 'send-back') {
-            const obj = fabricCanvas.getActiveObject();
-            if (!obj) alert('Select an object first.');
-            else {
-              obj.sendBackwards();
-              if (backgroundObj) backgroundObj.sendToBack();
-              fabricCanvas.renderAll();
-            }
+          } catch {
+            alert('Could not add logo image.');
           }
-        } finally {
-          if (layerActionSelect && layerActionSelect.value !== '') {
-            layerActionSelect.value = '';
-          }
-        }
+        };
+        reader.readAsDataURL(file);
       });
 
       regenerateBtn?.addEventListener('click', async () => {
@@ -6774,7 +7037,7 @@ function finishOnboarding() {
         regenerateBtn.textContent = 'Regenerating...';
         showEditorBusy('Regenerating image...', 'regenerate');
         try {
-          const tweak = cleanText(imageHintInput?.value || '', 220);
+          const tweak = cleanText(window.prompt('Swap Background: optional hint (style, mood, colors)', '') || '', 220);
           const basePrompt = cleanText(campaignData.imagePrompt || prompt, 1200);
           const variantPrompt = cleanText(
             `${basePrompt} Create a distinctly different composition and scene from previous version. ${tweak ? `Extra direction: ${tweak}.` : ''}`,
@@ -6800,6 +7063,7 @@ function finishOnboarding() {
         rewriteBtn.textContent = 'Rewriting...';
         showEditorBusy('Rewriting campaign text...', 'rewrite');
         try {
+          const rewriteHint = cleanText(window.prompt('Rewrite Copy: optional angle (urgent, premium, playful, etc.)', '') || '', 220);
           const rewritten = await fetchCampaignRewriteCopy({
             headline: cleanText(headlineObj.text || '', 220),
             subtext: cleanText(subtextObj.text || '', 260),
@@ -6811,7 +7075,7 @@ function finishOnboarding() {
             visualStyle: cleanText(campaignData.visualStyle || '', 140),
             platform: cleanText(campaignData.platform || '', 80),
             format: cleanText(campaignData.format || '', 50),
-            rewriteHint: cleanText(copyHintInput?.value || '', 220)
+            rewriteHint
           });
           if (rewritten.headline) headlineObj.set('text', rewritten.headline);
           if (rewritten.subtext) subtextObj.set('text', rewritten.subtext);
@@ -6839,15 +7103,254 @@ function finishOnboarding() {
       };
       document.addEventListener('keydown', keyHandler);
 
+      removeBgBtn?.addEventListener('click', async () => {
+        await removeSelectedImageBackground();
+      });
+      setBgBtn?.addEventListener('click', async () => {
+        await setSelectedAsBackground();
+      });
+
+      paletteBtn?.addEventListener('click', () => {
+        const palette = cleanText(window.prompt('Color palette: ocean / sunset / mono / neon', 'ocean') || 'ocean', 20).toLowerCase();
+        const palettes = {
+          ocean: { title: '#ffffff', sub: '#e0f2fe', cta: '#0ea5e9', brand: '#bae6fd' },
+          sunset: { title: '#fff7ed', sub: '#fed7aa', cta: '#f97316', brand: '#fdba74' },
+          mono: { title: '#f8fafc', sub: '#d1d5db', cta: '#334155', brand: '#cbd5e1' },
+          neon: { title: '#fef9ff', sub: '#f0abfc', cta: '#d946ef', brand: '#e879f9' }
+        };
+        const p = palettes[palette] || palettes.ocean;
+        headlineObj?.set('fill', p.title);
+        subtextObj?.set('fill', p.sub);
+        brandMarkObj?.set('fill', p.brand);
+        ctaBg?.set('fill', p.cta);
+        applyCtaStyle('solid');
+        fabricCanvas.renderAll();
+      });
+
+      const getBackgroundSource = () => {
+        if (!backgroundObj) return '';
+        if (typeof backgroundObj.getSrc === 'function') return String(backgroundObj.getSrc() || '');
+        return String(backgroundObj._element?.src || '');
+      };
+
+      const loadScriptOnce = (id, src) => new Promise((resolve, reject) => {
+        const existing = document.getElementById(id);
+        if (existing) return resolve();
+        const script = document.createElement('script');
+        script.id = id;
+        script.src = src;
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = (e) => reject(e);
+        document.head.appendChild(script);
+      });
+
+      const loadCocoSsd = async () => {
+        await loadScriptOnce('nabad-tfjs', 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
+        await loadScriptOnce('nabad-coco-ssd', 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js');
+        if (!window.cocoSsd || !window.cocoSsd.load) {
+          throw new Error('COCO-SSD failed to load');
+        }
+        return window.cocoSsd.load();
+      };
+
+      const loadTesseract = async () => {
+        await loadScriptOnce('nabad-tesseract', 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+        if (!window.Tesseract || !window.Tesseract.recognize) {
+          throw new Error('Tesseract failed to load');
+        }
+        return window.Tesseract;
+      };
+
+      detectObjectsBtn?.addEventListener('click', async () => {
+        try {
+          const src = getBackgroundSource();
+          if (!src) return alert('Background image not found.');
+          showEditorBusy('Detecting objects...', 'regenerate');
+          const model = await loadCocoSsd();
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = src;
+          });
+          const detections = await model.detect(img);
+          if (!Array.isArray(detections) || !detections.length) {
+            alert('No clear objects detected in this image.');
+            return;
+          }
+          const cw = fabricCanvas.getWidth();
+          const ch = fabricCanvas.getHeight();
+          const rx = cw / Math.max(1, img.naturalWidth || img.width || cw);
+          const ry = ch / Math.max(1, img.naturalHeight || img.height || ch);
+          detections.slice(0, 12).forEach((d) => {
+            const [x, y, w, h] = d.bbox || [];
+            if (!w || !h) return;
+            const rect = new window.fabric.Rect({
+              left: x * rx,
+              top: y * ry,
+              width: Math.max(12, w * rx),
+              height: Math.max(12, h * ry),
+              fill: 'rgba(14,165,233,0.12)',
+              stroke: '#0ea5e9',
+              strokeWidth: 1.5
+            });
+            const tag = new window.fabric.IText(cleanText(String(d.class || 'object'), 24), {
+              left: x * rx + 6,
+              top: y * ry - 18,
+              fontSize: 14,
+              fill: '#0f172a',
+              fontWeight: 700,
+              fontFamily: defaultFont
+            });
+            fabricCanvas.add(rect, tag);
+          });
+          fabricCanvas.renderAll();
+        } catch (err) {
+          console.error('[NABAD] detect objects error:', err);
+          alert('Object detection unavailable in this browser right now.');
+        } finally {
+          hideEditorBusy();
+        }
+      });
+
+      detectTextBtn?.addEventListener('click', async () => {
+        try {
+          const src = getBackgroundSource();
+          if (!src) return alert('Background image not found.');
+          showEditorBusy('Detecting text...', 'rewrite');
+          const Tesseract = await loadTesseract();
+          const result = await Tesseract.recognize(src, 'eng');
+          const words = result?.data?.words || [];
+          if (!words.length) {
+            alert('No readable text detected.');
+            return;
+          }
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = src;
+          });
+          const cw = fabricCanvas.getWidth();
+          const ch = fabricCanvas.getHeight();
+          const rx = cw / Math.max(1, img.naturalWidth || img.width || cw);
+          const ry = ch / Math.max(1, img.naturalHeight || img.height || ch);
+          words.slice(0, 16).forEach((w) => {
+            const text = cleanText(String(w.text || ''), 80);
+            if (!text) return;
+            const bbox = w.bbox || {};
+            const left = Number(bbox.x0 || 0) * rx;
+            const top = Number(bbox.y0 || 0) * ry;
+            const boxW = Math.max(40, Number((bbox.x1 || 0) - (bbox.x0 || 0)) * rx);
+            const boxH = Math.max(18, Number((bbox.y1 || 0) - (bbox.y0 || 0)) * ry);
+            const txt = new window.fabric.IText(text, {
+              left,
+              top,
+              width: boxW,
+              fontSize: Math.max(14, Math.round(boxH * 0.8)),
+              fill: '#ffffff',
+              fontWeight: 700,
+              fontFamily: defaultFont,
+              shadow: 'rgba(0,0,0,0.35) 0 2px 6px'
+            });
+            fabricCanvas.add(txt);
+          });
+          fabricCanvas.renderAll();
+          alert('Text regions added as editable layers.');
+        } catch (err) {
+          console.error('[NABAD] detect text error:', err);
+          alert('Text detection unavailable in this browser right now.');
+        } finally {
+          hideEditorBusy();
+        }
+      });
+
+      const applyResizePreset = (preset = 'landscape') => {
+        const next = String(preset || 'landscape');
+        const dims = next === 'square'
+          ? { w: 1080, h: 1080 }
+          : next === 'story'
+            ? { w: 1080, h: 1920 }
+            : { w: 1920, h: 1080 };
+        const cw = fabricCanvas.getWidth();
+        const ch = fabricCanvas.getHeight();
+        const scaleX = dims.w / Math.max(1, cw);
+        const scaleY = dims.h / Math.max(1, ch);
+        fabricCanvas.getObjects().forEach((obj) => {
+          obj.set({
+            left: Number(obj.left || 0) * scaleX,
+            top: Number(obj.top || 0) * scaleY,
+            scaleX: Number(obj.scaleX || 1) * scaleX,
+            scaleY: Number(obj.scaleY || 1) * scaleY
+          });
+          obj.setCoords();
+        });
+        fabricCanvas.setWidth(dims.w);
+        fabricCanvas.setHeight(dims.h);
+        if (canvasEl) {
+          canvasEl.style.width = '100%';
+          canvasEl.style.height = '100%';
+        }
+        fabricCanvas.renderAll();
+        updateControlFromActive();
+      };
+
+      resizeBtn?.addEventListener('click', () => {
+        const preset = cleanText(window.prompt('Resize for platform: square / story / landscape', 'square') || 'square', 20).toLowerCase();
+        applyResizePreset(preset);
+      });
+
+      const exportCanvasAtSize = async (width, height) => {
+        const srcW = Math.max(1, fabricCanvas.getWidth());
+        const srcH = Math.max(1, fabricCanvas.getHeight());
+        const rx = width / srcW;
+        const ry = height / srcH;
+        const off = document.createElement('canvas');
+        off.width = width;
+        off.height = height;
+        const staticCanvas = new window.fabric.StaticCanvas(off, {
+          width,
+          height,
+          backgroundColor: 'transparent'
+        });
+        const clones = await Promise.all(fabricCanvas.getObjects().map((obj) => new Promise((resolve) => {
+          obj.clone((cloned) => resolve(cloned), ['nabadRole', 'isCtaText']);
+        })));
+        clones.forEach((clone) => {
+          if (!clone) return;
+          clone.set({
+            left: Number(clone.left || 0) * rx,
+            top: Number(clone.top || 0) * ry,
+            scaleX: Number(clone.scaleX || 1) * rx,
+            scaleY: Number(clone.scaleY || 1) * ry
+          });
+          clone.setCoords();
+          staticCanvas.add(clone);
+        });
+        staticCanvas.renderAll();
+        const dataUrl = staticCanvas.toDataURL({
+          format: 'png',
+          quality: 1,
+          multiplier: 3
+        });
+        staticCanvas.dispose();
+        return dataUrl;
+      };
+
       saveBtn?.addEventListener('click', async () => {
         try {
           fabricCanvas.discardActiveObject();
           fabricCanvas.renderAll();
-          const dataUrl = fabricCanvas.toDataURL({
-            format: 'png',
-            quality: 1,
-            multiplier: 3
-          });
+          const preset = cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase();
+          const size = preset === 'square'
+            ? { w: 1080, h: 1080 }
+            : preset === 'story'
+              ? { w: 1080, h: 1920 }
+              : { w: 1920, h: 1080 };
+          const dataUrl = await exportCanvasAtSize(size.w, size.h);
           await downloadImageFromUrl(dataUrl, 'nabad-campaign-editor.png');
         } catch {
           alert('Could not export image. Please try again.');
@@ -6870,7 +7373,7 @@ function finishOnboarding() {
           return true;
         }
         if (key === 'upload') {
-          uploadBtn?.click();
+          addImageBtn?.click();
           return true;
         }
         if (key === 'back_chat') {
@@ -6884,9 +7387,27 @@ function finishOnboarding() {
         }
         if (key === 'set_layer_action') {
           const nextAction = cleanText(payload?.value || '', 40);
-          if (!nextAction || !layerActionSelect) return false;
-          layerActionSelect.value = nextAction;
-          layerActionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          if (!nextAction) return false;
+          if (nextAction === 'add-image-object') addImageBtn?.click();
+          else if (nextAction === 'remove-bg') removeBgBtn?.click();
+          else if (nextAction === 'set-background') setBgBtn?.click();
+          else if (nextAction === 'bring-front') {
+            const obj = fabricCanvas.getActiveObject();
+            if (obj) {
+              obj.bringToFront();
+              brandMarkObj?.bringToFront?.();
+              ctaBg?.bringToFront?.();
+              ctaObj?.bringToFront?.();
+              fabricCanvas.renderAll();
+            }
+          } else if (nextAction === 'send-back') {
+            const obj = fabricCanvas.getActiveObject();
+            if (obj) {
+              obj.sendBackwards();
+              backgroundObj?.sendToBack?.();
+              fabricCanvas.renderAll();
+            }
+          }
           return true;
         }
         return false;
@@ -6904,13 +7425,13 @@ function finishOnboarding() {
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
       if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj.fontSize || 58));
-      if (textTargetInput) textTargetInput.value = 'Headline';
       setBackgroundLockState(true);
-      setTextControlsEnabled(true);
       historyMuted = false;
       undoStack = [snapshotEditorState()];
       redoStack = [];
       updateHistoryButtons();
+      updateLayerVisibilityControls();
+      updateControlFromActive();
       hideEditorBusy();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
