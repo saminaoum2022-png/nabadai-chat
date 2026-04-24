@@ -15,6 +15,7 @@ const PERSONALITIES = [
 export default function AppPage() {
   const [activePersonality, setActivePersonality] = useState('auto');
   const [imageProvider, setImageProvider] = useState('gemini');
+  const [editorMode, setEditorMode] = useState(false);
 
   const providerOptions = useMemo(() => ([
     { id: 'auto', label: 'Let Nabad choose' },
@@ -36,6 +37,18 @@ export default function AppPage() {
     } catch {}
   }, [providerOptions]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onEditorMode = (event) => {
+      const open = !!event?.detail?.open;
+      setEditorMode(open);
+    };
+    window.addEventListener('nabad:editor-mode', onEditorMode);
+    return () => {
+      window.removeEventListener('nabad:editor-mode', onEditorMode);
+    };
+  }, []);
+
   function applyPersonality(id) {
     const next = PERSONALITIES.some((p) => p.id === id) ? id : 'auto';
     setActivePersonality(next);
@@ -47,6 +60,12 @@ export default function AppPage() {
     const next = providerOptions.some((p) => p.id === id) ? id : 'auto';
     setImageProvider(next);
     if (window.__NABAD_SET_IMAGE_PROVIDER__) window.__NABAD_SET_IMAGE_PROVIDER__(next);
+  }
+
+  function doEditorAction(action, payload) {
+    if (window.__NABAD_EDITOR_DO__) {
+      window.__NABAD_EDITOR_DO__(action, payload || {});
+    }
   }
 
   return (
@@ -68,34 +87,36 @@ export default function AppPage() {
           };
         `}
       </Script>
-      <Script id="nabad-widget-script-app" src="/widget.js?v=63" strategy="afterInteractive" />
+      <Script id="nabad-widget-script-app" src="/widget.js?v=64" strategy="afterInteractive" />
 
       <main className="nabad-app-page">
-        <div className="nabad-app-shell">
+        <div className={`nabad-app-shell ${editorMode ? 'editor-open' : ''}`}>
           <aside className="nabad-left-rail">
             <div className="nabad-brand">
               <img src="/logo.png" alt="Nabad" />
               <div>
-                <h1>NabadAi</h1>
-                <p>Desktop Workspace</p>
+                <h1>{editorMode ? 'Nabad Editor' : 'NabadAi'}</h1>
+                <p>{editorMode ? 'Design Workspace' : 'Desktop Workspace'}</p>
               </div>
             </div>
 
-            <section className="nabad-rail-card">
-              <h3>Personality</h3>
-              <div className="nabad-chip-grid">
-                {PERSONALITIES.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={`nabad-chip ${activePersonality === p.id ? 'active' : ''}`}
-                    onClick={() => applyPersonality(p.id)}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </section>
+            {!editorMode && (
+              <section className="nabad-rail-card">
+                <h3>Personality</h3>
+                <div className="nabad-chip-grid">
+                  {PERSONALITIES.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`nabad-chip ${activePersonality === p.id ? 'active' : ''}`}
+                      onClick={() => applyPersonality(p.id)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="nabad-rail-card">
               <h3>Image Engine</h3>
@@ -110,16 +131,33 @@ export default function AppPage() {
               </select>
             </section>
 
-            <section className="nabad-rail-card">
-              <h3>Workspace</h3>
-              <div className="nabad-actions">
-                <button type="button" onClick={() => window.__NABAD_OPEN_SETTINGS__?.()}>Settings</button>
-                <button type="button" onClick={() => window.__NABAD_OPEN_MEMORY__?.()}>Memory</button>
-                <button type="button" onClick={() => window.__NABAD_OPEN_PROFILE__?.()}>Profile</button>
-                <button type="button" onClick={() => window.__NABAD_OPEN_ACCOUNT__?.()}>Account</button>
-                <button type="button" onClick={() => window.__NABAD_NEW_CHAT__?.()}>New Chat</button>
-              </div>
-            </section>
+            {editorMode ? (
+              <section className="nabad-rail-card">
+                <h3>Editor Tools</h3>
+                <div className="nabad-actions">
+                  <button type="button" onClick={() => doEditorAction('undo')}>Undo</button>
+                  <button type="button" onClick={() => doEditorAction('redo')}>Redo</button>
+                  <button type="button" onClick={() => doEditorAction('save')}>Save PNG</button>
+                  <button type="button" onClick={() => doEditorAction('upload')}>Upload Photo</button>
+                  <button type="button" onClick={() => doEditorAction('set_layer_action', { value: 'add-image-object' })}>Add Image Object</button>
+                  <button type="button" onClick={() => doEditorAction('set_layer_action', { value: 'remove-bg' })}>Remove BG (Selected)</button>
+                  <button type="button" onClick={() => doEditorAction('set_layer_action', { value: 'set-background' })}>Set as Background</button>
+                  <button type="button" onClick={() => doEditorAction('back_chat')}>Back to Chat</button>
+                  <button type="button" onClick={() => doEditorAction('open_settings')}>Back to Settings</button>
+                </div>
+              </section>
+            ) : (
+              <section className="nabad-rail-card">
+                <h3>Workspace</h3>
+                <div className="nabad-actions">
+                  <button type="button" onClick={() => window.__NABAD_OPEN_SETTINGS__?.()}>Settings</button>
+                  <button type="button" onClick={() => window.__NABAD_OPEN_MEMORY__?.()}>Memory</button>
+                  <button type="button" onClick={() => window.__NABAD_OPEN_PROFILE__?.()}>Profile</button>
+                  <button type="button" onClick={() => window.__NABAD_OPEN_ACCOUNT__?.()}>Account</button>
+                  <button type="button" onClick={() => window.__NABAD_NEW_CHAT__?.()}>New Chat</button>
+                </div>
+              </section>
+            )}
           </aside>
 
           <section className="nabad-chat-stage">
@@ -159,6 +197,10 @@ export default function AppPage() {
           display: flex;
           flex-direction: column;
           gap: 12px;
+          position: sticky;
+          top: 12px;
+          height: calc(100dvh - 60px);
+          overflow: auto;
         }
 
         .nabad-brand {
@@ -278,6 +320,9 @@ export default function AppPage() {
           }
           .nabad-left-rail {
             order: 2;
+            position: static;
+            height: auto;
+            overflow: visible;
           }
           .nabad-chat-stage {
             order: 1;
@@ -285,6 +330,17 @@ export default function AppPage() {
           .nabad-chat-mount {
             height: calc(100dvh - 220px);
             min-height: 560px;
+          }
+          .nabad-app-shell.editor-open .nabad-left-rail {
+            display: none;
+          }
+          .nabad-app-shell.editor-open .nabad-chat-stage {
+            padding: 8px;
+            border-radius: 16px;
+          }
+          .nabad-app-shell.editor-open .nabad-chat-mount {
+            height: calc(100dvh - 36px);
+            min-height: 0;
           }
         }
       `}</style>
