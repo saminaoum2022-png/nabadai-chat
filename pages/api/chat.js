@@ -1322,6 +1322,63 @@ async function generateWithReplicate(prompt = '', imageType = 'image') {
   return imageUrl;
 }
 
+async function generateWithHuggingFace(prompt = '', imageType = 'image') {
+  const apiToken = cleanText(
+    process.env.HUGGINGFACE_API_KEY ||
+    process.env.HF_API_KEY ||
+    process.env.HUGGINGFACEHUB_API_TOKEN ||
+    '',
+    260
+  );
+  if (!apiToken) throw new Error('HUGGINGFACE_API_KEY not set');
+
+  const model = cleanText(process.env.HUGGINGFACE_IMAGE_MODEL || 'stabilityai/stable-diffusion-xl-base-1.0', 140);
+  const cleanPrompt = sanitizePromptText(prompt).slice(0, 900);
+  const width = imageType === 'banner' ? 1536 : 1024;
+  const height = imageType === 'banner' ? 1024 : 1024;
+
+  const response = await fetchWithTimeout(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Content-Type': 'application/json',
+      Accept: 'image/png'
+    },
+    body: JSON.stringify({
+      inputs: cleanPrompt,
+      parameters: {
+        width,
+        height,
+        guidance_scale: 3.5,
+        num_inference_steps: 28
+      },
+      options: {
+        wait_for_model: true,
+        use_cache: false
+      }
+    })
+  }, 45000);
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Hugging Face API error: ${response.status} — ${errText.slice(0, 180)}`);
+  }
+
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('application/json')) {
+    const data = await readJsonSafe(response);
+    const imageUrl = extractImageUrlFromPayload(data);
+    if (imageUrl) return imageUrl;
+    throw new Error('No image URL returned from Hugging Face');
+  }
+
+  const arr = await response.arrayBuffer();
+  const b64 = Buffer.from(arr).toString('base64');
+  const mime = contentType.includes('image/') ? contentType.split(';')[0] : 'image/png';
+  if (!b64) throw new Error('No image bytes returned from Hugging Face');
+  return `data:${mime};base64,${b64}`;
+}
+
 async function generateImageWithProviderChain(imagePrompt = '', imageType = 'image', options = {}) {
   const preferredOverride = cleanText(options?.preferred || '', 24).toLowerCase();
   const preferred = preferredOverride || cleanText(process.env.NABAD_IMAGE_PROVIDER || 'auto', 24).toLowerCase();
@@ -1333,6 +1390,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
   const hasGenspark = !!process.env.GENSPARK_API_KEY;
   const hasIdeogram = !!process.env.IDEOGRAM_API_KEY;
   const hasReplicate = !!process.env.REPLICATE_API_TOKEN;
+  const hasHuggingFace = !!(process.env.HUGGINGFACE_API_KEY || process.env.HF_API_KEY || process.env.HUGGINGFACEHUB_API_TOKEN);
   const isFastMode = /\b(fast|quick|draft|free mode)\b/i.test(imagePrompt) || forcedMode === 'fast';
   const isTextCritical = imageType === 'logo' || /\b(wordmark|exact text|spelling|typography|text)\b/i.test(imagePrompt);
   const campaignMode = options?.campaignMode === true;
@@ -1345,22 +1403,32 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     providers.push('pollinations');
   } else if (preferred === 'gemini' || preferred === 'nanobanana' || preferred === 'nano-banana' || preferred === 'nano_banana' || preferred === 'nano banana') {
     if (hasGeminiImage) providers.push('gemini');
-    if (hasOpenAIImage) providers.push('openai');
-    if (hasIdeogram) providers.push('ideogram');
-    if (hasReplicate) providers.push('replicate');
+    if (hasHuggingFace) providers.push('huggingface');
     providers.push('pollinations');
+    if (hasReplicate) providers.push('replicate');
+    if (hasIdeogram) providers.push('ideogram');
+    if (hasOpenAIImage) providers.push('openai');
   } else if (preferred === 'replicate') {
     if (hasReplicate) providers.push('replicate');
+    if (hasHuggingFace) providers.push('huggingface');
+    providers.push('pollinations');
     if (hasOpenAIImage) providers.push('openai');
     if (hasGeminiImage) providers.push('gemini');
     if (hasIdeogram) providers.push('ideogram');
-    providers.push('pollinations');
   } else if (preferred === 'ideogram') {
     if (hasIdeogram) providers.push('ideogram');
+    if (hasHuggingFace) providers.push('huggingface');
+    providers.push('pollinations');
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
     if (hasReplicate) providers.push('replicate');
+  } else if (preferred === 'huggingface') {
+    if (hasHuggingFace) providers.push('huggingface');
     providers.push('pollinations');
+    if (hasReplicate) providers.push('replicate');
+    if (hasGeminiImage) providers.push('gemini');
+    if (hasIdeogram) providers.push('ideogram');
+    if (hasOpenAIImage) providers.push('openai');
   } else if (preferred === 'genspark') {
     if (hasGenspark) providers.push('genspark');
     if (hasOpenAIImage) providers.push('openai');
@@ -1369,6 +1437,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     providers.push('pollinations');
   } else if (preferred === 'pollinations') {
     providers.push('pollinations');
+    if (hasHuggingFace) providers.push('huggingface');
     if (hasReplicate) providers.push('replicate');
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
@@ -1376,6 +1445,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     if (hasGenspark) providers.push('genspark');
   } else if (isFastMode) {
     providers.push('pollinations');
+    if (hasHuggingFace) providers.push('huggingface');
     if (hasReplicate) providers.push('replicate');
     if (hasGeminiImage) providers.push('gemini');
     if (hasOpenAIImage) providers.push('openai');
@@ -1383,6 +1453,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
   } else if (isTextCritical) {
     if (hasGeminiImage) providers.push('gemini');
+    if (hasHuggingFace) providers.push('huggingface');
     if (hasOpenAIImage) providers.push('openai');
     if (hasReplicate) providers.push('replicate');
     if (hasIdeogram) providers.push('ideogram');
@@ -1390,6 +1461,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     if (hasGenspark && forcedMode === 'genspark') providers.push('genspark');
   } else {
     if (hasGeminiImage) providers.push('gemini');
+    if (hasHuggingFace) providers.push('huggingface');
     if (hasOpenAIImage) providers.push('openai');
     if (hasReplicate) providers.push('replicate');
     providers.push('pollinations');
@@ -1398,7 +1470,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
   }
   if (campaignMode) {
     // Campaign backgrounds should avoid engines/modes that tend to inject text.
-    // Keep pollinations only as a last-resort when user explicitly selected it.
+    // Keep pollinations as a last-resort fallback to prevent hard failures.
     const explicitPollinations = preferred === 'pollinations';
     const filtered = explicitPollinations
       ? providers
@@ -1408,15 +1480,17 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     if (explicitPollinations) {
       // still keep a better fallback path after pollinations if it fails
       if (hasGeminiImage && !providers.includes('gemini')) providers.push('gemini');
+      if (hasHuggingFace && !providers.includes('huggingface')) providers.push('huggingface');
       if (hasReplicate && !providers.includes('replicate')) providers.push('replicate');
       if (hasIdeogram && !providers.includes('ideogram')) providers.push('ideogram');
     } else if (!providers.length) {
       if (hasGeminiImage) providers.push('gemini');
+      if (hasHuggingFace) providers.push('huggingface');
       if (hasReplicate) providers.push('replicate');
       if (hasIdeogram) providers.push('ideogram');
       if (hasOpenAIImage) providers.push('openai');
-      providers.push('pollinations');
     }
+    if (!providers.includes('pollinations')) providers.push('pollinations');
   }
   console.log('[IMAGE ROUTER]', JSON.stringify({
     preferred,
@@ -1427,6 +1501,7 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
     hasIdeogram,
     hasGenspark,
     hasReplicate,
+    hasHuggingFace,
     providers
   }));
 
@@ -1450,6 +1525,11 @@ async function generateImageWithProviderChain(imagePrompt = '', imageType = 'ima
       }
       if (provider === 'replicate') {
         const url = await generateWithReplicate(imagePrompt, imageType);
+        console.log('[IMAGE PROVIDER USED]', provider);
+        return { provider, url };
+      }
+      if (provider === 'huggingface') {
+        const url = await generateWithHuggingFace(imagePrompt, imageType);
         console.log('[IMAGE PROVIDER USED]', provider);
         return { provider, url };
       }
@@ -2120,6 +2200,12 @@ async function generateSingleProviderImage(provider = '', prompt = '', imageType
   if (p === 'replicate') {
     if (!process.env.REPLICATE_API_TOKEN) throw new Error('Replicate is not configured');
     return await generateWithReplicate(prompt, imageType);
+  }
+  if (p === 'huggingface') {
+    if (!(process.env.HUGGINGFACE_API_KEY || process.env.HF_API_KEY || process.env.HUGGINGFACEHUB_API_TOKEN)) {
+      throw new Error('Hugging Face is not configured');
+    }
+    return await generateWithHuggingFace(prompt, imageType);
   }
   throw new Error('Unsupported provider');
 }
