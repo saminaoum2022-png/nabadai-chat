@@ -3875,6 +3875,30 @@ function showPersonalityPill(id) {
         font-size: 12px;
         font-weight: 700;
       }
+      .nabad-editor-custom-size {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .nabad-editor-custom-size[hidden] {
+        display: none !important;
+      }
+      .nabad-editor-custom-size input {
+        width: 80px;
+        height: 32px;
+        border: 1px solid rgba(37,99,235,0.2);
+        border-radius: 10px;
+        padding: 0 8px;
+        background: #fff;
+        color: #1e3a8a;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .nabad-editor-custom-size .sep {
+        font-size: 12px;
+        font-weight: 800;
+        color: #1e3a8a;
+      }
       .nabad-editor-workspace {
         flex: 1;
         min-height: 0;
@@ -6309,7 +6333,13 @@ function finishOnboarding() {
                 <option value="square">Square 1080×1080</option>
                 <option value="story">Story 1080×1920</option>
                 <option value="landscape" selected>Landscape 1920×1080</option>
+                <option value="custom">Custom</option>
               </select>
+              <div class="nabad-editor-custom-size" id="nabad-editor-custom-size" hidden>
+                <input id="nabad-editor-custom-w" type="number" min="240" max="4096" step="1" value="1920" title="Custom width" />
+                <span class="sep">×</span>
+                <input id="nabad-editor-custom-h" type="number" min="240" max="4096" step="1" value="1080" title="Custom height" />
+              </div>
               <button type="button" class="nabad-editor-btn primary with-icon" id="nabad-editor-save">
                 <span class="nabad-btn-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -6470,6 +6500,9 @@ function finishOnboarding() {
       const detectTextBtn = document.getElementById('nabad-editor-detect-text');
       const saveBtn = document.getElementById('nabad-editor-save');
       const saveSizeSelect = document.getElementById('nabad-editor-save-size');
+      const saveSizeCustomWrap = document.getElementById('nabad-editor-custom-size');
+      const customSizeWInput = document.getElementById('nabad-editor-custom-w');
+      const customSizeHInput = document.getElementById('nabad-editor-custom-h');
       const tabsWrap = document.getElementById('nabad-editor-tabs');
       const toolTray = document.getElementById('nabad-editor-tooltray');
       const contextBar = document.getElementById('nabad-editor-contextbar');
@@ -6915,6 +6948,12 @@ function finishOnboarding() {
       let activeBottomTab = '';
       const tabButtons = Array.from(tabsWrap?.querySelectorAll?.('.nabad-editor-tab') || []);
       const tabPanels = Array.from(toolTray?.querySelectorAll?.('.nabad-editor-toolpanel') || []);
+      const hideAllToolPanels = () => {
+        tabPanels.forEach((panel) => {
+          panel.hidden = true;
+          panel.style.display = 'none';
+        });
+      };
       const openToolTab = (tab = '') => {
         activeBottomTab = String(tab || '');
         if (!toolTray || !tabButtons.length) return;
@@ -6923,11 +6962,19 @@ function finishOnboarding() {
         tabButtons.forEach((btn) => {
           btn.classList.toggle('active', btn.getAttribute('data-tab') === activeBottomTab);
         });
-        tabPanels.forEach((panel) => {
-          panel.hidden = panel.getAttribute('data-panel') !== activeBottomTab;
-        });
+        if (!hasActive) {
+          hideAllToolPanels();
+          return;
+        }
+        hideAllToolPanels();
+        const targetPanel = tabPanels.find((panel) => panel.getAttribute('data-panel') === activeBottomTab);
+        if (targetPanel) {
+          targetPanel.hidden = false;
+          targetPanel.style.display = 'flex';
+        }
       };
       const closeToolTab = () => openToolTab('');
+      hideAllToolPanels();
       tabButtons.forEach((btn) => {
         btn.addEventListener('click', () => {
           const tab = cleanText(btn.getAttribute('data-tab') || '', 24);
@@ -7670,6 +7717,27 @@ function finishOnboarding() {
       });
 
       let currentAspect = 16 / 9;
+      let selectedSizePreset = 'landscape';
+      let customSize = {
+        w: Math.max(240, Number(customSizeWInput?.value || 1920)),
+        h: Math.max(240, Number(customSizeHInput?.value || 1080))
+      };
+      const clampCustomSize = () => {
+        customSize.w = Math.max(240, Math.min(4096, Number(customSizeWInput?.value || customSize.w || 1920)));
+        customSize.h = Math.max(240, Math.min(4096, Number(customSizeHInput?.value || customSize.h || 1080)));
+        if (customSizeWInput) customSizeWInput.value = String(Math.round(customSize.w));
+        if (customSizeHInput) customSizeHInput.value = String(Math.round(customSize.h));
+      };
+      const getExportSizeFromPreset = (preset = selectedSizePreset) => {
+        const next = String(preset || 'landscape').toLowerCase();
+        if (next === 'square') return { w: 1080, h: 1080 };
+        if (next === 'story') return { w: 1080, h: 1920 };
+        if (next === 'custom') {
+          clampCustomSize();
+          return { w: Math.round(customSize.w), h: Math.round(customSize.h) };
+        }
+        return { w: 1920, h: 1080 };
+      };
       fitCanvasToStage = () => {
         if (!stageEl || !fabricCanvas) return;
         const stageRect = stageEl.getBoundingClientRect();
@@ -7677,11 +7745,11 @@ function finishOnboarding() {
         const viewportH = window.innerHeight || 900;
         const maxStageW = Math.max(240, Math.min((stageRect.width || 900) - 2, viewportW - 20));
         const mobile = viewportW <= 700;
-        const maxStageH = Math.max(170, mobile ? Math.round(viewportH * 0.46) : Math.round(viewportH * 0.58));
+        const maxStageH = Math.max(170, mobile ? Math.round(viewportH * 0.46) : 9999);
 
         let w = maxStageW;
         let h = Math.round(w / Math.max(0.1, currentAspect));
-        if (h > maxStageH) {
+        if (mobile && h > maxStageH) {
           h = maxStageH;
           w = Math.round(h * currentAspect);
         }
@@ -7704,15 +7772,32 @@ function finishOnboarding() {
 
       const applyResizePreset = (preset = 'landscape') => {
         const next = String(preset || 'landscape').toLowerCase();
-        currentAspect = next === 'square' ? 1 : next === 'story' ? (9 / 16) : (16 / 9);
-        const ratio = next === 'square' ? '1 / 1' : next === 'story' ? '9 / 16' : '16 / 9';
+        selectedSizePreset = ['square', 'story', 'landscape', 'custom'].includes(next) ? next : 'landscape';
+        if (saveSizeSelect && saveSizeSelect.value !== selectedSizePreset) saveSizeSelect.value = selectedSizePreset;
+        if (selectedSizePreset === 'custom') {
+          clampCustomSize();
+        }
+        const baseSize = getExportSizeFromPreset(selectedSizePreset);
+        currentAspect = Math.max(0.1, baseSize.w / Math.max(1, baseSize.h));
+        const ratio = `${baseSize.w} / ${baseSize.h}`;
         if (stageEl) stageEl.style.aspectRatio = ratio;
+        if (saveSizeCustomWrap) saveSizeCustomWrap.hidden = selectedSizePreset !== 'custom';
         fitCanvasToStage?.();
       };
 
       saveSizeSelect?.addEventListener('change', () => {
         const preset = cleanText(saveSizeSelect.value || 'landscape', 20).toLowerCase();
         applyResizePreset(preset);
+      });
+      customSizeWInput?.addEventListener('input', () => {
+        if (selectedSizePreset !== 'custom') return;
+        clampCustomSize();
+        applyResizePreset('custom');
+      });
+      customSizeHInput?.addEventListener('input', () => {
+        if (selectedSizePreset !== 'custom') return;
+        clampCustomSize();
+        applyResizePreset('custom');
       });
 
       const exportCanvasAtSize = async (width, height) => {
@@ -7756,12 +7841,8 @@ function finishOnboarding() {
         try {
           fabricCanvas.discardActiveObject();
           fabricCanvas.renderAll();
-          const preset = cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase();
-          const size = preset === 'square'
-            ? { w: 1080, h: 1080 }
-            : preset === 'story'
-              ? { w: 1080, h: 1920 }
-              : { w: 1920, h: 1080 };
+          const preset = cleanText(saveSizeSelect?.value || selectedSizePreset || 'landscape', 20).toLowerCase();
+          const size = getExportSizeFromPreset(preset);
           const dataUrl = await exportCanvasAtSize(size.w, size.h);
           await downloadImageFromUrl(dataUrl, 'nabad-campaign-editor.png');
         } catch {
@@ -7852,8 +7933,16 @@ function finishOnboarding() {
         }
         if (key === 'set_save_size') {
           const size = cleanText(payload?.size || '', 20).toLowerCase();
-          if (saveSizeSelect && ['square', 'story', 'landscape'].includes(size)) {
-            saveSizeSelect.value = size;
+          if (saveSizeSelect && ['square', 'story', 'landscape', 'custom'].includes(size)) {
+            if (size === 'custom') {
+              if (payload && Number(payload.width) > 0 && customSizeWInput) {
+                customSizeWInput.value = String(Math.max(240, Math.min(4096, Math.round(Number(payload.width)))));
+              }
+              if (payload && Number(payload.height) > 0 && customSizeHInput) {
+                customSizeHInput.value = String(Math.max(240, Math.min(4096, Math.round(Number(payload.height)))));
+              }
+            }
+            applyResizePreset(size);
           }
           return true;
         }
