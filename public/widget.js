@@ -452,7 +452,7 @@
       ];
       const selectedMsg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
 
-      await fetch('/api/notify', {
+      const notifyRes = await fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -462,6 +462,15 @@
           body: selectedMsg.body
         })
       });
+      const notifyJson = await notifyRes.json().catch(() => ({}));
+      if (!notifyRes.ok || !notifyJson?.saved) {
+        throw new Error(
+          cleanText(
+            notifyJson?.detail || notifyJson?.error || 'Could not save notification subscription',
+            220
+          ) || 'Could not save notification subscription'
+        );
+      }
 
       state.pushSubscription = sub;
       state.notificationsEnabled = true;
@@ -469,6 +478,9 @@
       return true;
     } catch (err) {
       console.error('[NABAD] Notification enable failed:', err);
+      if (err?.message) {
+        alert(`Could not enable notifications: ${err.message}`);
+      }
       state.notificationsEnabled = false;
       saveNotificationsEnabled(false);
       return false;
