@@ -6609,6 +6609,9 @@ function finishOnboarding() {
                 <button type="button" class="nabad-editor-btn" id="nabad-add-image">+ Image</button>
                 <button type="button" class="nabad-editor-btn" id="nabad-add-shape">+ Shape</button>
                 <button type="button" class="nabad-editor-btn" id="nabad-add-logo">+ Logo</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-fill-bg-color">🎨 Fill Background</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-crop-selected-image">✂️ Crop Selected Image</button>
+                <button type="button" class="nabad-editor-btn" id="nabad-crop-canvas">✂️ Crop Canvas</button>
               </div>
             </div>
 
@@ -6673,6 +6676,7 @@ function finishOnboarding() {
           <input id="nabad-editor-object-file" type="file" accept="image/*" hidden />
           <input id="nabad-editor-logo-file" type="file" accept="image/*" hidden />
           <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
+          <input id="nabad-editor-bg-color-input" type="color" value="#ffffff" hidden />
         </div>
       `;
 
@@ -6721,6 +6725,9 @@ function finishOnboarding() {
       const addImageBtn = document.getElementById('nabad-add-image');
       const addShapeBtn = document.getElementById('nabad-add-shape');
       const addLogoBtn = document.getElementById('nabad-add-logo');
+      const fillBgColorBtn = document.getElementById('nabad-fill-bg-color');
+      const cropSelectedImageBtn = document.getElementById('nabad-crop-selected-image');
+      const cropCanvasBtn = document.getElementById('nabad-crop-canvas');
       const removeBgBtn = document.getElementById('nabad-layer-removebg');
       const setBgBtn = document.getElementById('nabad-layer-setbg');
       const layerHeadline = document.getElementById('nabad-layer-headline');
@@ -6729,6 +6736,7 @@ function finishOnboarding() {
       const layerLogo = document.getElementById('nabad-layer-logo');
       const layerBackground = document.getElementById('nabad-layer-background');
       const bgFile = document.getElementById('nabad-editor-bg-file');
+      const bgColorInput = document.getElementById('nabad-editor-bg-color-input');
       const objectFile = document.getElementById('nabad-editor-object-file');
       const logoFile = document.getElementById('nabad-editor-logo-file');
       const fontFamilySelect = document.getElementById('nabad-editor-font-family');
@@ -6824,6 +6832,17 @@ function finishOnboarding() {
           ctx.beginPath();
           ctx.arc(canvas.width * 0.74, canvas.height * 0.68, 240, 0, Math.PI * 2);
           ctx.fill();
+        }
+        return canvas.toDataURL('image/png');
+      };
+      const makeSolidBackground = (hex = '#ffffff', width = 1920, height = 1080) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(240, Number(width || 1920));
+        canvas.height = Math.max(240, Number(height || 1080));
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = toHexColor(hex || '#ffffff');
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
         return canvas.toDataURL('image/png');
       };
@@ -7681,6 +7700,108 @@ function finishOnboarding() {
         addShape(allowed.includes(choice) ? choice : 'rect');
       });
       sideAddShapeBtn?.addEventListener('click', () => addShapeBtn?.click());
+      fillBgColorBtn?.addEventListener('click', () => bgColorInput?.click());
+      bgColorInput?.addEventListener('change', async () => {
+        const color = toHexColor(String(bgColorInput?.value || '#ffffff'));
+        const fillUrl = makeSolidBackground(color, fabricCanvas.getWidth(), fabricCanvas.getHeight());
+        try {
+          await setBackgroundFromUrl(fillUrl, false);
+          setBackgroundLockState(true);
+          if (layerBackground) layerBackground.checked = true;
+          fabricCanvas.renderAll();
+        } catch (err) {
+          console.error('[NABAD] fill background color error:', err);
+          alert('Could not fill background color. Please try again.');
+        }
+      });
+      cropSelectedImageBtn?.addEventListener('click', () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || obj.type !== 'image' || obj === backgroundObj) {
+          alert('Select an uploaded image object first.');
+          return;
+        }
+        const cropInput = window.prompt(
+          'Crop selected image in percentages:\nleft,top,width,height\nExample: 10,10,80,80',
+          '10,10,80,80'
+        );
+        if (cropInput === null) return;
+        const parts = String(cropInput || '')
+          .split(',')
+          .map((v) => Number(v.trim()))
+          .filter((v) => Number.isFinite(v));
+        if (parts.length !== 4) {
+          alert('Please enter 4 numbers: left,top,width,height');
+          return;
+        }
+        const [leftPctRaw, topPctRaw, widthPctRaw, heightPctRaw] = parts;
+        const leftPct = Math.max(0, Math.min(95, leftPctRaw));
+        const topPct = Math.max(0, Math.min(95, topPctRaw));
+        const widthPct = Math.max(1, Math.min(100 - leftPct, widthPctRaw));
+        const heightPct = Math.max(1, Math.min(100 - topPct, heightPctRaw));
+        const sourceW = Math.max(1, Number(obj._element?.naturalWidth || obj._element?.width || obj.width || 1));
+        const sourceH = Math.max(1, Number(obj._element?.naturalHeight || obj._element?.height || obj.height || 1));
+        const cropX = Math.round((leftPct / 100) * sourceW);
+        const cropY = Math.round((topPct / 100) * sourceH);
+        const cropW = Math.max(1, Math.round((widthPct / 100) * sourceW));
+        const cropH = Math.max(1, Math.round((heightPct / 100) * sourceH));
+        const displayW = Math.max(1, Number(obj.getScaledWidth?.() || (obj.width || 1)));
+        const displayH = Math.max(1, Number(obj.getScaledHeight?.() || (obj.height || 1)));
+        obj.set({
+          cropX,
+          cropY,
+          width: cropW,
+          height: cropH,
+          scaleX: displayW / cropW,
+          scaleY: displayH / cropH
+        });
+        obj.setCoords();
+        fabricCanvas.renderAll();
+      });
+      cropCanvasBtn?.addEventListener('click', () => {
+        const cw = Math.max(1, Math.round(Number(fabricCanvas.getWidth() || 1)));
+        const ch = Math.max(1, Math.round(Number(fabricCanvas.getHeight() || 1)));
+        const cropInput = window.prompt(
+          'Crop canvas in pixels:\nx,y,width,height\nExample: 0,0,1080,1080',
+          `0,0,${cw},${ch}`
+        );
+        if (cropInput === null) return;
+        const parts = String(cropInput || '')
+          .split(',')
+          .map((v) => Number(v.trim()))
+          .filter((v) => Number.isFinite(v));
+        if (parts.length !== 4) {
+          alert('Please enter 4 numbers: x,y,width,height');
+          return;
+        }
+        let [x, y, w, h] = parts.map((n) => Math.round(n));
+        x = Math.max(0, Math.min(cw - 1, x));
+        y = Math.max(0, Math.min(ch - 1, y));
+        w = Math.max(80, Math.min(cw - x, w));
+        h = Math.max(80, Math.min(ch - y, h));
+        const objects = fabricCanvas.getObjects();
+        objects.forEach((obj) => {
+          obj.set({
+            left: Number(obj.left || 0) - x,
+            top: Number(obj.top || 0) - y
+          });
+          obj.setCoords();
+        });
+        fabricCanvas.setWidth(w);
+        fabricCanvas.setHeight(h);
+        if (campaignCardEl) {
+          campaignCardEl.style.width = `${w}px`;
+          campaignCardEl.style.height = `${h}px`;
+        }
+        currentAspect = Math.max(0.1, w / Math.max(1, h));
+        selectedSizePreset = 'custom';
+        if (saveSizeSelect) saveSizeSelect.value = 'custom';
+        if (customSizeWInput) customSizeWInput.value = String(w);
+        if (customSizeHInput) customSizeHInput.value = String(h);
+        if (saveSizeCustomWrap) saveSizeCustomWrap.hidden = false;
+        syncCtaBackground();
+        fitWorkspaceToViewport();
+        fabricCanvas.renderAll();
+      });
 
       const toggleLayer = (obj, checked) => {
         if (!obj) return;
