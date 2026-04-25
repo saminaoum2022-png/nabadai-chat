@@ -4488,6 +4488,54 @@ function showPersonalityPill(id) {
         align-items: center;
         flex-wrap: wrap;
       }
+      .nabad-editor-contextbar .nabad-editor-btn {
+        border: none;
+        border-left: 3px solid transparent;
+        background: transparent;
+        box-shadow: none;
+        color: #0f172a;
+        border-radius: 8px;
+        padding: 8px 12px;
+        text-align: left;
+        font-weight: 700;
+        transition: all 0.15s ease;
+      }
+      .nabad-editor-contextbar .nabad-editor-btn:hover,
+      .nabad-editor-contextbar .nabad-editor-btn:focus-visible {
+        border-left-color: #2563eb;
+        background: #eff6ff;
+        color: #2563eb;
+        outline: none;
+      }
+      .nabad-editor-contextbar .nabad-editor-btn:active,
+      .nabad-editor-contextbar .nabad-editor-btn.active {
+        border-left-color: #2563eb;
+        background: #2563eb;
+        color: #ffffff;
+      }
+      .nabad-editor-contextbar .nabad-editor-select {
+        border: none;
+        border-left: 3px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: #0f172a;
+        transition: all 0.15s ease;
+      }
+      .nabad-editor-contextbar .nabad-editor-select:hover,
+      .nabad-editor-contextbar .nabad-editor-select:focus-visible {
+        border-left-color: #2563eb;
+        background: #eff6ff;
+        color: #2563eb;
+        outline: none;
+      }
+      .nabad-editor-contextbar input[type="color"] {
+        width: 38px;
+        height: 32px;
+        border-radius: 8px;
+        border: 1px solid rgba(37,99,235,0.16);
+        background: #fff;
+        padding: 2px;
+      }
       .nabad-editor-inline-label {
         font-size: 11px;
         color: #334155;
@@ -6851,6 +6899,7 @@ function finishOnboarding() {
       const floatingLayerList = document.getElementById('nabad-floating-layer-list');
       const contextBar = document.getElementById('nabad-editor-contextbar');
       const contextTextTools = document.getElementById('nabad-context-text-tools');
+      const contextCommonTools = document.getElementById('nabad-context-common-tools');
       const selectedLabel = document.getElementById('nabad-selected-label');
       const posXInput = document.getElementById('nabad-pos-x');
       const posYInput = document.getElementById('nabad-pos-y');
@@ -7724,7 +7773,13 @@ function finishOnboarding() {
           selectedLabel.textContent = `SELECTED: ${getObjectLabel(obj)}`;
         }
         if (contextBar) contextBar.hidden = !obj;
-        if (contextTextTools) contextTextTools.hidden = !isText;
+        if (contextTextTools) {
+          contextTextTools.hidden = !isText;
+          contextTextTools.style.display = isText ? 'flex' : 'none';
+        }
+        if (contextCommonTools) {
+          contextCommonTools.style.display = obj ? 'flex' : 'none';
+        }
         setInspectorEnabled(!!obj, isText);
         if (!obj) {
           updateLayerVisibilityControls();
