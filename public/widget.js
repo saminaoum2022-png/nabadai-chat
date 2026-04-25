@@ -10841,7 +10841,10 @@ function openSettingsPage() {
     const resp = await fetch('/api/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean })
+      body: JSON.stringify({
+        text: clean,
+        language: detectPreferredVoiceLanguage()
+      })
     });
 
     if (!resp.ok) throw new Error(`TTS failed (${resp.status})`);
