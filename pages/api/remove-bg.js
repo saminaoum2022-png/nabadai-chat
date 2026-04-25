@@ -48,84 +48,38 @@ async function fetchSourceFromPayload(payload = {}) {
   };
 }
 
-function uniqueModels(models = []) {
-  const seen = new Set();
-  return models.filter((m) => {
-    const key = cleanText(m, 120);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-async function callRmbgModel({ imageBuffer, mimeType, apiKey }) {
-  const modelCandidates = uniqueModels([
-    process.env.HUGGINGFACE_RMBG_MODEL,
-    'briaai/RMBG-1.4',
-    'briaai/RMBG-2.0'
-  ]);
-
-  let lastError = null;
-  for (const model of modelCandidates) {
-    const endpoints = [
-      `https://router.huggingface.co/hf-inference/models/${model}`,
-      `https://api-inference.huggingface.co/models/${model}`
-    ];
-
-    for (const endpoint of endpoints) {
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            Accept: 'image/png',
-            'Content-Type': mimeType || 'image/png'
-          },
-          body: imageBuffer
-        });
-
-        const responseType = String(response.headers.get('content-type') || '').toLowerCase();
-        const raw = await response.arrayBuffer();
-        const out = Buffer.from(raw);
-        const asText = out.toString('utf8');
-        const hasJsonError = responseType.includes('application/json');
-        if (response.ok && !hasJsonError && out.length) return out;
-
-        let detail = asText;
-        try {
-          const parsed = JSON.parse(asText || '{}');
-          detail = parsed?.error || parsed?.message || asText;
-        } catch {}
-        lastError = new Error(`Hugging Face RMBG (${model}) error (${response.status}): ${String(detail).slice(0, 260)}`);
-
-        const retryable = response.status === 429 || response.status === 503 || /loading|temporarily|overloaded/i.test(String(detail || ''));
-        if (!retryable || attempt >= 2) break;
-        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
-      }
-    }
+async function removeBackgroundWithImgly(imageBuffer) {
+  let removeBackground = null;
+  try {
+    const mod = await import('@imgly/background-removal-node');
+    removeBackground = mod?.removeBackground || mod?.default?.removeBackground || mod?.default;
+  } catch (err) {
+    throw new Error(`@imgly/background-removal-node not installed: ${String(err?.message || err).slice(0, 160)}`);
   }
-  throw lastError || new Error('RMBG returned empty output');
+  if (typeof removeBackground !== 'function') {
+    throw new Error('removeBackground() is unavailable from @imgly/background-removal-node');
+  }
+
+  const outputBlob = await removeBackground(imageBuffer, {
+    model: 'medium',
+    output: { format: 'image/png', type: 'foreground' }
+  });
+  const arr = await outputBlob.arrayBuffer();
+  const out = Buffer.from(arr);
+  if (!out.length) throw new Error('IMG.LY returned empty output');
+  return out;
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const apiKey = process.env.HUGGINGFACE_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'HUGGINGFACE_API_KEY is not configured' });
-    }
-
-    const { mimeType, buffer } = await fetchSourceFromPayload(req.body || {});
+    const { buffer } = await fetchSourceFromPayload(req.body || {});
     if (!buffer || !buffer.length) {
       return res.status(400).json({ error: 'Invalid image payload' });
     }
 
-    const outputPng = await callRmbgModel({
-      imageBuffer: buffer,
-      mimeType,
-      apiKey
-    });
+    const outputPng = await removeBackgroundWithImgly(buffer);
 
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'no-store');
