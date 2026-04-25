@@ -8001,28 +8001,73 @@ function finishOnboarding() {
         }
       };
 
-      const fillBgAction = () => {
-        if (!bgColorInput) return;
-        let changed = false;
-        const markChanged = () => { changed = true; };
-        bgColorInput.addEventListener('change', markChanged, { once: true });
-        try {
-          bgColorInput.focus({ preventScroll: true });
-        } catch {}
-        try {
-          if (typeof bgColorInput.showPicker === 'function') bgColorInput.showPicker();
-          else bgColorInput.click();
-        } catch {
-          try { bgColorInput.click(); } catch {}
-        }
-        // Safari/iOS fallback if native picker fails to open/change.
-        setTimeout(() => {
-          if (changed) return;
-          const hex = window.prompt('Enter background color (hex)', String(bgColorInput.value || '#ffffff'));
-          if (!hex) return;
-          bgColorInput.value = toHexColor(hex);
-          bgColorInput.dispatchEvent(new Event('change', { bubbles: true }));
-        }, 500);
+      const openBackgroundColorModal = (initial = '#ffffff') => new Promise((resolve) => {
+        const start = toHexColor(initial || '#ffffff');
+        const presets = ['#ffffff', '#0f172a', '#1d4ed8', '#06b6d4', '#22c55e', '#f59e0b', '#ef4444', '#ec4899'];
+        const overlay = document.createElement('div');
+        overlay.style.cssText = [
+          'position:fixed',
+          'inset:0',
+          'background:rgba(2,6,23,0.46)',
+          `z-index:${CONFIG.zIndex + 40}`,
+          'display:flex',
+          'align-items:center',
+          'justify-content:center',
+          'padding:18px'
+        ].join(';');
+        overlay.innerHTML = `
+          <div style="background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(2,6,23,0.2);width:min(360px,95vw);padding:16px 16px 14px;">
+            <div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:10px;">Pick background color</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <input id="_nabad_bg_picker" type="color" value="${escapeHtml(start)}" style="width:42px;height:34px;border:1px solid #dbe5f3;border-radius:8px;padding:0;background:#fff;" />
+              <input id="_nabad_bg_hex" type="text" value="${escapeHtml(start)}" style="flex:1;height:34px;border:1px solid #dbe5f3;border-radius:8px;padding:0 10px;font:600 13px Inter,system-ui;" />
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:12px;">
+              ${presets.map((c) => `<button type="button" data-color="${c}" style="height:24px;border-radius:7px;border:1px solid #dbe5f3;background:${c};cursor:pointer;"></button>`).join('')}
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;">
+              <button type="button" id="_nabad_bg_cancel" style="height:34px;padding:0 12px;border-radius:9px;border:1px solid #dbe5f3;background:#fff;font:700 13px Inter,system-ui;color:#475569;cursor:pointer;">Cancel</button>
+              <button type="button" id="_nabad_bg_apply" style="height:34px;padding:0 14px;border-radius:9px;border:0;background:linear-gradient(135deg,#2563eb,#06b6d4);font:700 13px Inter,system-ui;color:#fff;cursor:pointer;">Apply</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        const picker = overlay.querySelector('#_nabad_bg_picker');
+        const hexInput = overlay.querySelector('#_nabad_bg_hex');
+        const close = (v = null) => {
+          overlay.remove();
+          resolve(v);
+        };
+        overlay.querySelector('#_nabad_bg_cancel')?.addEventListener('click', () => close(null));
+        overlay.querySelector('#_nabad_bg_apply')?.addEventListener('click', () => close(toHexColor(hexInput?.value || picker?.value || start)));
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) close(null);
+          const swatch = e.target?.closest?.('button[data-color]');
+          if (swatch) {
+            const c = toHexColor(String(swatch.getAttribute('data-color') || start));
+            if (picker) picker.value = c;
+            if (hexInput) hexInput.value = c;
+          }
+        });
+        picker?.addEventListener('input', () => { if (hexInput) hexInput.value = toHexColor(picker.value); });
+        hexInput?.addEventListener('input', () => {
+          const v = String(hexInput.value || '').trim();
+          if (/^#[0-9a-fA-F]{6}$/.test(v) && picker) picker.value = v.toLowerCase();
+        });
+        const esc = (e) => {
+          if (e.key === 'Escape') {
+            document.removeEventListener('keydown', esc);
+            close(null);
+          }
+        };
+        document.addEventListener('keydown', esc);
+      });
+
+      const fillBgAction = async () => {
+        const picked = await openBackgroundColorModal(bgColorInput?.value || '#ffffff');
+        if (!picked) return;
+        if (bgColorInput) bgColorInput.value = picked;
+        await applyBackgroundColor(picked);
       };
 
       const cropSelectedImageAction = () => {
