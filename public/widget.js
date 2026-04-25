@@ -4190,15 +4190,7 @@ function showPersonalityPill(id) {
         animation: nabadWorkspaceGlowPulse 1s ease-in-out infinite;
       }
       .nabad-editor-workspace-glow .glow-label {
-        position: absolute;
-        left: 50%;
-        bottom: 24px;
-        transform: translateX(-50%);
-        font-size: 13px;
-        font-weight: 800;
-        color: #f0f9ff;
-        letter-spacing: .02em;
-        text-shadow: 0 0 24px rgba(56,189,248,0.85), 0 0 44px rgba(37,99,235,0.55);
+        display: none;
       }
       .nabad-editor-workspace-glow.mode-rewrite .glow-center {
         background: radial-gradient(circle, rgba(221,214,254,0.45) 0%, rgba(167,139,250,0.28) 34%, rgba(15,23,42,0) 74%);
@@ -4437,9 +4429,10 @@ function showPersonalityPill(id) {
       .nabad-ai-sheet {
         position: absolute;
         left: 50%;
-        bottom: 10px;
-        transform: translate(-50%, 130%);
-        width: min(92%, 680px);
+        top: 50%;
+        bottom: auto;
+        transform: translate(-50%, -50%) scale(0.96);
+        width: min(90%, 520px);
         max-height: 40vh;
         z-index: 60;
         opacity: 0;
@@ -4447,7 +4440,7 @@ function showPersonalityPill(id) {
         pointer-events: none;
       }
       .nabad-ai-sheet.show {
-        transform: translate(-50%, 0);
+        transform: translate(-50%, -50%) scale(1);
         opacity: 1;
       }
       .nabad-ai-sheet-content {
