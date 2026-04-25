@@ -8468,32 +8468,53 @@ function finishOnboarding() {
 
       detectObjectsBtn?.addEventListener('click', async () => {
         try {
-          const src = getBackgroundSource();
-          if (!src) return alert('Background image not found.');
+          const selected = fabricCanvas.getActiveObject();
+          const targetObj = canEraseImageObject(selected)
+            ? selected
+            : (isImageObject(backgroundObj) ? backgroundObj : null);
+          if (!targetObj) return alert('Select an image first, or add a background image.');
           showEditorBusy('Detecting objects...', 'regenerate');
           const model = await loadCocoSsd();
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-            img.src = src;
-          });
-          const detections = await model.detect(img);
+          const element = targetObj._element;
+          if (!element) throw new Error('Image element unavailable for detection');
+          const srcW = Math.max(1, Number(element.naturalWidth || element.width || targetObj.width || 1));
+          const srcH = Math.max(1, Number(element.naturalHeight || element.height || targetObj.height || 1));
+          const tmp = document.createElement('canvas');
+          tmp.width = srcW;
+          tmp.height = srcH;
+          const tctx = tmp.getContext('2d');
+          if (!tctx) throw new Error('Canvas context unavailable');
+          tctx.drawImage(element, 0, 0, srcW, srcH);
+          const detections = await model.detect(tmp, 50, 0.15);
           if (!Array.isArray(detections) || !detections.length) {
             alert('No clear objects detected in this image.');
             return;
           }
-          const cw = fabricCanvas.getWidth();
-          const ch = fabricCanvas.getHeight();
-          const rx = cw / Math.max(1, img.naturalWidth || img.width || cw);
-          const ry = ch / Math.max(1, img.naturalHeight || img.height || ch);
-          detections.slice(0, 12).forEach((d) => {
+          const displayLeft = Number(targetObj.left || 0);
+          const displayTop = Number(targetObj.top || 0);
+          const displayW = Math.max(1, Number(targetObj.getScaledWidth?.() || targetObj.width || 1));
+          const displayH = Math.max(1, Number(targetObj.getScaledHeight?.() || targetObj.height || 1));
+          const cropX = Number(targetObj.cropX || 0);
+          const cropY = Number(targetObj.cropY || 0);
+          const cropW = Math.max(1, Number(targetObj.width || srcW));
+          const cropH = Math.max(1, Number(targetObj.height || srcH));
+          const rx = displayW / cropW;
+          const ry = displayH / cropH;
+
+          const filtered = detections
+            .filter((d) => Number(d?.score || 0) >= 0.18)
+            .slice(0, 20);
+          if (!filtered.length) {
+            alert('No confident objects detected. Try a clearer image or a tighter crop.');
+            return;
+          }
+
+          filtered.forEach((d) => {
             const [x, y, w, h] = d.bbox || [];
             if (!w || !h) return;
             const rect = new window.fabric.Rect({
-              left: x * rx,
-              top: y * ry,
+              left: displayLeft + (x - cropX) * rx,
+              top: displayTop + (y - cropY) * ry,
               width: Math.max(12, w * rx),
               height: Math.max(12, h * ry),
               fill: 'rgba(14,165,233,0.12)',
@@ -8501,8 +8522,8 @@ function finishOnboarding() {
               strokeWidth: 1.5
             });
             const tag = new window.fabric.IText(cleanText(String(d.class || 'object'), 24), {
-              left: x * rx + 6,
-              top: y * ry - 18,
+              left: displayLeft + (x - cropX) * rx + 6,
+              top: displayTop + (y - cropY) * ry - 18,
               fontSize: 14,
               fill: '#0f172a',
               fontWeight: 700,
