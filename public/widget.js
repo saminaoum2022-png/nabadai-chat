@@ -6581,6 +6581,7 @@ function finishOnboarding() {
                 <div class="add-grid">
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-remove-bg">Remove Background</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-detect-objects">Detect Objects</button>
+                  <button type="button" class="nabad-editor-btn" id="nabad-sidebar-remove-detected">Remove Selected Object</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-remove-text">Remove Text</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-rewrite-copy">Rewrite Copy</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-swap-bg">Swap Background</button>
@@ -6719,6 +6720,7 @@ function finishOnboarding() {
       const sidebarEraserBtn = document.getElementById('nabad-sidebar-eraser');
       const sidebarRemoveBgBtn = document.getElementById('nabad-sidebar-remove-bg');
       const sidebarDetectObjectsBtn = document.getElementById('nabad-sidebar-detect-objects');
+      const sidebarRemoveDetectedBtn = document.getElementById('nabad-sidebar-remove-detected');
       const sidebarRemoveTextBtn = document.getElementById('nabad-sidebar-remove-text');
       const sidebarRewriteCopyBtn = document.getElementById('nabad-sidebar-rewrite-copy');
       const sidebarSwapBgBtn = document.getElementById('nabad-sidebar-swap-bg');
@@ -7773,6 +7775,139 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       };
 
+      const getObjectById = (id = '') => {
+        if (!id) return null;
+        return fabricCanvas.getObjects().find((o) => String(o?.nabadObjectId || '') === String(id)) || null;
+      };
+
+      const ensureObjectId = (obj) => {
+        if (!obj) return '';
+        if (!obj.nabadObjectId) {
+          obj.nabadObjectId = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        }
+        return String(obj.nabadObjectId || '');
+      };
+
+      const removeDetectionOverlays = (detectionId = '') => {
+        if (!detectionId) return;
+        const objects = fabricCanvas.getObjects().slice();
+        objects.forEach((o) => {
+          if (String(o?.nabadDetectionId || '') === String(detectionId)) {
+            try { fabricCanvas.remove(o); } catch {}
+          }
+        });
+      };
+
+      const extractAndHealDetectedObject = async (meta = {}) => {
+        const sourceId = String(meta?.sourceId || '');
+        const sourceObj = getObjectById(sourceId);
+        if (!sourceObj || sourceObj.type !== 'image') {
+          throw new Error('Detected source image is unavailable.');
+        }
+        const element = sourceObj._element;
+        if (!element) throw new Error('Source image element is unavailable.');
+
+        const srcW = Math.max(1, Number(element.naturalWidth || element.width || 1));
+        const srcH = Math.max(1, Number(element.naturalHeight || element.height || 1));
+        const sx = Math.max(0, Math.min(srcW - 1, Math.round(Number(meta?.sourceX || 0))));
+        const sy = Math.max(0, Math.min(srcH - 1, Math.round(Number(meta?.sourceY || 0))));
+        const sw = Math.max(1, Math.min(srcW - sx, Math.round(Number(meta?.sourceW || 1))));
+        const sh = Math.max(1, Math.min(srcH - sy, Math.round(Number(meta?.sourceH || 1))));
+
+        const work = document.createElement('canvas');
+        work.width = srcW;
+        work.height = srcH;
+        const wctx = work.getContext('2d');
+        if (!wctx) throw new Error('Canvas context unavailable.');
+        wctx.drawImage(element, 0, 0, srcW, srcH);
+
+        const cut = document.createElement('canvas');
+        cut.width = sw;
+        cut.height = sh;
+        const cctx = cut.getContext('2d');
+        if (!cctx) throw new Error('Cutout context unavailable.');
+        cctx.drawImage(work, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        const patchTry = [];
+        if (sx - sw >= 0) patchTry.push({ x: sx - sw, y: sy, w: sw, h: sh });
+        if (sx + sw <= srcW - sw) patchTry.push({ x: sx + sw, y: sy, w: sw, h: sh });
+        if (sy - sh >= 0) patchTry.push({ x: sx, y: sy - sh, w: sw, h: sh });
+        if (sy + sh <= srcH - sh) patchTry.push({ x: sx, y: sy + sh, w: sw, h: sh });
+
+        if (patchTry.length) {
+          const p = patchTry[0];
+          wctx.drawImage(work, p.x, p.y, p.w, p.h, sx, sy, sw, sh);
+          wctx.filter = 'blur(5px)';
+          wctx.drawImage(work, sx, sy, sw, sh, sx, sy, sw, sh);
+          wctx.filter = 'none';
+        } else {
+          wctx.fillStyle = '#f1f5f9';
+          wctx.fillRect(sx, sy, sw, sh);
+        }
+
+        const nextSrc = work.toDataURL('image/png');
+        const prev = {
+          left: Number(sourceObj.left || 0),
+          top: Number(sourceObj.top || 0),
+          scaleX: Number(sourceObj.scaleX || 1),
+          scaleY: Number(sourceObj.scaleY || 1),
+          angle: Number(sourceObj.angle || 0),
+          originX: sourceObj.originX || 'left',
+          originY: sourceObj.originY || 'top',
+          flipX: !!sourceObj.flipX,
+          flipY: !!sourceObj.flipY,
+          opacity: Number(sourceObj.opacity ?? 1),
+          selectable: sourceObj.selectable !== false,
+          evented: sourceObj.evented !== false,
+          cropX: Number(sourceObj.cropX || 0),
+          cropY: Number(sourceObj.cropY || 0),
+          width: Number(sourceObj.width || 1),
+          height: Number(sourceObj.height || 1)
+        };
+        await new Promise((resolve, reject) => {
+          if (typeof sourceObj.setSrc !== 'function') return reject(new Error('setSrc unavailable'));
+          sourceObj.setSrc(nextSrc, () => {
+            try {
+              sourceObj.set(prev);
+              sourceObj.setCoords();
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        const cutUrl = cut.toDataURL('image/png');
+        const canvasX = Number(meta?.canvasX || 0);
+        const canvasY = Number(meta?.canvasY || 0);
+        const canvasW = Math.max(8, Number(meta?.canvasW || 40));
+        const canvasH = Math.max(8, Number(meta?.canvasH || 40));
+        await new Promise((resolve, reject) => {
+          window.fabric.Image.fromURL(cutUrl, (img) => {
+            if (!img) return reject(new Error('Failed to create extracted object.'));
+            const iw = Math.max(1, Number(img.width || sw));
+            const ih = Math.max(1, Number(img.height || sh));
+            img.set({
+              left: canvasX,
+              top: canvasY,
+              scaleX: canvasW / iw,
+              scaleY: canvasH / ih,
+              selectable: true,
+              evented: true,
+              hasControls: true,
+              hasBorders: true
+            });
+            ensureObjectId(img);
+            fabricCanvas.add(img);
+            fabricCanvas.setActiveObject(img);
+            resolve();
+          });
+        });
+
+        removeDetectionOverlays(String(meta?.detectionId || ''));
+        fabricCanvas.renderAll();
+      };
+
       const removeSelectedImageBackground = async () => {
         const obj = fabricCanvas.getActiveObject();
         if (!obj || obj.type !== 'image') {
@@ -7951,9 +8086,19 @@ function finishOnboarding() {
         }
       };
 
-      const deleteSelectedObject = () => {
+      const deleteSelectedObject = async () => {
         const obj = fabricCanvas.getActiveObject();
         if (!obj) return;
+        if (obj?.nabadDetectMeta && typeof obj.nabadDetectMeta === 'object') {
+          try {
+            await extractAndHealDetectedObject(obj.nabadDetectMeta);
+            pushHistory();
+          } catch (err) {
+            console.error('[NABAD] detection extraction error:', err);
+            alert('Could not extract this detected object. Try again on a clearer image.');
+          }
+          return;
+        }
         if (obj === backgroundObj) {
           alert('Background is protected. Use "Replace background" or unlock to move it.');
           return;
@@ -8509,28 +8654,64 @@ function finishOnboarding() {
             return;
           }
 
+          const detectionId = `det_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          const sourceId = ensureObjectId(targetObj);
           filtered.forEach((d) => {
             const [x, y, w, h] = d.bbox || [];
             if (!w || !h) return;
+            const canvasX = displayLeft + (x - cropX) * rx;
+            const canvasY = displayTop + (y - cropY) * ry;
+            const canvasW = Math.max(12, w * rx);
+            const canvasH = Math.max(12, h * ry);
+            const meta = {
+              detectionId,
+              sourceId,
+              sourceX: x,
+              sourceY: y,
+              sourceW: w,
+              sourceH: h,
+              canvasX,
+              canvasY,
+              canvasW,
+              canvasH,
+              label: cleanText(String(d.class || 'object'), 24)
+            };
             const rect = new window.fabric.Rect({
-              left: displayLeft + (x - cropX) * rx,
-              top: displayTop + (y - cropY) * ry,
-              width: Math.max(12, w * rx),
-              height: Math.max(12, h * ry),
+              left: canvasX,
+              top: canvasY,
+              width: canvasW,
+              height: canvasH,
               fill: 'rgba(14,165,233,0.12)',
               stroke: '#0ea5e9',
-              strokeWidth: 1.5
+              strokeWidth: 1.5,
+              selectable: true,
+              evented: true
             });
             const tag = new window.fabric.IText(cleanText(String(d.class || 'object'), 24), {
-              left: displayLeft + (x - cropX) * rx + 6,
-              top: displayTop + (y - cropY) * ry - 18,
+              left: canvasX + 6,
+              top: canvasY - 18,
               fontSize: 14,
               fill: '#0f172a',
               fontWeight: 700,
-              fontFamily: defaultFont
+              fontFamily: defaultFont,
+              selectable: false,
+              evented: false
             });
+            rect.nabadDetectMeta = meta;
+            rect.nabadDetectionId = detectionId;
+            rect.hoverCursor = 'pointer';
+            rect.set({
+              hasControls: false,
+              lockMovementX: true,
+              lockMovementY: true,
+              lockScalingX: true,
+              lockScalingY: true,
+              lockRotation: true
+            });
+            tag.nabadDetectionId = detectionId;
             fabricCanvas.add(rect, tag);
           });
+          alert('Objects detected. Select a blue box, then click "Remove Selected Object" (or press Delete) to cut object and auto-heal the area.');
           fabricCanvas.renderAll();
         } catch (err) {
           console.error('[NABAD] detect objects error:', err);
@@ -8539,6 +8720,25 @@ function finishOnboarding() {
           hideEditorBusy();
         }
       });
+
+      const removeSelectedDetectedObject = async () => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || !obj?.nabadDetectMeta) {
+          alert('Select a detected blue object box first.');
+          return;
+        }
+        showEditorBusy('Removing selected object...', 'removebg');
+        try {
+          await extractAndHealDetectedObject(obj.nabadDetectMeta);
+          pushHistory();
+        } catch (err) {
+          console.error('[NABAD] remove detected object error:', err);
+          alert('Could not remove this detected object. Try detect again on a clearer image.');
+        } finally {
+          hideEditorBusy();
+        }
+      };
+      sidebarRemoveDetectedBtn?.addEventListener('click', removeSelectedDetectedObject);
 
       detectTextBtn?.addEventListener('click', async () => {
         try {
