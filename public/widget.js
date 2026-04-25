@@ -7745,20 +7745,60 @@ function finishOnboarding() {
           if (window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__) {
             return window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__;
           }
-          window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__ = new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.0/dist/browser.js';
-            script.async = true;
-            script.onload = () => {
-              if (typeof window.imglyRemoveBackground === 'function') {
-                resolve(window.imglyRemoveBackground);
-              } else {
-                reject(new Error('imglyRemoveBackground is unavailable after script load.'));
+
+          window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__ = (async () => {
+            const tryScript = (src) => new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = src;
+              script.async = true;
+              script.onload = () => {
+                if (typeof window.imglyRemoveBackground === 'function') {
+                  resolve(window.imglyRemoveBackground);
+                } else {
+                  reject(new Error('imglyRemoveBackground is unavailable after script load.'));
+                }
+              };
+              script.onerror = () => reject(new Error(`Failed script load: ${src}`));
+              document.head.appendChild(script);
+            });
+
+            const scriptCandidates = [
+              'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.0/dist/browser.js',
+              'https://cdn.jsdelivr.net/npm/@imgly/background-removal/dist/browser.js'
+            ];
+            let lastErr = null;
+            for (const src of scriptCandidates) {
+              try {
+                const fn = await tryScript(src);
+                if (typeof fn === 'function') return fn;
+              } catch (err) {
+                lastErr = err;
               }
-            };
-            script.onerror = () => reject(new Error('Failed to load @imgly/background-removal browser bundle.'));
-            document.head.appendChild(script);
-          });
+            }
+
+            const importCandidates = [
+              'https://esm.sh/@imgly/background-removal?bundle',
+              'https://cdn.jsdelivr.net/npm/@imgly/background-removal/+esm',
+              'https://unpkg.com/@imgly/background-removal?module'
+            ];
+            for (const src of importCandidates) {
+              try {
+                const mod = await import(src);
+                const fn =
+                  mod?.imglyRemoveBackground ||
+                  mod?.removeBackground ||
+                  mod?.default?.imglyRemoveBackground ||
+                  mod?.default?.removeBackground ||
+                  mod?.default;
+                if (typeof fn === 'function') return fn;
+              } catch (err) {
+                lastErr = err;
+              }
+            }
+
+            throw lastErr || new Error('Failed to load @imgly/background-removal browser bundle.');
+          })();
+
           return window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__;
         };
 
