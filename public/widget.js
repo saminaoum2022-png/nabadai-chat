@@ -6573,6 +6573,7 @@ function finishOnboarding() {
                 <div class="add-grid">
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-fill-bg">Fill Background</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-crop">Crop</button>
+                  <button type="button" class="nabad-editor-btn" id="nabad-sidebar-eraser">Eraser</button>
                 </div>
               </section>
               <section class="nabad-editor-sidebar-section with-divider">
@@ -6715,6 +6716,7 @@ function finishOnboarding() {
       const sideAddLogoBtn = document.getElementById('nabad-side-add-logo');
       const sidebarFillBgBtn = document.getElementById('nabad-sidebar-fill-bg');
       const sidebarCropBtn = document.getElementById('nabad-sidebar-crop');
+      const sidebarEraserBtn = document.getElementById('nabad-sidebar-eraser');
       const sidebarRemoveBgBtn = document.getElementById('nabad-sidebar-remove-bg');
       const sidebarDetectObjectsBtn = document.getElementById('nabad-sidebar-detect-objects');
       const sidebarRemoveTextBtn = document.getElementById('nabad-sidebar-remove-text');
@@ -6945,11 +6947,194 @@ function finishOnboarding() {
       });
       fabricCanvas.setWidth(stageWidth);
       fabricCanvas.setHeight(fallbackHeight);
-      // Extra safety: empty clicks should clear active object cleanly.
+      // Editor eraser mode (for edge cleanup after background removal).
+      let eraserMode = false;
+      let eraserBrushPx = 24;
+      let eraserIsDrawing = false;
+      let eraserApplying = false;
+      let eraserPoints = [];
+      let eraserPreview = null;
+      let eraserTargetObj = null;
+      const isImageObject = (obj) => !!obj && obj.type === 'image';
+      const canEraseImageObject = (obj) => isImageObject(obj) && obj !== backgroundObj;
+      const setEraserMode = (enabled) => {
+        eraserMode = !!enabled;
+        eraserIsDrawing = false;
+        eraserPoints = [];
+        if (eraserPreview) {
+          try { fabricCanvas.remove(eraserPreview); } catch {}
+          eraserPreview = null;
+        }
+        fabricCanvas.defaultCursor = eraserMode ? 'crosshair' : 'default';
+        fabricCanvas.hoverCursor = eraserMode ? 'crosshair' : 'move';
+        fabricCanvas.moveCursor = eraserMode ? 'crosshair' : 'move';
+        if (sidebarEraserBtn) {
+          sidebarEraserBtn.classList.toggle('active', eraserMode);
+          sidebarEraserBtn.textContent = eraserMode ? 'Eraser (On)' : 'Eraser';
+        }
+        fabricCanvas.requestRenderAll();
+      };
+      const getImageSourcePointFromCanvasPoint = (imgObj, canvasPoint) => {
+        if (!imgObj || !canvasPoint) return null;
+        const local = imgObj.toLocalPoint(
+          new window.fabric.Point(Number(canvasPoint.x || 0), Number(canvasPoint.y || 0)),
+          'left',
+          'top'
+        );
+        const lw = Number(local?.x || 0);
+        const lh = Number(local?.y || 0);
+        const ow = Math.max(1, Number(imgObj.width || 1));
+        const oh = Math.max(1, Number(imgObj.height || 1));
+        if (lw < 0 || lh < 0 || lw > ow || lh > oh) return null;
+        return {
+          x: Number(imgObj.cropX || 0) + lw,
+          y: Number(imgObj.cropY || 0) + lh
+        };
+      };
+      const applyEraserStrokeToImage = async (imgObj, points, brushSizeCanvas = 24) => {
+        if (!imgObj || !Array.isArray(points) || points.length < 2) return;
+        const element = imgObj._element;
+        if (!element) return;
+        const srcW = Math.max(
+          1,
+          Number(element.naturalWidth || element.videoWidth || element.width || (Number(imgObj.cropX || 0) + Number(imgObj.width || 1)))
+        );
+        const srcH = Math.max(
+          1,
+          Number(element.naturalHeight || element.videoHeight || element.height || (Number(imgObj.cropY || 0) + Number(imgObj.height || 1)))
+        );
+        const drawCanvas = document.createElement('canvas');
+        drawCanvas.width = srcW;
+        drawCanvas.height = srcH;
+        const drawCtx = drawCanvas.getContext('2d');
+        if (!drawCtx) return;
+        drawCtx.drawImage(element, 0, 0, srcW, srcH);
+        const renderedW = Math.max(1, Number(imgObj.getScaledWidth?.() || imgObj.width || 1));
+        const renderedH = Math.max(1, Number(imgObj.getScaledHeight?.() || imgObj.height || 1));
+        const baseW = Math.max(1, Number(imgObj.width || 1));
+        const baseH = Math.max(1, Number(imgObj.height || 1));
+        const sx = renderedW / baseW;
+        const sy = renderedH / baseH;
+        const avgScale = Math.max(0.05, (sx + sy) / 2);
+        const brushSrc = Math.max(1, Number(brushSizeCanvas || 24) / avgScale);
+        drawCtx.globalCompositeOperation = 'destination-out';
+        drawCtx.lineCap = 'round';
+        drawCtx.lineJoin = 'round';
+        drawCtx.strokeStyle = 'rgba(0,0,0,1)';
+        drawCtx.lineWidth = brushSrc;
+        let started = false;
+        points.forEach((pt) => {
+          const mapped = getImageSourcePointFromCanvasPoint(imgObj, pt);
+          if (!mapped) return;
+          if (!started) {
+            drawCtx.beginPath();
+            drawCtx.moveTo(mapped.x, mapped.y);
+            started = true;
+          } else {
+            drawCtx.lineTo(mapped.x, mapped.y);
+          }
+        });
+        if (started) drawCtx.stroke();
+        drawCtx.globalCompositeOperation = 'source-over';
+        const nextSrc = drawCanvas.toDataURL('image/png');
+        const prevState = {
+          left: Number(imgObj.left || 0),
+          top: Number(imgObj.top || 0),
+          scaleX: Number(imgObj.scaleX || 1),
+          scaleY: Number(imgObj.scaleY || 1),
+          angle: Number(imgObj.angle || 0),
+          originX: imgObj.originX || 'left',
+          originY: imgObj.originY || 'top',
+          flipX: !!imgObj.flipX,
+          flipY: !!imgObj.flipY,
+          opacity: Number(imgObj.opacity ?? 1),
+          selectable: imgObj.selectable !== false,
+          evented: imgObj.evented !== false,
+          cropX: Number(imgObj.cropX || 0),
+          cropY: Number(imgObj.cropY || 0),
+          width: Number(imgObj.width || 1),
+          height: Number(imgObj.height || 1)
+        };
+        await new Promise((resolve, reject) => {
+          if (typeof imgObj.setSrc !== 'function') return reject(new Error('setSrc unavailable'));
+          imgObj.setSrc(nextSrc, () => {
+            try {
+              imgObj.set(prevState);
+              imgObj.setCoords();
+              fabricCanvas.setActiveObject(imgObj);
+              fabricCanvas.requestRenderAll();
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }, { crossOrigin: 'anonymous' });
+        });
+      };
+      // Extra safety: empty clicks should clear active object cleanly (outside eraser drawing).
       fabricCanvas.on('mouse:down', (evt) => {
+        if (eraserMode) {
+          if (eraserApplying) return;
+          const pointer = fabricCanvas.getPointer(evt.e);
+          const selected = fabricCanvas.getActiveObject();
+          const target = canEraseImageObject(selected)
+            ? selected
+            : (canEraseImageObject(evt?.target) ? evt.target : null);
+          if (!target) return;
+          eraserTargetObj = target;
+          eraserIsDrawing = true;
+          eraserPoints = [{ x: Number(pointer?.x || 0), y: Number(pointer?.y || 0) }];
+          if (eraserPreview) {
+            try { fabricCanvas.remove(eraserPreview); } catch {}
+          }
+          eraserPreview = new window.fabric.Polyline(eraserPoints.slice(), {
+            fill: '',
+            stroke: 'rgba(239,68,68,0.75)',
+            strokeWidth: eraserBrushPx,
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
+            selectable: false,
+            evented: false,
+            excludeFromExport: true
+          });
+          fabricCanvas.add(eraserPreview);
+          eraserPreview.bringToFront();
+          evt?.e?.preventDefault?.();
+          return;
+        }
         if (!evt?.target) {
           fabricCanvas.discardActiveObject();
           fabricCanvas.requestRenderAll();
+        }
+      });
+      fabricCanvas.on('mouse:move', (evt) => {
+        if (!eraserMode || !eraserIsDrawing || !eraserPreview) return;
+        const pointer = fabricCanvas.getPointer(evt.e);
+        eraserPoints.push({ x: Number(pointer?.x || 0), y: Number(pointer?.y || 0) });
+        eraserPreview.set({ points: eraserPoints.slice() });
+        eraserPreview.setCoords();
+        fabricCanvas.requestRenderAll();
+        evt?.e?.preventDefault?.();
+      });
+      fabricCanvas.on('mouse:up', async (evt) => {
+        if (!eraserMode || !eraserIsDrawing) return;
+        eraserIsDrawing = false;
+        if (eraserPreview) {
+          try { fabricCanvas.remove(eraserPreview); } catch {}
+          eraserPreview = null;
+        }
+        const points = eraserPoints.slice();
+        eraserPoints = [];
+        if (!eraserTargetObj || points.length < 2 || eraserApplying) return;
+        eraserApplying = true;
+        try {
+          await applyEraserStrokeToImage(eraserTargetObj, points, eraserBrushPx);
+          pushHistory();
+        } catch (err) {
+          console.error('[NABAD] eraser apply error:', err);
+          alert('Eraser could not apply on this image. Try again.');
+        } finally {
+          eraserApplying = false;
+          evt?.e?.preventDefault?.();
         }
       });
 
@@ -7781,6 +7966,23 @@ function finishOnboarding() {
         }
         cropCanvasAction();
       };
+      const eraserAction = () => {
+        if (eraserMode) {
+          setEraserMode(false);
+          return;
+        }
+        const selected = fabricCanvas.getActiveObject();
+        if (!canEraseImageObject(selected)) {
+          alert('Select an image object first, then click Eraser.');
+          return;
+        }
+        const nextSize = window.prompt('Eraser size in px (6-120)', String(eraserBrushPx));
+        if (nextSize !== null) {
+          const parsed = Number(nextSize);
+          if (Number.isFinite(parsed)) eraserBrushPx = Math.max(6, Math.min(120, Math.round(parsed)));
+        }
+        setEraserMode(true);
+      };
 
       sideAddTextBtn?.addEventListener('click', addTextAction);
       sideAddImageBtn?.addEventListener('click', addImageAction);
@@ -7788,6 +7990,7 @@ function finishOnboarding() {
       sideAddShapeBtn?.addEventListener('click', addShapeAction);
       sidebarFillBgBtn?.addEventListener('click', fillBgAction);
       sidebarCropBtn?.addEventListener('click', cropAction);
+      sidebarEraserBtn?.addEventListener('click', eraserAction);
 
       bgColorInput?.addEventListener('change', async () => {
         const color = toHexColor(String(bgColorInput?.value || '#ffffff'));
@@ -7949,6 +8152,11 @@ function finishOnboarding() {
       });
 
       const keyHandler = (e) => {
+        if (e.key === 'Escape' && eraserMode) {
+          e.preventDefault();
+          setEraserMode(false);
+          return;
+        }
         if (e.key === 'Delete' || e.key === 'Backspace') {
           const active = fabricCanvas.getActiveObject();
           if (active && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
@@ -8318,6 +8526,7 @@ function finishOnboarding() {
         return Math.sqrt(dx * dx + dy * dy);
       };
       const onViewportMouseDown = (e) => {
+        if (eraserMode) return;
         if (e.button !== 0) return;
         const target = e.target;
         if (!target) return;
@@ -8339,6 +8548,7 @@ function finishOnboarding() {
         workspaceEl?.classList.add('nabad-panning');
       };
       const onViewportTouchStart = (e) => {
+        if (eraserMode) return;
         if (e.touches?.length >= 2) {
           const t1 = e.touches[0];
           const t2 = e.touches[1];
@@ -8428,6 +8638,7 @@ function finishOnboarding() {
       let cardStartX = 0;
       let cardStartY = 0;
       const canStartCardDrag = (e) => {
+        if (eraserMode) return false;
         const target = e.target;
         if (!target) return false;
         if (target.closest('#nabad-card-handle') || target.closest('#nabad-zoom-controls') || target.closest('.nabad-editor-topbar')) return false;
