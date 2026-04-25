@@ -7738,60 +7738,92 @@ function finishOnboarding() {
           return;
         }
 
-        const imageObjectToDataUrl = async (fabricImageObj) => {
-          const imgEl = fabricImageObj?._element;
-          if (!imgEl) return '';
-          const w = Math.max(1, Number(imgEl.naturalWidth || imgEl.width || fabricImageObj.width || 1));
-          const h = Math.max(1, Number(imgEl.naturalHeight || imgEl.height || fabricImageObj.height || 1));
-          const tmp = document.createElement('canvas');
-          tmp.width = w;
-          tmp.height = h;
-          const ctx = tmp.getContext('2d');
-          if (!ctx) return '';
-          try {
-            ctx.drawImage(imgEl, 0, 0, w, h);
-            return tmp.toDataURL('image/png');
-          } catch {
-            return '';
+        const loadImglyRemoveBackground = () => {
+          if (typeof window.imglyRemoveBackground === 'function') {
+            return Promise.resolve(window.imglyRemoveBackground);
           }
+          if (window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__) {
+            return window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__;
+          }
+          window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__ = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.0/dist/browser.js';
+            script.async = true;
+            script.onload = () => {
+              if (typeof window.imglyRemoveBackground === 'function') {
+                resolve(window.imglyRemoveBackground);
+              } else {
+                reject(new Error('imglyRemoveBackground is unavailable after script load.'));
+              }
+            };
+            script.onerror = () => reject(new Error('Failed to load @imgly/background-removal browser bundle.'));
+            document.head.appendChild(script);
+          });
+          return window.__NABAD_BGREMOVAL_SCRIPT_PROMISE__;
         };
 
-        const requestServerRemoveBg = async (source = '', fabricImageObj = null) => {
-          let payload = {};
-          if (source.startsWith('data:')) {
-            payload = { imageBase64: source };
-          } else if (source.startsWith('http://') || source.startsWith('https://')) {
-            payload = { imageUrl: source };
-          } else {
-            const dataUrl = await imageObjectToDataUrl(fabricImageObj);
-            if (!dataUrl) {
-              throw new Error('Image source is local/blob and cannot be uploaded for background removal.');
-            }
-            payload = { imageBase64: dataUrl };
-          }
-          const resp = await fetch('/api/remove-bg', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (!resp.ok) {
-            let msg = `Background remover failed (${resp.status})`;
+        const imageObjectToBlob = async (fabricImageObj, source = '') => {
+          const toBlobFromCanvas = () => new Promise((resolve, reject) => {
             try {
-              const err = await resp.json();
-              if (err?.detail) msg = `${msg}: ${err.detail}`;
-              else if (err?.error) msg = `${msg}: ${err.error}`;
-            } catch {}
-            throw new Error(msg);
+              const imgEl = fabricImageObj?._element;
+              if (!imgEl) return reject(new Error('Selected image element is unavailable.'));
+              const w = Math.max(1, Number(imgEl.naturalWidth || imgEl.width || fabricImageObj.width || 1));
+              const h = Math.max(1, Number(imgEl.naturalHeight || imgEl.height || fabricImageObj.height || 1));
+              const tmp = document.createElement('canvas');
+              tmp.width = w;
+              tmp.height = h;
+              const ctx = tmp.getContext('2d');
+              if (!ctx) return reject(new Error('Canvas context unavailable.'));
+              ctx.drawImage(imgEl, 0, 0, w, h);
+              tmp.toBlob((blob) => {
+                if (!blob || !blob.size) return reject(new Error('Failed to read selected image blob.'));
+                resolve(blob);
+              }, 'image/png');
+            } catch (err) {
+              reject(err);
+            }
+          });
+
+          if (source.startsWith('data:') || source.startsWith('blob:')) {
+            const resp = await fetch(source);
+            const blob = await resp.blob();
+            if (blob && blob.size) return blob;
           }
-          const blob = await resp.blob();
-          if (!blob || !blob.size) throw new Error('No output image received from /api/remove-bg');
-          return URL.createObjectURL(blob);
+          if (source.startsWith('http://') || source.startsWith('https://')) {
+            try {
+              const resp = await fetch(source, { mode: 'cors' });
+              const blob = await resp.blob();
+              if (blob && blob.size) return blob;
+            } catch {}
+          }
+          return toBlobFromCanvas();
+        };
+
+        const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(new Error('Failed to convert output blob to data URL.'));
+          reader.readAsDataURL(blob);
+        });
+
+        const runBrowserRemoveBg = async (source = '', fabricImageObj = null) => {
+          const imglyRemoveBackground = await loadImglyRemoveBackground();
+          const inputBlob = await imageObjectToBlob(fabricImageObj, source);
+          const removed = await imglyRemoveBackground(inputBlob);
+          const outputBlob =
+            (removed instanceof Blob && removed) ||
+            (removed?.blob instanceof Blob && removed.blob) ||
+            null;
+          if (!outputBlob || !outputBlob.size) {
+            throw new Error('Background remover returned empty output.');
+          }
+          return blobToDataUrl(outputBlob);
         };
 
         if (removeBgBtn) removeBgBtn.disabled = true;
         showEditorBusy('Removing background...', 'removebg');
         try {
-          const url = await requestServerRemoveBg(src, obj);
+          const dataUrl = await runBrowserRemoveBg(src, obj);
           const prev = {
             left: Number(obj.left || 0),
             top: Number(obj.top || 0),
@@ -7808,7 +7840,7 @@ function finishOnboarding() {
           };
           await new Promise((resolve, reject) => {
             if (typeof obj.setSrc !== 'function') return reject(new Error('setSrc unavailable'));
-            obj.setSrc(url, () => {
+            obj.setSrc(dataUrl, () => {
               try {
                 obj.set(prev);
                 obj.setCoords();
@@ -7818,11 +7850,10 @@ function finishOnboarding() {
               } catch (err) {
                 reject(err);
               }
-            }, { crossOrigin: 'anonymous' });
+            });
           }).catch(async () => {
-            await addImageObjectFromSource(url);
+            await addImageObjectFromSource(dataUrl);
           });
-          setTimeout(() => URL.revokeObjectURL(url), 30_000);
         } catch (err) {
           console.error('[NABAD] remove background error:', err);
           const detail = cleanText(err?.message || '', 240);
