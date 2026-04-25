@@ -7738,10 +7738,37 @@ function finishOnboarding() {
           return;
         }
 
-        const requestServerRemoveBg = async (source = '') => {
-          const payload = source.startsWith('data:')
-            ? { imageBase64: source }
-            : { imageUrl: source };
+        const imageObjectToDataUrl = async (fabricImageObj) => {
+          const imgEl = fabricImageObj?._element;
+          if (!imgEl) return '';
+          const w = Math.max(1, Number(imgEl.naturalWidth || imgEl.width || fabricImageObj.width || 1));
+          const h = Math.max(1, Number(imgEl.naturalHeight || imgEl.height || fabricImageObj.height || 1));
+          const tmp = document.createElement('canvas');
+          tmp.width = w;
+          tmp.height = h;
+          const ctx = tmp.getContext('2d');
+          if (!ctx) return '';
+          try {
+            ctx.drawImage(imgEl, 0, 0, w, h);
+            return tmp.toDataURL('image/png');
+          } catch {
+            return '';
+          }
+        };
+
+        const requestServerRemoveBg = async (source = '', fabricImageObj = null) => {
+          let payload = {};
+          if (source.startsWith('data:')) {
+            payload = { imageBase64: source };
+          } else if (source.startsWith('http://') || source.startsWith('https://')) {
+            payload = { imageUrl: source };
+          } else {
+            const dataUrl = await imageObjectToDataUrl(fabricImageObj);
+            if (!dataUrl) {
+              throw new Error('Image source is local/blob and cannot be uploaded for background removal.');
+            }
+            payload = { imageBase64: dataUrl };
+          }
           const resp = await fetch('/api/remove-bg', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7764,7 +7791,7 @@ function finishOnboarding() {
         if (removeBgBtn) removeBgBtn.disabled = true;
         showEditorBusy('Removing background...', 'removebg');
         try {
-          const url = await requestServerRemoveBg(src);
+          const url = await requestServerRemoveBg(src, obj);
           const prev = {
             left: Number(obj.left || 0),
             top: Number(obj.top || 0),
@@ -7798,7 +7825,8 @@ function finishOnboarding() {
           setTimeout(() => URL.revokeObjectURL(url), 30_000);
         } catch (err) {
           console.error('[NABAD] remove background error:', err);
-          alert('Background remover failed on this image. Try another image or run again.');
+          const detail = cleanText(err?.message || '', 240);
+          alert(detail ? `Background remover failed: ${detail}` : 'Background remover failed on this image. Try another image or run again.');
         } finally {
           if (removeBgBtn) removeBgBtn.disabled = false;
           hideEditorBusy();
