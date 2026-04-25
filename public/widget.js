@@ -6679,7 +6679,7 @@ function finishOnboarding() {
           <input id="nabad-editor-object-file" type="file" accept="image/*" hidden />
           <input id="nabad-editor-logo-file" type="file" accept="image/*" hidden />
           <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
-          <input id="nabad-editor-bg-color-input" type="color" value="#ffffff" hidden />
+          <input id="nabad-editor-bg-color-input" type="color" value="#ffffff" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" />
         </div>
       `;
 
@@ -7987,7 +7987,43 @@ function finishOnboarding() {
         const allowed = ['rect', 'circle', 'line', 'star', 'blob'];
         addShape(allowed.includes(choice) ? choice : 'rect');
       };
-      const fillBgAction = () => bgColorInput?.click();
+      const applyBackgroundColor = async (colorValue = '#ffffff') => {
+        const color = toHexColor(String(colorValue || '#ffffff'));
+        const fillUrl = makeSolidBackground(color, fabricCanvas.getWidth(), fabricCanvas.getHeight());
+        try {
+          await setBackgroundFromUrl(fillUrl, false);
+          setBackgroundLockState(true);
+          if (layerBackground) layerBackground.checked = true;
+          fabricCanvas.renderAll();
+        } catch (err) {
+          console.error('[NABAD] fill background color error:', err);
+          alert('Could not fill background color. Please try again.');
+        }
+      };
+
+      const fillBgAction = () => {
+        if (!bgColorInput) return;
+        let changed = false;
+        const markChanged = () => { changed = true; };
+        bgColorInput.addEventListener('change', markChanged, { once: true });
+        try {
+          bgColorInput.focus({ preventScroll: true });
+        } catch {}
+        try {
+          if (typeof bgColorInput.showPicker === 'function') bgColorInput.showPicker();
+          else bgColorInput.click();
+        } catch {
+          try { bgColorInput.click(); } catch {}
+        }
+        // Safari/iOS fallback if native picker fails to open/change.
+        setTimeout(() => {
+          if (changed) return;
+          const hex = window.prompt('Enter background color (hex)', String(bgColorInput.value || '#ffffff'));
+          if (!hex) return;
+          bgColorInput.value = toHexColor(hex);
+          bgColorInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }, 500);
+      };
 
       const cropSelectedImageAction = () => {
         const obj = fabricCanvas.getActiveObject();
@@ -8114,17 +8150,7 @@ function finishOnboarding() {
       sidebarEraserBtn?.addEventListener('click', eraserAction);
 
       bgColorInput?.addEventListener('change', async () => {
-        const color = toHexColor(String(bgColorInput?.value || '#ffffff'));
-        const fillUrl = makeSolidBackground(color, fabricCanvas.getWidth(), fabricCanvas.getHeight());
-        try {
-          await setBackgroundFromUrl(fillUrl, false);
-          setBackgroundLockState(true);
-          if (layerBackground) layerBackground.checked = true;
-          fabricCanvas.renderAll();
-        } catch (err) {
-          console.error('[NABAD] fill background color error:', err);
-          alert('Could not fill background color. Please try again.');
-        }
+        await applyBackgroundColor(bgColorInput?.value || '#ffffff');
       });
 
       const toggleLayer = (obj, checked) => {
