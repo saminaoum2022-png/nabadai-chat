@@ -49,31 +49,44 @@ async function fetchSourceFromPayload(payload = {}) {
 }
 
 async function callRmbgModel({ imageBuffer, mimeType, apiKey }) {
-  const endpoint = 'https://api-inference.huggingface.co/models/briaai/RMBG-2.0';
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: 'image/png',
-      'Content-Type': mimeType || 'image/png'
-    },
-    body: imageBuffer
-  });
+  const endpoints = [
+    'https://router.huggingface.co/hf-inference/models/briaai/RMBG-2.0',
+    'https://api-inference.huggingface.co/models/briaai/RMBG-2.0'
+  ];
 
-  const responseType = String(response.headers.get('content-type') || '').toLowerCase();
-  if (!response.ok || responseType.includes('application/json')) {
-    const text = await response.text();
-    let detail = text;
-    try {
-      const parsed = JSON.parse(text);
-      detail = parsed?.error || parsed?.message || text;
-    } catch {}
-    throw new Error(`Hugging Face RMBG error (${response.status}): ${String(detail).slice(0, 260)}`);
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: 'image/png',
+          'Content-Type': mimeType || 'image/png'
+        },
+        body: imageBuffer
+      });
+
+      const responseType = String(response.headers.get('content-type') || '').toLowerCase();
+      const raw = await response.arrayBuffer();
+      const out = Buffer.from(raw);
+      const asText = out.toString('utf8');
+      const hasJsonError = responseType.includes('application/json');
+      if (response.ok && !hasJsonError && out.length) return out;
+
+      let detail = asText;
+      try {
+        const parsed = JSON.parse(asText || '{}');
+        detail = parsed?.error || parsed?.message || asText;
+      } catch {}
+      lastError = new Error(`Hugging Face RMBG error (${response.status}): ${String(detail).slice(0, 260)}`);
+
+      const retryable = response.status === 429 || response.status === 503 || /loading|temporarily|overloaded/i.test(String(detail || ''));
+      if (!retryable || attempt >= 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+    }
   }
-
-  const out = Buffer.from(await response.arrayBuffer());
-  if (!out.length) throw new Error('RMBG returned empty output');
-  return out;
+  throw lastError || new Error('RMBG returned empty output');
 }
 
 export default async function handler(req, res) {
