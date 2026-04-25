@@ -7737,12 +7737,34 @@ function finishOnboarding() {
           alert('Could not read selected image source.');
           return;
         }
-        const removeBackground = await loadBackgroundRemovalIfNeeded();
+
+        const requestServerRemoveBg = async (source = '') => {
+          const payload = source.startsWith('data:')
+            ? { imageBase64: source }
+            : { imageUrl: source };
+          const resp = await fetch('/api/remove-bg', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!resp.ok) {
+            let msg = `Background remover failed (${resp.status})`;
+            try {
+              const err = await resp.json();
+              if (err?.detail) msg = `${msg}: ${err.detail}`;
+              else if (err?.error) msg = `${msg}: ${err.error}`;
+            } catch {}
+            throw new Error(msg);
+          }
+          const blob = await resp.blob();
+          if (!blob || !blob.size) throw new Error('No output image received from /api/remove-bg');
+          return URL.createObjectURL(blob);
+        };
+
         if (removeBgBtn) removeBgBtn.disabled = true;
         showEditorBusy('Removing background...', 'removebg');
         try {
-          const blob = await removeBackground(src);
-          const url = URL.createObjectURL(blob);
+          const url = await requestServerRemoveBg(src);
           const prev = {
             left: Number(obj.left || 0),
             top: Number(obj.top || 0),
