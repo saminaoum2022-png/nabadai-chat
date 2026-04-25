@@ -4159,6 +4159,108 @@ function showPersonalityPill(id) {
         background: #eff6ff;
         color: #2563eb;
       }
+      #nabad-layer-fab {
+        position: absolute;
+        right: 24px;
+        bottom: 156px;
+        z-index: 230;
+        border: none;
+        background: transparent;
+        color: #0f172a;
+        font-weight: 800;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        padding: 0;
+      }
+      #nabad-layer-fab .icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255,255,255,0.82);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      #nabad-layer-fab .count {
+        min-width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        padding: 0 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 800;
+        color: #ffffff;
+        background: linear-gradient(120deg, #2563eb, #38bdf8);
+        box-shadow: 0 2px 8px rgba(37,99,235,0.25);
+      }
+      #nabad-layer-flyout {
+        position: absolute;
+        right: 64px;
+        bottom: 114px;
+        z-index: 240;
+        width: 260px;
+        max-height: min(52vh, 420px);
+        overflow: auto;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.94);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(148,163,184,0.28);
+        box-shadow: 0 14px 34px rgba(15,23,42,0.18);
+        padding: 8px;
+      }
+      #nabad-layer-flyout[hidden] {
+        display: none !important;
+      }
+      .nabad-floating-layer-item {
+        width: 100%;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 8px;
+        color: #0f172a;
+        font-size: 12px;
+        font-weight: 700;
+        text-align: left;
+        cursor: pointer;
+      }
+      .nabad-floating-layer-item:hover {
+        background: #eff6ff;
+        color: #2563eb;
+      }
+      .nabad-floating-layer-item.active {
+        background: rgba(37,99,235,0.12);
+        color: #1d4ed8;
+      }
+      .nabad-floating-layer-item .row-left {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .nabad-floating-layer-item .eye {
+        border: 1px solid rgba(37,99,235,0.2);
+        background: #fff;
+        color: #1d4ed8;
+        border-radius: 999px;
+        font-size: 11px;
+        line-height: 1;
+        padding: 4px 8px;
+      }
+      .nabad-floating-layer-item .eye.off {
+        color: #64748b;
+        border-color: rgba(100,116,139,0.22);
+      }
       .nabad-editor-workspace-glow {
         position: absolute;
         inset: 0;
@@ -6604,6 +6706,14 @@ function finishOnboarding() {
                   <button type="button" id="nabad-zoom-out" title="Zoom out">−</button>
                   <button type="button" id="nabad-zoom-reset" title="Reset view">⌂</button>
                 </div>
+                <button type="button" id="nabad-layer-fab" title="Layers">
+                  <span class="icon">☰</span>
+                  <span>Layers</span>
+                  <span class="count" id="nabad-layer-fab-count">0</span>
+                </button>
+                <div id="nabad-layer-flyout" hidden>
+                  <div id="nabad-floating-layer-list"></div>
+                </div>
                 <div id="nabad-workspace-glow" class="nabad-editor-workspace-glow" hidden>
                   <div class="glow-center"></div>
                   <div id="nabad-workspace-glow-text" class="glow-label">Nabad is generating...</div>
@@ -6700,6 +6810,10 @@ function finishOnboarding() {
       const zoomInBtn = document.getElementById('nabad-zoom-in');
       const zoomOutBtn = document.getElementById('nabad-zoom-out');
       const zoomResetBtn = document.getElementById('nabad-zoom-reset');
+      const layerFabBtn = document.getElementById('nabad-layer-fab');
+      const layerFabCount = document.getElementById('nabad-layer-fab-count');
+      const layerFlyout = document.getElementById('nabad-layer-flyout');
+      const floatingLayerList = document.getElementById('nabad-floating-layer-list');
       const contextBar = document.getElementById('nabad-editor-contextbar');
       const contextTextTools = document.getElementById('nabad-context-text-tools');
       const selectedLabel = document.getElementById('nabad-selected-label');
@@ -7462,6 +7576,78 @@ function finishOnboarding() {
         return (obj.type || 'Object').replace('-', ' ');
       };
 
+      const getFloatingLayerName = (obj, idx = 0) => {
+        if (!obj) return `Layer ${idx + 1}`;
+        if (obj === backgroundObj) return 'Background';
+        if (obj === headlineObj) return 'Headline text';
+        if (obj === subtextObj) return 'Subtext';
+        if (obj === ctaObj) return 'CTA text';
+        if (obj === ctaBg) return 'CTA button';
+        if (obj === brandMarkObj) return 'Logo';
+        if (obj?.nabadDetectMeta) {
+          const label = cleanText(String(obj?.nabadDetectMeta?.label || 'object'), 24);
+          return `Detected: ${label}`;
+        }
+        if (obj.type === 'image') return 'Image';
+        if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') return 'Text';
+        if (obj.type === 'rect') return 'Rectangle';
+        if (obj.type === 'circle') return 'Circle';
+        if (obj.type === 'line') return 'Line';
+        if (obj.type === 'path') return 'Path';
+        return cleanText(String(obj.type || 'Layer'), 24) || `Layer ${idx + 1}`;
+      };
+
+      const refreshFloatingLayers = () => {
+        if (!floatingLayerList || !layerFabCount) return;
+        const objects = (fabricCanvas?.getObjects?.() || [])
+          .filter((o) => !!o)
+          .filter((o) => !o.excludeFromExport)
+          .filter((o) => !(o.nabadDetectionId && !o.nabadDetectMeta)); // hide label tags, keep selectable boxes
+        layerFabCount.textContent = String(objects.length);
+        floatingLayerList.innerHTML = '';
+        const active = fabricCanvas.getActiveObject();
+        objects.slice().reverse().forEach((obj, revIdx) => {
+          const index = objects.length - 1 - revIdx;
+          const row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'nabad-floating-layer-item';
+          if (obj === active) row.classList.add('active');
+          const left = document.createElement('span');
+          left.className = 'row-left';
+          left.textContent = `${index + 1}. ${getFloatingLayerName(obj, index)}`;
+          const eye = document.createElement('span');
+          const visible = obj.visible !== false;
+          eye.className = `eye ${visible ? '' : 'off'}`.trim();
+          eye.textContent = visible ? '👁' : '🙈';
+          row.appendChild(left);
+          row.appendChild(eye);
+          row.addEventListener('click', () => {
+            fabricCanvas.setActiveObject(obj);
+            updateControlFromActive();
+            fabricCanvas.renderAll();
+            refreshFloatingLayers();
+          });
+          eye.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            obj.set('visible', !visible);
+            if (fabricCanvas.getActiveObject() === obj && obj.visible === false) {
+              fabricCanvas.discardActiveObject();
+            }
+            fabricCanvas.renderAll();
+            updateLayerVisibilityControls();
+            refreshFloatingLayers();
+          });
+          floatingLayerList.appendChild(row);
+        });
+      };
+
+      const setLayerFlyoutOpen = (open = false) => {
+        if (!layerFlyout) return;
+        layerFlyout.hidden = !open;
+        if (open) refreshFloatingLayers();
+      };
+
       const updateLayerVisibilityControls = () => {
         const layerState = {
           headline: !!(headlineObj && headlineObj.visible !== false),
@@ -7478,6 +7664,7 @@ function finishOnboarding() {
         try {
           window.dispatchEvent(new CustomEvent('nabad:editor-layers', { detail: layerState }));
         } catch {}
+        refreshFloatingLayers();
       };
 
       const setInspectorEnabled = (enabled = false, isText = false) => {
@@ -7562,10 +7749,14 @@ function finishOnboarding() {
           updateControlFromActive();
         }
       });
-      fabricCanvas.on('object:added', pushHistory);
-      fabricCanvas.on('object:modified', pushHistory);
-      fabricCanvas.on('object:removed', pushHistory);
-      fabricCanvas.on('text:changed', pushHistory);
+      const onCanvasObjectsChanged = () => {
+        pushHistory();
+        refreshFloatingLayers();
+      };
+      fabricCanvas.on('object:added', onCanvasObjectsChanged);
+      fabricCanvas.on('object:modified', onCanvasObjectsChanged);
+      fabricCanvas.on('object:removed', onCanvasObjectsChanged);
+      fabricCanvas.on('text:changed', onCanvasObjectsChanged);
 
       fontFamilySelect?.addEventListener('change', () => {
         const obj = fabricCanvas.getActiveObject();
@@ -8386,6 +8577,18 @@ function finishOnboarding() {
       sidebarFillBgBtn?.addEventListener('click', fillBgAction);
       sidebarCropBtn?.addEventListener('click', cropAction);
       sidebarEraserBtn?.addEventListener('click', eraserAction);
+      layerFabBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const shouldOpen = !!layerFlyout?.hidden;
+        setLayerFlyoutOpen(shouldOpen);
+      });
+      document.addEventListener('mousedown', (e) => {
+        if (!layerFlyout || layerFlyout.hidden) return;
+        const t = e.target;
+        if (layerFlyout.contains(t) || layerFabBtn?.contains(t)) return;
+        setLayerFlyoutOpen(false);
+      });
 
       bgColorInput?.addEventListener('change', async () => {
         await applyBackgroundColor(bgColorInput?.value || '#ffffff');
@@ -8537,6 +8740,11 @@ function finishOnboarding() {
       });
 
       const keyHandler = (e) => {
+        if (e.key === 'Escape' && layerFlyout && !layerFlyout.hidden) {
+          e.preventDefault();
+          setLayerFlyoutOpen(false);
+          return;
+        }
         if (e.key === 'Escape' && eraserMode) {
           e.preventDefault();
           setEraserMode(false);
