@@ -48,42 +48,60 @@ async function fetchSourceFromPayload(payload = {}) {
   };
 }
 
+function uniqueModels(models = []) {
+  const seen = new Set();
+  return models.filter((m) => {
+    const key = cleanText(m, 120);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function callRmbgModel({ imageBuffer, mimeType, apiKey }) {
-  const endpoints = [
-    'https://router.huggingface.co/hf-inference/models/briaai/RMBG-2.0',
-    'https://api-inference.huggingface.co/models/briaai/RMBG-2.0'
-  ];
+  const modelCandidates = uniqueModels([
+    process.env.HUGGINGFACE_RMBG_MODEL,
+    'briaai/RMBG-1.4',
+    'briaai/RMBG-2.0'
+  ]);
 
   let lastError = null;
-  for (const endpoint of endpoints) {
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          Accept: 'image/png',
-          'Content-Type': mimeType || 'image/png'
-        },
-        body: imageBuffer
-      });
+  for (const model of modelCandidates) {
+    const endpoints = [
+      `https://router.huggingface.co/hf-inference/models/${model}`,
+      `https://api-inference.huggingface.co/models/${model}`
+    ];
 
-      const responseType = String(response.headers.get('content-type') || '').toLowerCase();
-      const raw = await response.arrayBuffer();
-      const out = Buffer.from(raw);
-      const asText = out.toString('utf8');
-      const hasJsonError = responseType.includes('application/json');
-      if (response.ok && !hasJsonError && out.length) return out;
+    for (const endpoint of endpoints) {
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: 'image/png',
+            'Content-Type': mimeType || 'image/png'
+          },
+          body: imageBuffer
+        });
 
-      let detail = asText;
-      try {
-        const parsed = JSON.parse(asText || '{}');
-        detail = parsed?.error || parsed?.message || asText;
-      } catch {}
-      lastError = new Error(`Hugging Face RMBG error (${response.status}): ${String(detail).slice(0, 260)}`);
+        const responseType = String(response.headers.get('content-type') || '').toLowerCase();
+        const raw = await response.arrayBuffer();
+        const out = Buffer.from(raw);
+        const asText = out.toString('utf8');
+        const hasJsonError = responseType.includes('application/json');
+        if (response.ok && !hasJsonError && out.length) return out;
 
-      const retryable = response.status === 429 || response.status === 503 || /loading|temporarily|overloaded/i.test(String(detail || ''));
-      if (!retryable || attempt >= 2) break;
-      await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+        let detail = asText;
+        try {
+          const parsed = JSON.parse(asText || '{}');
+          detail = parsed?.error || parsed?.message || asText;
+        } catch {}
+        lastError = new Error(`Hugging Face RMBG (${model}) error (${response.status}): ${String(detail).slice(0, 260)}`);
+
+        const retryable = response.status === 429 || response.status === 503 || /loading|temporarily|overloaded/i.test(String(detail || ''));
+        if (!retryable || attempt >= 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+      }
     }
   }
   throw lastError || new Error('RMBG returned empty output');
