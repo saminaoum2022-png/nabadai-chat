@@ -6955,16 +6955,36 @@ function finishOnboarding() {
       let eraserPoints = [];
       let eraserPreview = null;
       let eraserTargetObj = null;
+      let eraserTargetPrevState = null;
       const isImageObject = (obj) => !!obj && obj.type === 'image';
       const canEraseImageObject = (obj) => isImageObject(obj) && obj !== backgroundObj;
       const setEraserMode = (enabled) => {
         eraserMode = !!enabled;
         eraserIsDrawing = false;
         eraserPoints = [];
+        if (!eraserMode && eraserTargetObj && eraserTargetPrevState) {
+          try {
+            eraserTargetObj.set({
+              selectable: eraserTargetPrevState.selectable,
+              evented: eraserTargetPrevState.evented,
+              hasControls: eraserTargetPrevState.hasControls,
+              lockMovementX: eraserTargetPrevState.lockMovementX,
+              lockMovementY: eraserTargetPrevState.lockMovementY,
+              lockScalingX: eraserTargetPrevState.lockScalingX,
+              lockScalingY: eraserTargetPrevState.lockScalingY,
+              lockRotation: eraserTargetPrevState.lockRotation
+            });
+          } catch {}
+        }
+        if (!eraserMode) {
+          eraserTargetObj = null;
+          eraserTargetPrevState = null;
+        }
         if (eraserPreview) {
           try { fabricCanvas.remove(eraserPreview); } catch {}
           eraserPreview = null;
         }
+        fabricCanvas.skipTargetFind = !!eraserMode;
         fabricCanvas.defaultCursor = eraserMode ? 'crosshair' : 'default';
         fabricCanvas.hoverCursor = eraserMode ? 'crosshair' : 'move';
         fabricCanvas.moveCursor = eraserMode ? 'crosshair' : 'move';
@@ -7025,7 +7045,10 @@ function finishOnboarding() {
         let started = false;
         points.forEach((pt) => {
           const mapped = getImageSourcePointFromCanvasPoint(imgObj, pt);
-          if (!mapped) return;
+          if (!mapped) {
+            started = false;
+            return;
+          }
           if (!started) {
             drawCtx.beginPath();
             drawCtx.moveTo(mapped.x, mapped.y);
@@ -7076,11 +7099,35 @@ function finishOnboarding() {
           if (eraserApplying) return;
           const pointer = fabricCanvas.getPointer(evt.e);
           const selected = fabricCanvas.getActiveObject();
-          const target = canEraseImageObject(selected)
-            ? selected
-            : (canEraseImageObject(evt?.target) ? evt.target : null);
+          const target = canEraseImageObject(eraserTargetObj)
+            ? eraserTargetObj
+            : (canEraseImageObject(selected)
+              ? selected
+              : (canEraseImageObject(evt?.target) ? evt.target : null));
           if (!target) return;
+          if (!eraserTargetPrevState || eraserTargetObj !== target) {
+            eraserTargetPrevState = {
+              selectable: target.selectable !== false,
+              evented: target.evented !== false,
+              hasControls: target.hasControls !== false,
+              lockMovementX: !!target.lockMovementX,
+              lockMovementY: !!target.lockMovementY,
+              lockScalingX: !!target.lockScalingX,
+              lockScalingY: !!target.lockScalingY,
+              lockRotation: !!target.lockRotation
+            };
+          }
           eraserTargetObj = target;
+          target.set({
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            lockMovementX: true,
+            lockMovementY: true,
+            lockScalingX: true,
+            lockScalingY: true,
+            lockRotation: true
+          });
           eraserIsDrawing = true;
           eraserPoints = [{ x: Number(pointer?.x || 0), y: Number(pointer?.y || 0) }];
           if (eraserPreview) {
@@ -8183,6 +8230,7 @@ function finishOnboarding() {
           const parsed = Number(nextSize);
           if (Number.isFinite(parsed)) eraserBrushPx = Math.max(6, Math.min(120, Math.round(parsed)));
         }
+        eraserTargetObj = selected;
         setEraserMode(true);
       };
 
