@@ -6652,16 +6652,6 @@ function finishOnboarding() {
           <div class="nabad-editor-workspace">
             <aside class="nabad-editor-panel left">
               <section class="nabad-editor-sidebar-section">
-                <h4>LAYERS</h4>
-                <div class="nabad-editor-layer-list">
-                  <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-headline" checked /> 👁 Headline text</span></label>
-                  <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-subtext" checked /> 👁 Subtext</span></label>
-                  <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-cta" checked /> 👁 CTA button</span></label>
-                  <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-logo" checked /> 👁 Logo</span></label>
-                  <label class="nabad-editor-layer-item"><span class="left"><input type="checkbox" id="nabad-layer-background" checked /> 👁 Background image</span></label>
-                </div>
-              </section>
-              <section class="nabad-editor-sidebar-section with-divider">
                 <h4>ADD</h4>
                 <div class="add-grid">
                   <button type="button" class="nabad-editor-btn" id="nabad-side-add-text">+ Text</button>
