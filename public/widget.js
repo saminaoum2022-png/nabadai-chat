@@ -3831,10 +3831,13 @@ function showPersonalityPill(id) {
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-        background: #ffffff;
-        border: 1px solid rgba(37,99,235,0.16);
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(37,99,235,0.14);
         border-radius: 12px;
         padding: 8px 10px;
+        box-shadow: 0 10px 30px rgba(15,23,42,0.08);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
       }
       .nabad-editor-top-left,
       .nabad-editor-top-right {
@@ -3921,6 +3924,14 @@ function showPersonalityPill(id) {
         font-size: 12px;
         font-weight: 700;
         cursor: pointer;
+      }
+      .nabad-editor-btn:disabled {
+        opacity: 0.38;
+        cursor: not-allowed;
+        filter: grayscale(0.25);
+      }
+      .nabad-editor-btn.ready {
+        box-shadow: 0 8px 20px rgba(37,99,235,0.12);
       }
       .nabad-editor-btn.with-icon {
         display: inline-flex;
@@ -4722,9 +4733,9 @@ function showPersonalityPill(id) {
           top: 6px;
           z-index: 30;
           display: grid;
-          grid-template-columns: auto auto auto auto;
+          grid-template-columns: auto auto auto auto auto;
           grid-template-areas:
-            "left undo redo more";
+            "left undo redo export more";
           align-items: center;
           gap: 8px;
           padding: 10px 10px 8px;
@@ -4753,7 +4764,8 @@ function showPersonalityPill(id) {
           grid-area: redo;
         }
         .nabad-editor-top-right #nabad-editor-save {
-          display: none !important;
+          grid-area: export;
+          display: inline-flex !important;
         }
         .nabad-editor-top-right #nabad-editor-ratio-menu {
           grid-area: more;
@@ -4782,9 +4794,14 @@ function showPersonalityPill(id) {
         #nabad-editor-redo > span:last-child {
           display: none;
         }
+        #nabad-editor-save > span:last-child,
+        #nabad-editor-ratio-menu > span:last-child {
+          display: none;
+        }
         #nabad-editor-back,
         #nabad-editor-undo,
         #nabad-editor-redo,
+        #nabad-editor-save,
         #nabad-editor-ratio-menu {
           min-width: 40px;
           padding: 8px;
@@ -8052,8 +8069,16 @@ function finishOnboarding() {
       let redoStack = [];
       let historyMuted = true;
       const updateHistoryButtons = () => {
-        if (undoBtn) undoBtn.disabled = undoStack.length <= 1;
-        if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+        const undoDisabled = undoStack.length <= 1;
+        const redoDisabled = redoStack.length === 0;
+        if (undoBtn) {
+          undoBtn.disabled = undoDisabled;
+          undoBtn.classList.toggle('ready', !undoDisabled);
+        }
+        if (redoBtn) {
+          redoBtn.disabled = redoDisabled;
+          redoBtn.classList.toggle('ready', !redoDisabled);
+        }
       };
       const snapshotEditorState = () => JSON.stringify(fabricCanvas.toJSON(['nabadRole', 'isCtaText']));
       const pushHistory = () => {
