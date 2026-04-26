@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v72-hide-upload-popup';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v73-remove-empty-overlay';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -9039,7 +9039,13 @@ function finishOnboarding() {
           ctaObj?.bringToFront?.();
           fabricCanvas.setActiveObject(img);
           fabricCanvas.renderAll();
-          try { if (emptyStateEl) emptyStateEl.hidden = true; } catch {}
+          try {
+            if (emptyStateEl) {
+              emptyStateEl.hidden = true;
+              // Hard-stop: remove the overlay so it can't reappear due to any later state sync.
+              emptyStateEl.remove();
+            }
+          } catch {}
           try { syncEmptyState(); } catch {}
           try { requestWorkspaceFit(); } catch {}
           resolve(img);
@@ -9792,7 +9798,12 @@ function finishOnboarding() {
             await addImageObjectFromSource(dataUrl);
             try { syncEmptyState(); } catch {}
             try { requestWorkspaceFit(); } catch {}
-            try { if (emptyStateEl) emptyStateEl.hidden = true; } catch {}
+            try {
+              if (emptyStateEl) {
+                emptyStateEl.hidden = true;
+                emptyStateEl.remove();
+              }
+            } catch {}
           } catch (err) {
             console.error('[NABAD] delegated proxy upload error:', err);
             alert('Could not add uploaded image.');
