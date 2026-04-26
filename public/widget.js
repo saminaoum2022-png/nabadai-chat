@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v73-remove-empty-overlay';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v74-scale-buttons-padded-workspace';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -7449,6 +7449,8 @@ function finishOnboarding() {
                     <label class="nabad-editor-inline-label">Opacity
                       <input id="nabad-editor-opacity" type="range" min="0" max="100" step="1" value="100" />
                     </label>
+                    <button type="button" class="nabad-editor-btn" id="nabad-editor-scale-down" title="Make smaller">Smaller</button>
+                    <button type="button" class="nabad-editor-btn" id="nabad-editor-scale-up" title="Make larger">Larger</button>
                     <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete</button>
                     <button type="button" class="nabad-editor-btn" id="nabad-editor-duplicate">Duplicate</button>
                     <button type="button" class="nabad-editor-btn" id="nabad-editor-bring-front">Bring Forward</button>
@@ -7557,6 +7559,8 @@ function finishOnboarding() {
       const undoBtn = document.getElementById('nabad-editor-undo');
       const redoBtn = document.getElementById('nabad-editor-redo');
       const addBtn = document.getElementById('nabad-editor-add');
+      const scaleDownBtn = document.getElementById('nabad-editor-scale-down');
+      const scaleUpBtn = document.getElementById('nabad-editor-scale-up');
       const deleteBtn = document.getElementById('nabad-editor-delete');
       const duplicateBtn = document.getElementById('nabad-editor-duplicate');
       const bringFrontBtn = document.getElementById('nabad-editor-bring-front');
@@ -8979,8 +8983,11 @@ function finishOnboarding() {
             .filter((o) => o && o.type === 'image' && o !== backgroundObj);
           const isFirstImageInImageEditor = isImageEditor && existingUploadedImages.length === 0;
           if (isFirstImageInImageEditor) {
-            const nextW = Math.max(240, Math.min(4096, Math.round(iw)));
-            const nextH = Math.max(240, Math.min(4096, Math.round(ih)));
+            // Create a padded workspace so the user can move/scale freely,
+            // without feeling the photo is trapped inside a tight transparent canvas.
+            const padMult = 1.35;
+            const nextW = Math.max(240, Math.min(4096, Math.round(iw * padMult)));
+            const nextH = Math.max(240, Math.min(4096, Math.round(ih * padMult)));
             try {
               fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
               fabricCanvas.setWidth(nextW);
@@ -9006,11 +9013,12 @@ function finishOnboarding() {
               console.error('[NABAD] image editor resize-on-upload error:', err);
             }
 
+            const fitScale = Math.min(nextW / iw, nextH / ih, 1);
             img.set({
-              left: 0,
-              top: 0,
-              scaleX: nextW / iw,
-              scaleY: nextH / ih,
+              left: (nextW - (iw * fitScale)) / 2,
+              top: (nextH - (ih * fitScale)) / 2,
+              scaleX: fitScale,
+              scaleY: fitScale,
               selectable: true,
               evented: true,
               hasControls: true,
@@ -9446,10 +9454,24 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       };
 
+      const nudgeSelectedScale = (mult = 1) => {
+        const obj = fabricCanvas.getActiveObject();
+        if (!obj || obj === backgroundObj) return;
+        const m = Math.max(0.2, Math.min(5, Number(mult || 1)));
+        const sx = Math.max(0.03, Math.min(20, Number(obj.scaleX || 1) * m));
+        const sy = Math.max(0.03, Math.min(20, Number(obj.scaleY || 1) * m));
+        obj.set({ scaleX: sx, scaleY: sy });
+        obj.setCoords?.();
+        fabricCanvas.renderAll();
+        updateControlFromActive();
+      };
+
       deleteBtn?.addEventListener('click', deleteSelectedObject);
       duplicateBtn?.addEventListener('click', duplicateSelectedObject);
       bringFrontBtn?.addEventListener('click', bringSelectedForward);
       sendBackBtn?.addEventListener('click', sendSelectedBack);
+      scaleDownBtn?.addEventListener('click', () => nudgeSelectedScale(0.9));
+      scaleUpBtn?.addEventListener('click', () => nudgeSelectedScale(1.1));
 
       const addTextAction = () => {
         const text = new window.fabric.IText('New text', {
