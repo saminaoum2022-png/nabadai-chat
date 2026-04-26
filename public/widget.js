@@ -4661,9 +4661,61 @@ function showPersonalityPill(id) {
         .nabad-editor-shell {
           padding: 8px;
           gap: 10px;
+          padding-bottom: 74px;
           background:
             radial-gradient(120% 60% at 50% -20%, rgba(56,189,248,0.16), transparent 60%),
             #eef3fb;
+        }
+
+        .nabad-editor-mobile-tabs {
+          position: fixed;
+          left: 8px;
+          right: 8px;
+          bottom: 10px;
+          z-index: 40;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 8px;
+          padding: 8px;
+          border-radius: 16px;
+          border: 1px solid rgba(37,99,235,0.18);
+          background: rgba(255,255,255,0.92);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          box-shadow: 0 12px 28px rgba(15,23,42,0.12);
+        }
+        .nabad-editor-mobile-tab {
+          border: 1px solid rgba(37,99,235,0.14);
+          background: rgba(239,246,255,0.55);
+          color: #0f172a;
+          border-radius: 14px;
+          min-height: 48px;
+          padding: 8px 6px;
+          display: grid;
+          gap: 2px;
+          place-items: center;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .nabad-editor-mobile-tab .icon { font-size: 16px; line-height: 1; }
+        .nabad-editor-mobile-tab .label { font-size: 11px; letter-spacing: .01em; }
+        .nabad-editor-mobile-tab.active {
+          border-color: transparent;
+          background: linear-gradient(135deg,#2563eb,#06b6d4);
+          color: #fff;
+        }
+
+        /* Turn the left panel into a bottom sheet */
+        .nabad-editor-panel.left {
+          position: fixed;
+          left: 8px;
+          right: 8px;
+          bottom: 92px;
+          z-index: 35;
+          max-height: 46vh;
+          overflow: auto;
+          border-radius: 16px;
+          box-shadow: 0 14px 34px rgba(15,23,42,0.14);
         }
         .nabad-editor-topbar {
           position: sticky;
@@ -7095,6 +7147,25 @@ function finishOnboarding() {
             </div>
           </div>
 
+          <nav class="nabad-editor-mobile-tabs" id="nabad-editor-mobile-tabs" aria-label="Editor tools" hidden>
+            <button type="button" class="nabad-editor-mobile-tab" data-tab="add">
+              <span class="icon" aria-hidden="true">＋</span>
+              <span class="label">Add</span>
+            </button>
+            <button type="button" class="nabad-editor-mobile-tab" data-tab="tools">
+              <span class="icon" aria-hidden="true">🛠</span>
+              <span class="label">Tools</span>
+            </button>
+            <button type="button" class="nabad-editor-mobile-tab" data-tab="ai">
+              <span class="icon" aria-hidden="true">✨</span>
+              <span class="label">AI</span>
+            </button>
+            <button type="button" class="nabad-editor-mobile-tab" data-tab="layers">
+              <span class="icon" aria-hidden="true">☰</span>
+              <span class="label">Layers</span>
+            </button>
+          </nav>
+
           <div id="nabad-editor-action-overlay" class="nabad-editor-action-overlay" hidden>
             <div id="nabad-editor-action-popup" class="nabad-editor-action-popup" role="dialog" aria-modal="true" aria-labelledby="nabad-editor-action-title">
               <h4 id="nabad-editor-action-title">Editor action</h4>
@@ -7135,6 +7206,7 @@ function finishOnboarding() {
       const saveSizeCustomWrap = document.getElementById('nabad-editor-custom-size');
       const customSizeWInput = document.getElementById('nabad-editor-custom-w');
       const customSizeHInput = document.getElementById('nabad-editor-custom-h');
+      const mobileTabsEl = document.getElementById('nabad-editor-mobile-tabs');
       const zoomInBtn = document.getElementById('nabad-zoom-in');
       const zoomOutBtn = document.getElementById('nabad-zoom-out');
       const zoomResetBtn = document.getElementById('nabad-zoom-reset');
@@ -7229,6 +7301,25 @@ function finishOnboarding() {
         tools: true,
         ai: true
       };
+
+      // Mobile UX: bottom tabs + bottom sheet using the existing sidebar sections.
+      // This avoids long scrolling and keeps actions reachable with one hand.
+      const mobileSheetState = { openTab: '' };
+      const setMobileSheetTab = (tab = '') => {
+        if (!isMobileEditorViewport()) return;
+        const next = ['add', 'tools', 'ai'].includes(String(tab || '').toLowerCase())
+          ? String(tab).toLowerCase()
+          : '';
+        mobileSheetState.openTab = next;
+
+        if (sectionAddEl) sectionAddEl.style.display = next === 'add' ? '' : 'none';
+        if (sectionToolsEl) sectionToolsEl.style.display = next === 'tools' ? '' : 'none';
+        if (sectionAiEl) sectionAiEl.style.display = next === 'ai' ? '' : 'none';
+
+        const buttons = Array.from(mobileTabsEl?.querySelectorAll?.('.nabad-editor-mobile-tab') || []);
+        buttons.forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === next));
+      };
+      const closeMobileSheet = () => setMobileSheetTab('');
       const setEditorSectionCollapsed = (key = 'add', collapsed = false) => {
         const sectionMap = {
           add: { section: sectionAddEl, toggle: sectionAddToggle },
@@ -7243,11 +7334,23 @@ function finishOnboarding() {
       };
       const syncEditorSidebarSections = () => {
         if (isMobileEditorViewport()) {
+          if (mobileTabsEl) mobileTabsEl.hidden = false;
           setEditorSectionCollapsed('add', mobileSectionState.add);
           setEditorSectionCollapsed('tools', mobileSectionState.tools);
           setEditorSectionCollapsed('ai', mobileSectionState.ai);
+
+          // Default: hide the sections until a bottom tab is used.
+          if (!mobileSheetState.openTab) {
+            if (sectionAddEl) sectionAddEl.style.display = 'none';
+            if (sectionToolsEl) sectionToolsEl.style.display = 'none';
+            if (sectionAiEl) sectionAiEl.style.display = 'none';
+          }
           return;
         }
+        if (mobileTabsEl) mobileTabsEl.hidden = true;
+        if (sectionAddEl) sectionAddEl.style.display = '';
+        if (sectionToolsEl) sectionToolsEl.style.display = '';
+        if (sectionAiEl) sectionAiEl.style.display = '';
         setEditorSectionCollapsed('add', false);
         setEditorSectionCollapsed('tools', false);
         setEditorSectionCollapsed('ai', false);
@@ -7265,6 +7368,38 @@ function finishOnboarding() {
       bindSectionToggle('ai', sectionAiToggle);
       syncEditorSidebarSections();
       window.addEventListener('resize', syncEditorSidebarSections);
+
+      // Bottom tabs behavior (mobile only).
+      mobileTabsEl?.addEventListener('click', (e) => {
+        const btn = e.target?.closest?.('.nabad-editor-mobile-tab');
+        if (!btn) return;
+        if (!isMobileEditorViewport()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const tab = String(btn.getAttribute('data-tab') || '').toLowerCase();
+        if (tab === 'layers') {
+          const shouldOpen = !!layerFlyout?.hidden;
+          setLayerFlyoutOpen(shouldOpen);
+          closeMobileSheet();
+          return;
+        }
+        if (mobileSheetState.openTab === tab) {
+          closeMobileSheet();
+        } else {
+          setMobileSheetTab(tab);
+          if (tab === 'add') setEditorSectionCollapsed('add', false);
+          if (tab === 'tools') setEditorSectionCollapsed('tools', false);
+          if (tab === 'ai') setEditorSectionCollapsed('ai', false);
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (!isMobileEditorViewport()) return;
+        if (!mobileSheetState.openTab) return;
+        const t = e.target;
+        if (mobileTabsEl?.contains(t)) return;
+        if (t?.closest?.('.nabad-editor-panel.left')) return;
+        closeMobileSheet();
+      });
       const showEditorBusy = (label = 'Nabad is working...', mode = '') => {
         if (!aiSheetEl) return;
         aiSheetEl.classList.remove('mode-rewrite', 'mode-regenerate', 'mode-removebg');
@@ -8347,6 +8482,10 @@ function finishOnboarding() {
         fabricCanvas.renderAll();
       };
 
+      // Allows early helpers (uploads) to request a viewport fit once
+      // the workspace transform system is initialized below.
+      let requestWorkspaceFit = () => {};
+
       const addImageObjectFromSource = (src = '') => new Promise((resolve, reject) => {
         window.fabric.Image.fromURL(src, (img) => {
           if (!img) return reject(new Error('Could not add image object.'));
@@ -8373,6 +8512,7 @@ function finishOnboarding() {
           ctaObj.bringToFront();
           fabricCanvas.setActiveObject(img);
           fabricCanvas.renderAll();
+          try { requestWorkspaceFit(); } catch {}
           resolve(img);
         }, { crossOrigin: 'anonymous' });
       });
@@ -9519,6 +9659,36 @@ function finishOnboarding() {
         centerCardInViewport();
         applyStageTransform();
       };
+
+      // Make initial zoom deterministic (especially on mobile).
+      // The editor used to open at scale=1 before layout settled, which felt "randomly zoomed in".
+      const fitWorkspaceIfAllowed = (force = false) => {
+        if (force) {
+          hasUserPannedOrZoomed = false;
+          fitWorkspaceToViewport();
+          return;
+        }
+        if (!hasUserPannedOrZoomed) fitWorkspaceToViewport();
+      };
+
+      requestWorkspaceFit = () => {
+        // Auto-fit helps most on mobile and after new objects are added.
+        if (isMobileEditorViewport()) {
+          fitWorkspaceIfAllowed(true);
+          return;
+        }
+        fitWorkspaceIfAllowed(false);
+      };
+
+      // Run a couple RAF fits so we catch the final measured viewport size.
+      try {
+        window.requestAnimationFrame(() => {
+          fitWorkspaceIfAllowed(true);
+          window.requestAnimationFrame(() => fitWorkspaceIfAllowed(true));
+        });
+      } catch {
+        window.setTimeout(() => fitWorkspaceIfAllowed(true), 60);
+      }
       const resetWorkspaceView = () => {
         hasUserPannedOrZoomed = false;
         stageScale = 1;
