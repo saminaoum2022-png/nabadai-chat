@@ -4200,7 +4200,7 @@ function showPersonalityPill(id) {
         display: flex;
         align-items: center;
         justify-content: center;
-        pointer-events: none;
+        pointer-events: auto;
         z-index: 18;
         padding: 18px;
       }
