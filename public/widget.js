@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-26-v69-editor-debug';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-26-v70-fix-syncEmptyState-tdz';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -8959,9 +8959,10 @@ function finishOnboarding() {
 
       // Allows early helpers (uploads) to request a viewport fit once
       // the workspace transform system is initialized below.
-      let requestWorkspaceFit = () => {};
+      var requestWorkspaceFit = () => {};
       // Image-editor empty state (settings entry) sync function, assigned later.
-      let syncEmptyState = () => {};
+      // Use `var` to avoid TDZ crashes if referenced before this point.
+      var syncEmptyState = () => {};
 
       const addImageObjectFromSource = (src = '') => new Promise((resolve, reject) => {
         window.fabric.Image.fromURL(src, (img) => {
