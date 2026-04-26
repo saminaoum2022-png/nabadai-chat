@@ -13,6 +13,10 @@
   if (window.__NABAD_WIDGET_LOADED__) return;
   window.__NABAD_WIDGET_LOADED__ = true;
 
+  // Build marker to confirm the newest widget.js is actually loaded.
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-26-v68-upload-proxy';
+  try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
+
   function loadDOMPurify(cb) {
     if (window.DOMPurify) { cb(); return; }
     const s = document.createElement('script');
