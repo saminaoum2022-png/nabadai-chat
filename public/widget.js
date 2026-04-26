@@ -3843,6 +3843,19 @@ function showPersonalityPill(id) {
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
       }
+      .nabad-editor-build{
+        display:inline-block;
+        margin-left:10px;
+        padding:3px 8px;
+        border-radius:999px;
+        background:rgba(2,6,23,0.06);
+        border:1px solid rgba(2,6,23,0.08);
+        color:rgba(2,6,23,0.58);
+        font-size:11px;
+        font-weight:800;
+        letter-spacing:0.2px;
+        vertical-align:middle;
+      }
       .nabad-editor-top-left,
       .nabad-editor-top-right {
         display: inline-flex;
@@ -7111,7 +7124,10 @@ function finishOnboarding() {
                 </span>
                 <span>Back</span>
               </button>
-              <div class="nabad-editor-title">Nabad Editor</div>
+              <div class="nabad-editor-title">
+                Nabad Editor
+                <span class="nabad-editor-build" id="nabad-editor-build"></span>
+              </div>
             </div>
             <div class="nabad-editor-top-right">
               <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-add">
@@ -9696,6 +9712,42 @@ function finishOnboarding() {
         reader.readAsDataURL(file);
       });
 
+      // Always handle proxy uploads via event delegation (robust against re-render/rebind issues).
+      refs.messages?.addEventListener?.('change', (e) => {
+        const inp = e?.target;
+        if (!inp || !inp.classList?.contains?.('nabad-file-proxy')) return;
+        const file = inp.files?.[0];
+        if (!file) return;
+        const kind = String(inp.getAttribute('data-kind') || '').trim();
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const dataUrl = String(reader.result || '');
+            if (kind === 'logo') {
+              const logoObj = await addImageObjectFromSource(dataUrl);
+              if (logoObj) {
+                logoObj.set('nabadRole', 'brand');
+                logoObj.set({ left: fabricCanvas.getWidth() * 0.78, top: fabricCanvas.getHeight() * 0.05 });
+                if (brandMarkObj && brandMarkObj !== logoObj) {
+                  fabricCanvas.remove(brandMarkObj);
+                }
+                brandMarkObj = logoObj;
+                fabricCanvas.renderAll();
+                updateLayerVisibilityControls();
+              }
+              return;
+            }
+            await addImageObjectFromSource(dataUrl);
+          } catch (err) {
+            console.error('[NABAD] delegated proxy upload error:', err);
+            alert('Could not add uploaded image.');
+          } finally {
+            try { inp.value = ''; } catch {}
+          }
+        };
+        reader.readAsDataURL(file);
+      }, true);
+
       const bindProxyFileInputs = () => {
         const proxyInputs = Array.from(refs.messages?.querySelectorAll?.('.nabad-file-proxy') || []);
         proxyInputs.forEach((inp) => {
@@ -9737,6 +9789,15 @@ function finishOnboarding() {
         });
       };
       bindProxyFileInputs();
+
+      // Show build marker inside the editor UI (so we can confirm cache/deploy without DevTools).
+      try {
+        const buildEl = document.getElementById('nabad-editor-build');
+        if (buildEl) {
+          const b = String(window.__NABAD_WIDGET_BUILD__ || '').trim();
+          buildEl.textContent = b ? b.replace('widget-build-', 'build ') : 'build unknown';
+        }
+      } catch {}
 
       if (isImageEditor) {
         syncEmptyState();
