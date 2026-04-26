@@ -10131,8 +10131,21 @@ function finishOnboarding() {
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
       if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj?.fontSize || 34));
-      const initialPreset = (isMobileLayout() && startBlank) ? 'square' : cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase();
+      const shouldUseMobileSquareDefault = isMobileLayout() && (startBlank || !prompt);
+      const initialPreset = shouldUseMobileSquareDefault
+        ? 'square'
+        : cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase();
       applyResizePreset(initialPreset);
+      // Re-center once the mobile chrome/top-bottom bars finish layout so the square
+      // lands visually in the middle of the working area.
+      if (shouldUseMobileSquareDefault) {
+        requestAnimationFrame(() => {
+          fitWorkspaceToViewport();
+          requestAnimationFrame(() => {
+            fitWorkspaceToViewport();
+          });
+        });
+      }
       setBackgroundLockState(true);
       historyMuted = false;
       undoStack = [snapshotEditorState()];
