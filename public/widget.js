@@ -14,8 +14,54 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-26-v68-upload-proxy';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-26-v69-editor-debug';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
+
+  function showDebugBanner(text = '', ms = 2400) {
+    try {
+      const id = 'nabad-debug-banner';
+      let el = document.getElementById(id);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = id;
+        el.style.cssText = [
+          'position:fixed',
+          'left:50%',
+          'top:14px',
+          'transform:translateX(-50%)',
+          'z-index:2147483647',
+          'background:rgba(15,23,42,0.92)',
+          'color:#fff',
+          'border:1px solid rgba(255,255,255,0.14)',
+          'border-radius:999px',
+          'padding:8px 12px',
+          'font:800 12px Inter,system-ui',
+          'letter-spacing:0.2px',
+          'box-shadow:0 10px 26px rgba(0,0,0,0.22)',
+          'max-width:92vw',
+          'white-space:nowrap',
+          'overflow:hidden',
+          'text-overflow:ellipsis',
+          'pointer-events:none',
+          'opacity:0',
+          'transition:opacity .18s ease, transform .18s ease'
+        ].join(';');
+        document.body.appendChild(el);
+      }
+      el.textContent = String(text || '').slice(0, 140);
+      requestAnimationFrame(() => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateX(-50%) translateY(0)';
+      });
+      clearTimeout(el.__hideT);
+      el.__hideT = setTimeout(() => {
+        try {
+          el.style.opacity = '0';
+          el.style.transform = 'translateX(-50%) translateY(-6px)';
+        } catch {}
+      }, Math.max(600, Number(ms || 2400)));
+    } catch {}
+  }
 
   function loadDOMPurify(cb) {
     if (window.DOMPurify) { cb(); return; }
@@ -7105,6 +7151,7 @@ function finishOnboarding() {
     const startBlank = !!campaignData.editorStartBlank;
     const isImageEditor = cleanText(campaignData.editorMode || '', 24).toLowerCase() === 'image';
     const isNewProjectFlow = !!campaignData.editorNeedsNewProject || isImageEditor;
+    try { showDebugBanner(`openCampaignCanvasEditorFromData: mode=${isImageEditor ? 'image' : 'campaign'} startBlank=${startBlank ? '1' : '0'}`, 2200); } catch {}
     // Image-editor mode (from Settings) is allowed to start without a campaign prompt.
     if (!prompt && !startBlank && !isImageEditor) {
       renderMessage('assistant', '<p>Campaign prompt is missing. Please ask Nabad to generate the campaign draft again.</p>');
@@ -10923,6 +10970,9 @@ function finishOnboarding() {
       hideEditorBusy();
     } catch (err) {
       console.error('[NABAD] campaign editor error:', err);
+      try {
+        showDebugBanner(`Editor error: ${String(err?.message || err || 'unknown').slice(0, 80)}`, 5200);
+      } catch {}
       try { cleanupWorkspaceListeners(); } catch {}
       if (fitCanvasToStage) {
         try { window.removeEventListener('resize', fitCanvasToStage); } catch {}
@@ -11764,6 +11814,7 @@ if (data.detectedInfo && typeof data.detectedInfo === 'object') {
 
   // ── SETTINGS PAGE ─────────────────────────────────────────────
 function openNabadEditorFromMenu() {
+  try { showDebugBanner(`Opening editor… (${String(window.__NABAD_WIDGET_BUILD__ || '').replace('widget-build-', 'build ')})`, 2400); } catch {}
   const editorPayload = {
     headline: '',
     subtext: '',
