@@ -190,7 +190,7 @@ export default function Home() {
 
       <Script
         id="nabad-widget-script"
-        src="/widget.js?v=69"
+        src="/widget.js?v=70"
         strategy="afterInteractive"
       />
 
