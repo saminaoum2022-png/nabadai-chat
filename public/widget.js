@@ -4606,55 +4606,72 @@ function showPersonalityPill(id) {
           position: sticky;
           top: 6px;
           z-index: 30;
-          flex-wrap: nowrap;
-          align-items: flex-start;
-          flex-direction: column;
-          gap: 10px;
-          padding: 10px;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          grid-template-areas:
+            "left undo redo"
+            "ratio ratio save";
+          align-items: center;
+          gap: 8px;
+          padding: 10px 10px 8px;
           border-radius: 14px;
           box-shadow: 0 8px 22px rgba(15,23,42,0.08);
           background: rgba(255,255,255,0.92);
           backdrop-filter: blur(6px);
           -webkit-backdrop-filter: blur(6px);
         }
-        .nabad-editor-top-left,
-        .nabad-editor-top-right {
-          width: 100%;
-        }
         .nabad-editor-top-left {
+          grid-area: left;
+          min-width: 0;
           justify-content: flex-start;
           gap: 8px;
         }
         .nabad-editor-top-right {
-          justify-content: stretch;
-          gap: 8px;
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          align-items: stretch;
+          display: contents;
+        }
+        .nabad-editor-top-right #nabad-editor-undo {
+          grid-area: undo;
+        }
+        .nabad-editor-top-right #nabad-editor-redo {
+          grid-area: redo;
         }
         .nabad-editor-top-right #nabad-editor-save-size {
-          grid-column: 1 / -1;
+          grid-area: ratio;
           width: 100%;
+          min-width: 0;
+        }
+        .nabad-editor-top-right #nabad-editor-save {
+          grid-area: save;
+          min-width: 104px;
+        }
+        .nabad-editor-top-right #nabad-editor-merge {
+          display: none !important;
         }
         .nabad-editor-top-right #nabad-editor-custom-size {
           grid-column: 1 / -1;
+          align-items: stretch;
           display: flex;
           width: 100%;
           justify-content: space-between;
           gap: 8px;
+          margin-top: 2px;
         }
         .nabad-editor-top-right #nabad-editor-custom-size input {
           flex: 1 1 0;
           min-width: 0;
         }
         .nabad-editor-top-right .nabad-editor-btn,
-        .nabad-editor-top-right .nabad-editor-select {
+        .nabad-editor-top-right .nabad-editor-select,
+        .nabad-editor-top-left .nabad-editor-btn {
           min-height: 36px;
           justify-content: center;
         }
         .nabad-editor-top-left .nabad-editor-title {
           font-size: 16px;
           font-weight: 900;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
         .nabad-editor-panel.left,
         .nabad-editor-panel.right {
