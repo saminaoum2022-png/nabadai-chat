@@ -1,10 +1,18 @@
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
-);  
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error('Missing Supabase env vars: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)');
+  }
+  return createClient(url, key);
+}
+
+function getPushSubscriptionsTable() {
+  return String(process.env.PUSH_SUBSCRIPTIONS_TABLE || 'push_subscriptions').trim();
+}
 
 export default async function handler(req, res) {
   // Security check — only allow Vercel cron calls
@@ -43,9 +51,12 @@ export default async function handler(req, res) {
        return res.status(200).json({ message: 'Not a notification time' });
        }
 
+    const supabase = getSupabaseAdmin();
+    const table = getPushSubscriptionsTable();
+
     // Get all subscriptions from Supabase
     const { data: subscriptions, error } = await supabase
-      .from('push_subscriptions')
+      .from(table)
       .select('*');
 
     if (error) throw error;
@@ -102,7 +113,7 @@ export default async function handler(req, res) {
 
     if (expired.length) {
       await supabase
-        .from('push_subscriptions')
+        .from(table)
         .delete()
         .in('endpoint', expired);
     }
