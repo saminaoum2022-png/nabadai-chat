@@ -4672,7 +4672,7 @@ function showPersonalityPill(id) {
         .nabad-editor-shell {
           padding: 8px;
           gap: 10px;
-          padding-bottom: 74px;
+          padding-bottom: 14px;
           background:
             radial-gradient(120% 60% at 50% -20%, rgba(56,189,248,0.16), transparent 60%),
             #eef3fb;
@@ -4680,25 +4680,26 @@ function showPersonalityPill(id) {
 
         .nabad-editor-mobile-dock {
           position: fixed;
-          left: 8px;
-          right: 8px;
-          bottom: 10px;
+          left: 0;
+          right: 0;
+          bottom: 0;
           z-index: 40;
           gap: 8px;
-          padding: 8px;
-          border-radius: 16px;
-          border: 1px solid rgba(37,99,235,0.18);
+          padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+          border-radius: 0;
+          border: none;
+          border-top: 1px solid rgba(37,99,235,0.14);
           background: rgba(255,255,255,0.92);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
           box-shadow: 0 12px 28px rgba(15,23,42,0.12);
           display: grid;
-          grid-template-rows: auto auto;
+          grid-template-rows: auto;
           align-items: stretch;
         }
         .nabad-editor-mobile-rail {
           display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 8px;
         }
         .nabad-editor-mobile-tab {
@@ -4722,33 +4723,12 @@ function showPersonalityPill(id) {
           color: #fff;
         }
 
-        .nabad-editor-mobile-pills {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
-        .nabad-editor-mobile-pill {
-          border: 1px solid rgba(37,99,235,0.14);
-          background: rgba(255,255,255,0.88);
-          color: #0f172a;
-          border-radius: 999px;
-          min-height: 46px;
-          padding: 10px 14px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          font-weight: 900;
-          letter-spacing: .01em;
-          box-shadow: 0 10px 22px rgba(15,23,42,0.08);
-          cursor: pointer;
-        }
-        .nabad-editor-mobile-pill .icon { font-size: 16px; line-height: 1; }
+        /* quick action pills removed */
 
         .nabad-editor-fab-add {
           position: fixed;
-          right: 12px;
-          bottom: 178px;
+          right: 14px;
+          bottom: calc(90px + env(safe-area-inset-bottom));
           z-index: 46;
           width: 52px;
           height: 52px;
@@ -4771,9 +4751,9 @@ function showPersonalityPill(id) {
         /* Turn the left panel into a bottom sheet */
         .nabad-editor-panel.left {
           position: fixed;
-          left: 8px;
-          right: 8px;
-          bottom: 92px;
+          left: 10px;
+          right: 10px;
+          bottom: calc(74px + env(safe-area-inset-bottom));
           z-index: 35;
           max-height: 46vh;
           overflow: auto;
@@ -4907,9 +4887,7 @@ function showPersonalityPill(id) {
           border-radius: 12px;
         }
         #nabad-zoom-controls {
-          right: 10px;
-          bottom: 98px;
-          gap: 8px;
+          display: none !important;
         }
         #nabad-zoom-controls button {
           width: 34px;
@@ -4946,7 +4924,7 @@ function showPersonalityPill(id) {
           left: 8px !important;
           right: 8px !important;
           top: auto !important;
-          bottom: 92px;
+          bottom: calc(74px + env(safe-area-inset-bottom));
           z-index: 45;
           min-width: 0;
           max-width: none;
@@ -7230,10 +7208,7 @@ function finishOnboarding() {
                 <span class="icon" aria-hidden="true">◎</span>
                 <span class="label">Select</span>
               </button>
-              <button type="button" class="nabad-editor-mobile-tab" data-tab="add" role="tab" aria-selected="false">
-                <span class="icon" aria-hidden="true">＋</span>
-                <span class="label">Add</span>
-              </button>
+              <!-- Add tab removed (use floating + instead) -->
               <button type="button" class="nabad-editor-mobile-tab" data-tab="tools" role="tab" aria-selected="false">
                 <span class="icon" aria-hidden="true">⎔</span>
                 <span class="label">Tools</span>
@@ -7247,16 +7222,7 @@ function finishOnboarding() {
                 <span class="label">Layers</span>
               </button>
             </div>
-            <div class="nabad-editor-mobile-pills" aria-label="Quick actions">
-              <button type="button" class="nabad-editor-mobile-pill" data-pill="ai">
-                <span class="icon" aria-hidden="true">✦</span>
-                <span>AI Assistant</span>
-              </button>
-              <button type="button" class="nabad-editor-mobile-pill" data-pill="tools">
-                <span class="icon" aria-hidden="true">⎔</span>
-                <span>Tools</span>
-              </button>
-            </div>
+            <!-- quick action pills removed (redundant with tool rail) -->
           </div>
 
           <button type="button" class="nabad-editor-fab-add" id="nabad-editor-fab-add" aria-label="Add to canvas" hidden>
@@ -7511,21 +7477,7 @@ function finishOnboarding() {
         setEditorSectionCollapsed('add', false);
         setLayerFlyoutOpen(false);
       });
-      mobileDockEl?.addEventListener('click', (e) => {
-        const pill = e.target?.closest?.('.nabad-editor-mobile-pill');
-        if (!pill) return;
-        if (!isMobileEditorViewport()) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const which = String(pill.getAttribute('data-pill') || '').toLowerCase();
-        if (which === 'ai') {
-          setMobileSheetTab('ai');
-          setEditorSectionCollapsed('ai', false);
-        } else if (which === 'tools') {
-          setMobileSheetTab('tools');
-          setEditorSectionCollapsed('tools', false);
-        }
-      });
+      // mobile quick action pills removed
 
       document.addEventListener('click', (e) => {
         if (!isMobileEditorViewport()) return;
