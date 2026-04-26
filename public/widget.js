@@ -4503,26 +4503,35 @@ function showPersonalityPill(id) {
       .nabad-editor-inline-actions button {
         min-width: 34px;
       }
-      .nabad-editor-contextbar {
-        background: #fff;
-        border: 1px solid rgba(37,99,235,0.16);
+      .nabad-editor-selection-popover {
+        position: absolute;
+        z-index: 40;
+        min-width: 260px;
+        max-width: min(92vw, 420px);
+        background: rgba(255,255,255,0.98);
+        border: 1px solid rgba(37,99,235,0.2);
         border-radius: 12px;
         padding: 8px;
-        box-shadow: 0 -4px 16px rgba(15,23,42,0.08);
+        box-shadow: 0 14px 34px rgba(15,23,42,0.2);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
       }
-      .nabad-editor-context-title {
+      .nabad-editor-selection-popover[hidden] {
+        display: none !important;
+      }
+      .nabad-editor-selection-title {
         font-size: 11px;
         font-weight: 800;
         color: #1e3a8a;
         margin-bottom: 6px;
       }
-      .nabad-editor-context-row {
+      .nabad-editor-selection-row {
         display: flex;
         gap: 8px;
         align-items: center;
         flex-wrap: wrap;
       }
-      .nabad-editor-contextbar .nabad-editor-btn {
+      .nabad-editor-selection-popover .nabad-editor-btn {
         border: none;
         border-left: 3px solid transparent;
         background: transparent;
@@ -4534,20 +4543,20 @@ function showPersonalityPill(id) {
         font-weight: 700;
         transition: all 0.15s ease;
       }
-      .nabad-editor-contextbar .nabad-editor-btn:hover,
-      .nabad-editor-contextbar .nabad-editor-btn:focus-visible {
+      .nabad-editor-selection-popover .nabad-editor-btn:hover,
+      .nabad-editor-selection-popover .nabad-editor-btn:focus-visible {
         border-left-color: #2563eb;
         background: #eff6ff;
         color: #2563eb;
         outline: none;
       }
-      .nabad-editor-contextbar .nabad-editor-btn:active,
-      .nabad-editor-contextbar .nabad-editor-btn.active {
+      .nabad-editor-selection-popover .nabad-editor-btn:active,
+      .nabad-editor-selection-popover .nabad-editor-btn.active {
         border-left-color: #2563eb;
         background: #2563eb;
         color: #ffffff;
       }
-      .nabad-editor-contextbar .nabad-editor-select {
+      .nabad-editor-selection-popover .nabad-editor-select {
         border: none;
         border-left: 3px solid transparent;
         border-radius: 8px;
@@ -4555,14 +4564,14 @@ function showPersonalityPill(id) {
         color: #0f172a;
         transition: all 0.15s ease;
       }
-      .nabad-editor-contextbar .nabad-editor-select:hover,
-      .nabad-editor-contextbar .nabad-editor-select:focus-visible {
+      .nabad-editor-selection-popover .nabad-editor-select:hover,
+      .nabad-editor-selection-popover .nabad-editor-select:focus-visible {
         border-left-color: #2563eb;
         background: #eff6ff;
         color: #2563eb;
         outline: none;
       }
-      .nabad-editor-contextbar input[type="color"] {
+      .nabad-editor-selection-popover input[type="color"] {
         width: 38px;
         height: 32px;
         border-radius: 8px;
@@ -4577,7 +4586,7 @@ function showPersonalityPill(id) {
         align-items: center;
         gap: 6px;
       }
-      .nabad-editor-contextbar input[type="range"] {
+      .nabad-editor-selection-popover input[type="range"] {
         min-width: 110px;
       }
       @media (max-width: 1100px) {
@@ -4691,15 +4700,15 @@ function showPersonalityPill(id) {
         .nabad-editor-sidebar-section[data-collapsed="true"] {
           padding-bottom: 2px;
         }
-        .nabad-editor-context-row {
+        .nabad-editor-selection-row {
           flex-wrap: nowrap;
           overflow-x: auto;
           white-space: nowrap;
           -webkit-overflow-scrolling: touch;
         }
-        .nabad-editor-context-row .nabad-editor-btn,
-        .nabad-editor-context-row input,
-        .nabad-editor-context-row select {
+        .nabad-editor-selection-row .nabad-editor-btn,
+        .nabad-editor-selection-row input,
+        .nabad-editor-selection-row select {
           flex: 0 0 auto;
         }
         .nabad-editor-stage {
@@ -4753,19 +4762,10 @@ function showPersonalityPill(id) {
           max-height: 42vh;
           border-radius: 14px;
         }
-        .nabad-editor-contextbar {
-          position: sticky;
-          bottom: 6px;
-          z-index: 24;
+        .nabad-editor-selection-popover {
+          min-width: min(84vw, 340px);
+          max-width: min(92vw, 360px);
           border-radius: 14px;
-          background: rgba(255,255,255,0.95);
-          backdrop-filter: blur(6px);
-          -webkit-backdrop-filter: blur(6px);
-          box-shadow: 0 -6px 18px rgba(15,23,42,0.1);
-        }
-        .nabad-editor-context-title {
-          font-size: 12px;
-          margin-bottom: 8px;
         }
       }
       .nabad-editor-shell.external-sidebar-mode .nabad-editor-workspace {
@@ -6968,6 +6968,32 @@ function finishOnboarding() {
                   <div class="glow-center"></div>
                   <div id="nabad-workspace-glow-text" class="glow-label">Nabad is generating...</div>
                 </div>
+                <div class="nabad-editor-selection-popover" id="nabad-editor-selection-popover" hidden>
+                  <div class="nabad-editor-selection-title" id="nabad-selected-label">SELECTED: None</div>
+                  <div class="nabad-editor-selection-row" id="nabad-context-text-tools" hidden>
+                    <select id="nabad-editor-font-family" class="nabad-editor-select">
+                      <option value="Inter">Inter</option>
+                      <option value="Poppins">Poppins</option>
+                      <option value="Montserrat">Montserrat</option>
+                      <option value="Playfair Display">Playfair Display</option>
+                      <option value="Merriweather">Merriweather</option>
+                    </select>
+                    <input id="nabad-editor-text-size" type="range" min="10" max="160" step="1" value="34" />
+                    <input id="nabad-editor-text-color" type="color" value="#ffffff" />
+                    <button type="button" class="nabad-editor-btn" id="nabad-text-bold">B</button>
+                    <button type="button" class="nabad-editor-btn" id="nabad-text-italic">I</button>
+                    <button type="button" class="nabad-editor-btn" id="nabad-text-underline">U</button>
+                  </div>
+                  <div class="nabad-editor-selection-row" id="nabad-context-common-tools">
+                    <label class="nabad-editor-inline-label">Opacity
+                      <input id="nabad-editor-opacity" type="range" min="0" max="100" step="1" value="100" />
+                    </label>
+                    <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete</button>
+                    <button type="button" class="nabad-editor-btn" id="nabad-editor-duplicate">Duplicate</button>
+                    <button type="button" class="nabad-editor-btn" id="nabad-editor-bring-front">Bring Forward</button>
+                    <button type="button" class="nabad-editor-btn" id="nabad-editor-send-back">Send Back</button>
+                  </div>
+                </div>
                 <div id="nabad-new-project-gate" class="nabad-editor-new-project ${startBlank && campaignData.editorNeedsNewProject ? 'show' : ''}">
                   <div class="nabad-editor-new-project-card">
                     <div class="nabad-editor-new-project-title">Create New Project</div>
@@ -6989,33 +7015,6 @@ function finishOnboarding() {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div class="nabad-editor-contextbar" id="nabad-editor-contextbar" hidden>
-            <div class="nabad-editor-context-title" id="nabad-selected-label">SELECTED: None</div>
-            <div class="nabad-editor-context-row" id="nabad-context-text-tools" hidden>
-              <select id="nabad-editor-font-family" class="nabad-editor-select">
-                <option value="Inter">Inter</option>
-                <option value="Poppins">Poppins</option>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Playfair Display">Playfair Display</option>
-                <option value="Merriweather">Merriweather</option>
-              </select>
-              <input id="nabad-editor-text-size" type="range" min="10" max="160" step="1" value="34" />
-              <input id="nabad-editor-text-color" type="color" value="#ffffff" />
-              <button type="button" class="nabad-editor-btn" id="nabad-text-bold">B</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-text-italic">I</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-text-underline">U</button>
-            </div>
-            <div class="nabad-editor-context-row" id="nabad-context-common-tools">
-              <label class="nabad-editor-inline-label">Opacity
-                <input id="nabad-editor-opacity" type="range" min="0" max="100" step="1" value="100" />
-              </label>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-delete">Delete</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-duplicate">Duplicate</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-bring-front">Bring Forward</button>
-              <button type="button" class="nabad-editor-btn" id="nabad-editor-send-back">Send Back</button>
             </div>
           </div>
 
@@ -7064,7 +7063,7 @@ function finishOnboarding() {
       const layerFabCount = document.getElementById('nabad-layer-fab-count');
       const layerFlyout = document.getElementById('nabad-layer-flyout');
       const floatingLayerList = document.getElementById('nabad-floating-layer-list');
-      const contextBar = document.getElementById('nabad-editor-contextbar');
+      const selectionPopover = document.getElementById('nabad-editor-selection-popover');
       const contextTextTools = document.getElementById('nabad-context-text-tools');
       const contextCommonTools = document.getElementById('nabad-context-common-tools');
       const selectedLabel = document.getElementById('nabad-selected-label');
@@ -7981,13 +7980,38 @@ function finishOnboarding() {
         if (deleteBtn) deleteBtn.disabled = !enabled;
       };
 
+      const positionSelectionPopover = (obj) => {
+        if (!selectionPopover || !obj || !workspaceEl || !canvasEl) return;
+        try {
+          const rect = obj.getBoundingRect?.(true, true);
+          if (!rect) return;
+          const canvasRect = canvasEl.getBoundingClientRect();
+          const workspaceRect = workspaceEl.getBoundingClientRect();
+          const popW = selectionPopover.offsetWidth || 300;
+          const popH = selectionPopover.offsetHeight || 96;
+          const centerX = canvasRect.left + rect.left + (rect.width / 2);
+          let left = centerX - workspaceRect.left - (popW / 2);
+          let top = canvasRect.top + rect.top - workspaceRect.top - popH - 12;
+          const minPad = 8;
+          const maxLeft = Math.max(minPad, workspaceRect.width - popW - minPad);
+          left = Math.max(minPad, Math.min(maxLeft, left));
+          if (top < minPad) {
+            top = canvasRect.top + rect.top - workspaceRect.top + rect.height + 12;
+          }
+          const maxTop = Math.max(minPad, workspaceRect.height - popH - minPad);
+          top = Math.max(minPad, Math.min(maxTop, top));
+          selectionPopover.style.left = `${Math.round(left)}px`;
+          selectionPopover.style.top = `${Math.round(top)}px`;
+        } catch {}
+      };
+
       const updateControlFromActive = () => {
         const obj = fabricCanvas.getActiveObject();
         const isText = isTextLikeObject(obj);
         if (selectedLabel) {
           selectedLabel.textContent = `SELECTED: ${getObjectLabel(obj)}`;
         }
-        if (contextBar) contextBar.hidden = !obj;
+        if (selectionPopover) selectionPopover.hidden = !obj;
         if (contextTextTools) {
           contextTextTools.hidden = !isText;
           contextTextTools.style.display = isText ? 'flex' : 'none';
@@ -8043,11 +8067,15 @@ function finishOnboarding() {
             }
           }));
         } catch {}
+        positionSelectionPopover(obj);
       };
 
       fabricCanvas.on('selection:created', updateControlFromActive);
       fabricCanvas.on('selection:updated', updateControlFromActive);
       fabricCanvas.on('selection:cleared', updateControlFromActive);
+      fabricCanvas.on('object:moving', () => positionSelectionPopover(fabricCanvas.getActiveObject()));
+      fabricCanvas.on('object:scaling', () => positionSelectionPopover(fabricCanvas.getActiveObject()));
+      fabricCanvas.on('object:rotating', () => positionSelectionPopover(fabricCanvas.getActiveObject()));
       fabricCanvas.on('mouse:down', (ev) => {
         if (!ev.target) {
           closeToolTab();
@@ -9365,11 +9393,13 @@ function finishOnboarding() {
       const applyStageTransform = () => {
         if (!stageSurfaceEl) return;
         stageSurfaceEl.style.transform = `translate(${Math.round(stageOffsetX)}px, ${Math.round(stageOffsetY)}px) scale(${stageScale.toFixed(3)})`;
+        positionSelectionPopover(fabricCanvas?.getActiveObject?.());
       };
       const applyCardTransform = () => {
         if (!campaignCardEl) return;
         campaignCardEl.style.left = `${Math.round(cardOffsetX)}px`;
         campaignCardEl.style.top = `${Math.round(cardOffsetY)}px`;
+        positionSelectionPopover(fabricCanvas?.getActiveObject?.());
       };
       const centerCardInViewport = () => {
         if (!viewportEl || !campaignCardEl) return;
