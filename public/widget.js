@@ -4856,7 +4856,7 @@ function showPersonalityPill(id) {
         }
         #nabad-zoom-controls {
           right: 10px;
-          bottom: 12px;
+          bottom: 98px;
           gap: 8px;
         }
         #nabad-zoom-controls button {
@@ -4865,9 +4865,7 @@ function showPersonalityPill(id) {
           border-radius: 10px;
         }
         #nabad-layer-fab {
-          right: 10px;
-          bottom: 146px;
-          gap: 5px;
+          display: none !important;
         }
         #nabad-layer-fab > span:nth-child(2) {
           display: none;
@@ -4892,9 +4890,19 @@ function showPersonalityPill(id) {
           border-radius: 14px;
         }
         .nabad-editor-selection-popover {
-          min-width: min(84vw, 340px);
-          max-width: min(92vw, 360px);
-          border-radius: 14px;
+          position: fixed;
+          left: 8px !important;
+          right: 8px !important;
+          top: auto !important;
+          bottom: 92px;
+          z-index: 45;
+          min-width: 0;
+          max-width: none;
+          width: auto;
+          border-radius: 16px;
+          box-shadow: 0 16px 40px rgba(15,23,42,0.18);
+          max-height: 34vh;
+          overflow: auto;
         }
       }
       .nabad-editor-shell.external-sidebar-mode .nabad-editor-workspace {
@@ -8237,6 +8245,9 @@ function finishOnboarding() {
 
       const positionSelectionPopover = (obj) => {
         if (!selectionPopover || !obj || !workspaceEl || !canvasEl) return;
+        // On mobile, the selection UI is a fixed bottom sheet (CSS),
+        // so we don't try to position it relative to the selected object.
+        if (isMobileEditorViewport()) return;
         try {
           const rect = obj.getBoundingRect?.(true, true);
           if (!rect) return;
@@ -8263,6 +8274,11 @@ function finishOnboarding() {
       const updateControlFromActive = () => {
         const obj = fabricCanvas.getActiveObject();
         const isText = isTextLikeObject(obj);
+        // Mobile UX: if a tool sheet is open, selecting an object should focus
+        // the Properties sheet instead of stacking two sheets.
+        try {
+          if (obj && isMobileEditorViewport()) closeMobileSheet();
+        } catch {}
         if (selectedLabel) {
           selectedLabel.textContent = `SELECTED: ${getObjectLabel(obj)}`;
         }
