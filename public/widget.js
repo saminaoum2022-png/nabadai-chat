@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v75-remove-start-upload-overlay';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v76-edit-generated-image-to-editor';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -10724,6 +10724,29 @@ function finishOnboarding() {
       const runExternalEditorAction = async (action = '', payload = {}) => {
         const key = cleanText(action, 40).toLowerCase();
         if (!key) return false;
+        if (key === 'import_image') {
+          const url = String(payload?.url || '').trim();
+          const kind = cleanText(payload?.kind || 'image', 16).toLowerCase();
+          if (!url) return false;
+          try {
+            const obj = await addImageObjectFromSource(url);
+            if (kind === 'logo' && obj) {
+              obj.set('nabadRole', 'brand');
+              obj.set({ left: fabricCanvas.getWidth() * 0.78, top: fabricCanvas.getHeight() * 0.05 });
+              if (brandMarkObj && brandMarkObj !== obj) {
+                fabricCanvas.remove(brandMarkObj);
+              }
+              brandMarkObj = obj;
+              updateLayerVisibilityControls();
+            }
+            fabricCanvas.renderAll();
+            try { requestWorkspaceFit(); } catch {}
+            return true;
+          } catch (err) {
+            console.error('[NABAD] import image error:', err);
+            return false;
+          }
+        }
         if (key === 'undo') {
           undoBtn?.click();
           return true;
@@ -11105,6 +11128,11 @@ function finishOnboarding() {
         saveBtn.type = 'button';
         saveBtn.className = 'nabad-inline-image-save';
         saveBtn.textContent = 'Save image';
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'nabad-inline-image-save';
+        editBtn.textContent = 'Edit';
+        editBtn.style.marginLeft = '8px';
         saveBtn.addEventListener('click', async (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -11115,8 +11143,25 @@ function finishOnboarding() {
           }
           downloadImageFromUrl(src, 'nabad-generated-image.png');
         });
+        editBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const kind = isLogoLikePrompt(prompt) ? 'logo' : 'image';
+          openNabadEditorFromMenu();
+          const startedAt = Date.now();
+          const tryImport = async () => {
+            if (window.__NABAD_EDITOR_DO__) {
+              try { await window.__NABAD_EDITOR_DO__('import_image', { url: src, kind }); } catch {}
+              return;
+            }
+            if (Date.now() - startedAt > 5000) return;
+            setTimeout(tryImport, 120);
+          };
+          setTimeout(tryImport, 120);
+        });
         wrap.appendChild(realImg);
         wrap.appendChild(saveBtn);
+        wrap.appendChild(editBtn);
         clearPlaceholderTimer(placeholder);
         placeholder.replaceWith(wrap);
         if (campaignBubbleHasActions(bubble)) {
