@@ -4562,15 +4562,26 @@ function showPersonalityPill(id) {
       }
       @media (max-width: 700px) {
         .nabad-editor-shell {
-          padding: 6px;
-          gap: 8px;
+          padding: 8px;
+          gap: 10px;
+          background:
+            radial-gradient(120% 60% at 50% -20%, rgba(56,189,248,0.16), transparent 60%),
+            #eef3fb;
         }
         .nabad-editor-topbar {
           position: sticky;
-          top: 0;
-          z-index: 20;
-          flex-wrap: wrap;
-          align-items: stretch;
+          top: 6px;
+          z-index: 30;
+          flex-wrap: nowrap;
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 10px;
+          padding: 10px;
+          border-radius: 14px;
+          box-shadow: 0 8px 22px rgba(15,23,42,0.08);
+          background: rgba(255,255,255,0.92);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
         }
         .nabad-editor-top-left,
         .nabad-editor-top-right {
@@ -4578,21 +4589,44 @@ function showPersonalityPill(id) {
         }
         .nabad-editor-top-left {
           justify-content: flex-start;
+          gap: 8px;
         }
         .nabad-editor-top-right {
-          justify-content: flex-start;
-          gap: 6px;
+          justify-content: stretch;
+          gap: 8px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          align-items: stretch;
         }
+        .nabad-editor-top-right #nabad-editor-save-size {
+          grid-column: 1 / -1;
+          width: 100%;
+        }
+        .nabad-editor-top-right #nabad-editor-custom-size {
+          grid-column: 1 / -1;
+          display: flex;
+          width: 100%;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .nabad-editor-top-right #nabad-editor-custom-size input {
+          flex: 1 1 0;
+          min-width: 0;
+        }
+        .nabad-editor-top-right .nabad-editor-btn,
         .nabad-editor-top-right .nabad-editor-select {
-          flex: 1 1 180px;
-          max-width: 100%;
+          min-height: 36px;
+          justify-content: center;
         }
         .nabad-editor-top-left .nabad-editor-title {
-          font-size: 13px;
+          font-size: 16px;
+          font-weight: 900;
         }
         .nabad-editor-panel.left,
         .nabad-editor-panel.right {
-          max-height: min(34vh, 320px);
+          max-height: min(34vh, 340px);
+          border-radius: 14px;
+          box-shadow: 0 8px 20px rgba(15,23,42,0.06);
         }
         .nabad-editor-context-row {
           flex-wrap: nowrap;
@@ -4606,8 +4640,69 @@ function showPersonalityPill(id) {
           flex: 0 0 auto;
         }
         .nabad-editor-stage {
-          height: min(48vh, 320px);
-          max-height: calc(100dvh - 280px);
+          height: min(52vh, 430px);
+          max-height: calc(100dvh - 270px);
+          border-radius: 14px;
+          overflow: hidden;
+          box-shadow: 0 10px 28px rgba(15,23,42,0.08);
+          background: #dde5f2;
+        }
+        #nabad-workspace {
+          border-radius: 14px;
+        }
+        #nabad-campaign-card {
+          border-radius: 12px;
+        }
+        #nabad-zoom-controls {
+          right: 10px;
+          bottom: 12px;
+          gap: 8px;
+        }
+        #nabad-zoom-controls button {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+        }
+        #nabad-layer-fab {
+          right: 10px;
+          bottom: 146px;
+          gap: 5px;
+        }
+        #nabad-layer-fab > span:nth-child(2) {
+          display: none;
+        }
+        #nabad-layer-fab .icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 11px;
+        }
+        #nabad-layer-fab .count {
+          height: 20px;
+          min-width: 20px;
+          font-size: 10px;
+          padding: 0 5px;
+        }
+        #nabad-layer-flyout {
+          right: 8px;
+          left: 8px;
+          bottom: 58px;
+          width: auto;
+          max-height: 42vh;
+          border-radius: 14px;
+        }
+        .nabad-editor-contextbar {
+          position: sticky;
+          bottom: 6px;
+          z-index: 24;
+          border-radius: 14px;
+          background: rgba(255,255,255,0.95);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          box-shadow: 0 -6px 18px rgba(15,23,42,0.1);
+        }
+        .nabad-editor-context-title {
+          font-size: 12px;
+          margin-bottom: 8px;
         }
       }
       .nabad-editor-shell.external-sidebar-mode .nabad-editor-workspace {
