@@ -4021,6 +4021,40 @@ function showPersonalityPill(id) {
       .nabad-editor-sidebar-section {
         padding-top: 0;
       }
+      .nabad-editor-section-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 0 0 8px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #2563eb;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        text-align: left;
+        cursor: pointer;
+      }
+      .nabad-editor-section-toggle .chev {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        color: #2563eb;
+        transition: transform .18s ease;
+        transform: rotate(0deg);
+      }
+      .nabad-editor-sidebar-section[data-collapsed="true"] .nabad-editor-section-body {
+        display: none;
+      }
+      .nabad-editor-sidebar-section[data-collapsed="true"] .nabad-editor-section-toggle .chev {
+        transform: rotate(-90deg);
+      }
       .nabad-editor-sidebar-section.with-divider {
         margin-top: 10px;
         padding-top: 10px;
@@ -4627,6 +4661,18 @@ function showPersonalityPill(id) {
           max-height: min(34vh, 340px);
           border-radius: 14px;
           box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+        }
+        .nabad-editor-panel.left {
+          max-height: none;
+          overflow: visible;
+        }
+        .nabad-editor-sidebar-section .nabad-editor-section-toggle {
+          min-height: 36px;
+          border-radius: 10px;
+          padding: 0 4px;
+        }
+        .nabad-editor-sidebar-section[data-collapsed="true"] {
+          padding-bottom: 2px;
         }
         .nabad-editor-context-row {
           flex-wrap: nowrap;
@@ -6839,26 +6885,35 @@ function finishOnboarding() {
 
           <div class="nabad-editor-workspace">
             <aside class="nabad-editor-panel left">
-              <section class="nabad-editor-sidebar-section">
-                <h4>ADD</h4>
-                <div class="add-grid">
+              <section class="nabad-editor-sidebar-section" id="nabad-editor-section-add" data-collapsed="false">
+                <button type="button" class="nabad-editor-section-toggle" id="nabad-editor-toggle-add" aria-expanded="true">
+                  <span>ADD</span>
+                  <span class="chev" aria-hidden="true">⌄</span>
+                </button>
+                <div class="add-grid nabad-editor-section-body" id="nabad-editor-body-add">
                   <button type="button" class="nabad-editor-btn" id="nabad-side-add-text">+ Text</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-side-add-image">+ Image</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-side-add-shape">+ Shape</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-side-add-logo">+ Logo</button>
                 </div>
               </section>
-              <section class="nabad-editor-sidebar-section with-divider">
-                <h4>TOOLS</h4>
-                <div class="add-grid">
+              <section class="nabad-editor-sidebar-section with-divider" id="nabad-editor-section-tools" data-collapsed="false">
+                <button type="button" class="nabad-editor-section-toggle" id="nabad-editor-toggle-tools" aria-expanded="true">
+                  <span>TOOLS</span>
+                  <span class="chev" aria-hidden="true">⌄</span>
+                </button>
+                <div class="add-grid nabad-editor-section-body" id="nabad-editor-body-tools">
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-fill-bg">Fill Background</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-crop">Crop</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-eraser">Eraser</button>
                 </div>
               </section>
-              <section class="nabad-editor-sidebar-section with-divider">
-                <h4>AI</h4>
-                <div class="add-grid">
+              <section class="nabad-editor-sidebar-section with-divider" id="nabad-editor-section-ai" data-collapsed="false">
+                <button type="button" class="nabad-editor-section-toggle" id="nabad-editor-toggle-ai" aria-expanded="true">
+                  <span>AI</span>
+                  <span class="chev" aria-hidden="true">⌄</span>
+                </button>
+                <div class="add-grid nabad-editor-section-body" id="nabad-editor-body-ai">
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-remove-bg">Remove Background</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-detect-objects">Detect Objects</button>
                   <button type="button" class="nabad-editor-btn" id="nabad-sidebar-remove-detected">Remove Selected Object</button>
@@ -7008,6 +7063,12 @@ function finishOnboarding() {
       const sideAddImageBtn = document.getElementById('nabad-side-add-image');
       const sideAddShapeBtn = document.getElementById('nabad-side-add-shape');
       const sideAddLogoBtn = document.getElementById('nabad-side-add-logo');
+      const sectionAddEl = document.getElementById('nabad-editor-section-add');
+      const sectionToolsEl = document.getElementById('nabad-editor-section-tools');
+      const sectionAiEl = document.getElementById('nabad-editor-section-ai');
+      const sectionAddToggle = document.getElementById('nabad-editor-toggle-add');
+      const sectionToolsToggle = document.getElementById('nabad-editor-toggle-tools');
+      const sectionAiToggle = document.getElementById('nabad-editor-toggle-ai');
       const sidebarFillBgBtn = document.getElementById('nabad-sidebar-fill-bg');
       const sidebarCropBtn = document.getElementById('nabad-sidebar-crop');
       const sidebarEraserBtn = document.getElementById('nabad-sidebar-eraser');
@@ -7067,6 +7128,48 @@ function finishOnboarding() {
       const canvasEl = document.getElementById('nabad-editor-canvas');
       let resizeObserver = null;
       let fitCanvasToStage = null;
+      const isMobileEditorViewport = () => window.matchMedia('(max-width: 700px)').matches;
+      const mobileSectionState = {
+        add: false,
+        tools: true,
+        ai: true
+      };
+      const setEditorSectionCollapsed = (key = 'add', collapsed = false) => {
+        const sectionMap = {
+          add: { section: sectionAddEl, toggle: sectionAddToggle },
+          tools: { section: sectionToolsEl, toggle: sectionToolsToggle },
+          ai: { section: sectionAiEl, toggle: sectionAiToggle }
+        };
+        const target = sectionMap[key];
+        if (!target?.section || !target?.toggle) return;
+        const isCollapsed = Boolean(collapsed);
+        target.section.dataset.collapsed = isCollapsed ? 'true' : 'false';
+        target.toggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+      };
+      const syncEditorSidebarSections = () => {
+        if (isMobileEditorViewport()) {
+          setEditorSectionCollapsed('add', mobileSectionState.add);
+          setEditorSectionCollapsed('tools', mobileSectionState.tools);
+          setEditorSectionCollapsed('ai', mobileSectionState.ai);
+          return;
+        }
+        setEditorSectionCollapsed('add', false);
+        setEditorSectionCollapsed('tools', false);
+        setEditorSectionCollapsed('ai', false);
+      };
+      const bindSectionToggle = (key = 'add', toggleEl = null) => {
+        if (!toggleEl) return;
+        toggleEl.addEventListener('click', () => {
+          if (!isMobileEditorViewport()) return;
+          mobileSectionState[key] = !mobileSectionState[key];
+          setEditorSectionCollapsed(key, mobileSectionState[key]);
+        });
+      };
+      bindSectionToggle('add', sectionAddToggle);
+      bindSectionToggle('tools', sectionToolsToggle);
+      bindSectionToggle('ai', sectionAiToggle);
+      syncEditorSidebarSections();
+      window.addEventListener('resize', syncEditorSidebarSections);
       const showEditorBusy = (label = 'Nabad is working...', mode = '') => {
         if (!aiSheetEl) return;
         aiSheetEl.classList.remove('mode-rewrite', 'mode-regenerate', 'mode-removebg');
