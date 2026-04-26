@@ -7105,7 +7105,8 @@ function finishOnboarding() {
     const startBlank = !!campaignData.editorStartBlank;
     const isImageEditor = cleanText(campaignData.editorMode || '', 24).toLowerCase() === 'image';
     const isNewProjectFlow = !!campaignData.editorNeedsNewProject || isImageEditor;
-    if (!prompt && !startBlank) {
+    // Image-editor mode (from Settings) is allowed to start without a campaign prompt.
+    if (!prompt && !startBlank && !isImageEditor) {
       renderMessage('assistant', '<p>Campaign prompt is missing. Please ask Nabad to generate the campaign draft again.</p>');
       return;
     }
