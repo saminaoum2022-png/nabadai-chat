@@ -8858,9 +8858,9 @@ function finishOnboarding() {
         if (!obj) return;
         fabricCanvas.add(obj);
         obj.bringToFront();
-        brandMarkObj.bringToFront();
-        ctaBg.bringToFront();
-        ctaObj.bringToFront();
+        brandMarkObj?.bringToFront?.();
+        ctaBg?.bringToFront?.();
+        ctaObj?.bringToFront?.();
         fabricCanvas.setActiveObject(obj);
         fabricCanvas.renderAll();
       };
@@ -8892,9 +8892,9 @@ function finishOnboarding() {
             hasBorders: true
           });
           fabricCanvas.add(img);
-          brandMarkObj.bringToFront();
-          ctaBg.bringToFront();
-          ctaObj.bringToFront();
+          brandMarkObj?.bringToFront?.();
+          ctaBg?.bringToFront?.();
+          ctaObj?.bringToFront?.();
           fabricCanvas.setActiveObject(img);
           fabricCanvas.renderAll();
           try { syncEmptyState(); } catch {}
