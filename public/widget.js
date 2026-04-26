@@ -4164,6 +4164,10 @@ function showPersonalityPill(id) {
         flex: 1 1 auto;
         min-width: 0;
       }
+      .nabad-file-label {
+        user-select: none;
+        -webkit-user-select: none;
+      }
       .nabad-editor-sidebar-section .add-grid .nabad-editor-btn:hover,
       .nabad-editor-sidebar-section .add-grid .nabad-editor-btn:focus-visible {
         border-left-color: #2563eb;
@@ -7178,7 +7182,7 @@ function finishOnboarding() {
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Text">Text</span>
                   </button>
-                  <button type="button" class="nabad-editor-btn" id="nabad-side-add-image">
+                  <label class="nabad-editor-btn nabad-file-label" id="nabad-side-add-image" for="nabad-editor-object-file" role="button" tabIndex="0">
                     <span class="nabad-editor-btn-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="5" width="18" height="14" rx="2"></rect>
@@ -7187,7 +7191,7 @@ function finishOnboarding() {
                       </svg>
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Image">Image</span>
-                  </button>
+                  </label>
                   <button type="button" class="nabad-editor-btn" id="nabad-side-add-shape">
                     <span class="nabad-editor-btn-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -7196,14 +7200,14 @@ function finishOnboarding() {
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Shape">Shape</span>
                   </button>
-                  <button type="button" class="nabad-editor-btn" id="nabad-side-add-logo">
+                  <label class="nabad-editor-btn nabad-file-label" id="nabad-side-add-logo" for="nabad-editor-logo-file" role="button" tabIndex="0">
                     <span class="nabad-editor-btn-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 3l2.6 5.4 6 .9-4.3 4.2 1 6-5.3-2.8-5.3 2.8 1-6L3.4 9.3l6-.9L12 3z"></path>
                       </svg>
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Logo">Logo</span>
-                  </button>
+                  </label>
                 </div>
               </section>
               <section class="nabad-editor-sidebar-section with-divider" id="nabad-editor-section-tools" data-collapsed="false">
@@ -7330,7 +7334,7 @@ function finishOnboarding() {
                   <div class="nabad-editor-empty-card">
                     <div class="nabad-editor-empty-title">Start with an image</div>
                     <div class="nabad-editor-empty-sub">Upload a photo to remove background, crop, and edit.</div>
-                    <button type="button" class="nabad-editor-btn primary" id="nabad-editor-upload-first">Upload image</button>
+                    <label class="nabad-editor-btn primary nabad-file-label" id="nabad-editor-upload-first" for="nabad-editor-object-file" role="button" tabIndex="0">Upload image</label>
                   </div>
                 </div>
                 <div id="nabad-workspace-glow" class="nabad-editor-workspace-glow" hidden>
@@ -7650,6 +7654,15 @@ function finishOnboarding() {
       bindSectionToggle('ai', sectionAiToggle);
       syncEditorSidebarSections();
       window.addEventListener('resize', syncEditorSidebarSections);
+
+      // Make <label role="button"> keyboard-activatable (Enter/Space).
+      stageEl?.addEventListener?.('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const target = e.target?.closest?.('.nabad-file-label');
+        if (!target) return;
+        e.preventDefault();
+        try { target.click(); } catch {}
+      });
 
       // Bottom tabs behavior (mobile only).
       mobileDockEl?.addEventListener('click', (e) => {
@@ -9320,7 +9333,7 @@ function finishOnboarding() {
       };
 
       const addImageAction = () => openFilePicker(objectFile);
-      const addLogoAction = () => logoFile?.click();
+      const addLogoAction = () => openFilePicker(logoFile);
       const addShapeAction = () => {
         const choice = cleanText(window.prompt('Shape type: rect / circle / line / star / blob', 'rect') || 'rect', 20).toLowerCase();
         const allowed = ['rect', 'circle', 'line', 'star', 'blob'];
@@ -9614,9 +9627,9 @@ function finishOnboarding() {
           e.stopPropagation();
           openFilePicker(objectFile);
         };
+        // If labels/for is supported, the browser will handle opening the picker.
+        // Still keep handlers as a fallback.
         emptyUploadBtn?.addEventListener('click', triggerFirstUpload);
-        // iOS Safari can be picky; allow tapping anywhere on the empty card too.
-        emptyStateEl?.addEventListener?.('click', triggerFirstUpload);
       }
       logoFile?.addEventListener('change', () => {
         const file = logoFile.files?.[0];
