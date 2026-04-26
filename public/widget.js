@@ -4228,15 +4228,7 @@ function showPersonalityPill(id) {
         -webkit-user-drag: none;
         cursor: grab;
       }
-      @media (max-width: 700px) {
-        /* Let dotted workspace extend behind the fixed bottom dock */
-        .nabad-editor-stage {
-          height: calc(100dvh - 172px);
-        }
-        #nabad-workspace {
-          padding-bottom: calc(92px + env(safe-area-inset-bottom));
-        }
-      }
+      /* Mobile sizing is handled in the main mobile media block below. */
       #nabad-canvas-viewport {
         width: 100%;
         height: 100%;
@@ -4737,7 +4729,7 @@ function showPersonalityPill(id) {
         .nabad-editor-fab-add {
           position: fixed;
           right: 14px;
-          bottom: calc(110px + env(safe-area-inset-bottom));
+          bottom: calc(132px + env(safe-area-inset-bottom));
           z-index: 46;
           width: 52px;
           height: 52px;
@@ -4882,12 +4874,16 @@ function showPersonalityPill(id) {
           flex: 0 0 auto;
         }
         .nabad-editor-stage {
-          height: min(52vh, 430px);
-          max-height: calc(100dvh - 270px);
+          /* Fill available height so the dotted workspace reaches the dock */
+          height: calc(100dvh - 190px - env(safe-area-inset-bottom));
+          max-height: none;
           border-radius: 14px;
           overflow: hidden;
-          box-shadow: 0 10px 28px rgba(15,23,42,0.08);
-          background: #dde5f2;
+          box-shadow: 0 10px 28px rgba(15,23,42,0.06);
+          background: transparent;
+        }
+        #nabad-workspace {
+          padding-bottom: calc(84px + env(safe-area-inset-bottom));
         }
         #nabad-workspace {
           border-radius: 14px;
