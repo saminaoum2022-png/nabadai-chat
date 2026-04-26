@@ -10973,7 +10973,7 @@ function openNabadEditorFromMenu() {
     subtext: '',
     ctaText: '',
     editorStartBlank: true,
-    editorNeedsNewProject: false,
+    editorNeedsNewProject: true,
     imagePrompt: '',
     platform: 'social',
     format: '16:9',
