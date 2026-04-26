@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-26-v71-fix-mobilelayout-dedupe-upload';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v72-hide-upload-popup';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -8782,14 +8782,16 @@ function finishOnboarding() {
       });
       syncEmptyState = () => {
         if (!isImageEditor || !emptyStateEl) return;
-        const hasUserObject = (fabricCanvas?.getObjects?.() || []).some((o) => o && o !== backgroundObj);
+        const objs = (fabricCanvas?.getObjects?.() || []);
+        // Consider the editor "started" if there's any non-background image/object.
+        const hasUserObject = objs.some((o) => o && o !== backgroundObj);
         emptyStateEl.hidden = hasUserObject;
         if (campaignCardEl) campaignCardEl.style.display = hasUserObject ? '' : 'none';
       };
       const onCanvasObjectsChanged = () => {
-        pushHistory();
-        refreshFloatingLayers();
-        syncEmptyState();
+        try { pushHistory(); } catch (err) { console.error('[NABAD] pushHistory error:', err); }
+        try { refreshFloatingLayers(); } catch (err) { console.error('[NABAD] refreshFloatingLayers error:', err); }
+        try { syncEmptyState(); } catch (err) { console.error('[NABAD] syncEmptyState error:', err); }
       };
       fabricCanvas.on('object:added', onCanvasObjectsChanged);
       fabricCanvas.on('object:modified', onCanvasObjectsChanged);
@@ -9037,6 +9039,7 @@ function finishOnboarding() {
           ctaObj?.bringToFront?.();
           fabricCanvas.setActiveObject(img);
           fabricCanvas.renderAll();
+          try { if (emptyStateEl) emptyStateEl.hidden = true; } catch {}
           try { syncEmptyState(); } catch {}
           try { requestWorkspaceFit(); } catch {}
           resolve(img);
