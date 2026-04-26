@@ -9548,6 +9548,19 @@ function finishOnboarding() {
         const preset = cleanText(saveSizeSelect.value || 'landscape', 20).toLowerCase();
         applyResizePreset(preset);
       });
+      const ensureMobileEditorMenuItems = () => {
+        if (!mobileMenuEl) return;
+        const hasItems = !!mobileMenuEl.querySelector('[data-mobile-action], [data-mobile-ratio]');
+        if (hasItems) return;
+        mobileMenuEl.innerHTML = `
+          <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-action="export">Export PNG</button>
+          <div class="nabad-editor-mobile-menu-divider"></div>
+          <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-ratio="landscape">Landscape 1920×1080</button>
+          <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-ratio="story">Story 1080×1920</button>
+          <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-ratio="square">Square 1080×1080</button>
+          <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-ratio="custom">Custom size</button>
+        `;
+      };
       const closeMobileEditorMenu = () => {
         if (!mobileMenuEl) return;
         mobileMenuEl.classList.remove('open');
@@ -9555,7 +9568,10 @@ function finishOnboarding() {
       ratioMenuBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (isMobileLayout() && mobileMenuEl) {
+        // Keep 3-dots behavior deterministic: it always opens the same menu.
+        // This avoids device-detection edge cases where the click falls back to hidden select pickers.
+        if (mobileMenuEl) {
+          ensureMobileEditorMenuItems();
           mobileMenuEl.classList.toggle('open');
           return;
         }
