@@ -4335,6 +4335,11 @@ function showPersonalityPill(id) {
         background: #fff;
         z-index: 3;
       }
+      #nabad-campaign-card.nabad-image-editor-card {
+        box-shadow: none;
+        border: none;
+        background: transparent;
+      }
       #nabad-card-handle {
         position: absolute;
         top: 8px;
@@ -7585,7 +7590,11 @@ function finishOnboarding() {
       const cardHandleEl = document.getElementById('nabad-card-handle');
       // Force-hide canvas card immediately for image-editor mode.
       // Some layout/fit code can run before `syncEmptyState()` and briefly show it.
-      if (isImageEditor && campaignCardEl) campaignCardEl.style.display = 'none';
+      if (isImageEditor && campaignCardEl) {
+        campaignCardEl.style.display = 'none';
+        campaignCardEl.classList.add('nabad-image-editor-card');
+      }
+      if (isImageEditor && cardHandleEl) cardHandleEl.style.display = 'none';
       const aiSheetEl = document.getElementById('nabad-ai-sheet');
       const aiSheetTextEl = document.getElementById('nabad-ai-sheet-text');
       const actionOverlayEl = document.getElementById('nabad-editor-action-overlay');
@@ -8893,23 +8902,70 @@ function finishOnboarding() {
       const addImageObjectFromSource = (src = '') => new Promise((resolve, reject) => {
         window.fabric.Image.fromURL(src, (img) => {
           if (!img) return reject(new Error('Could not add image object.'));
-          const cw = fabricCanvas.getWidth();
-          const ch = fabricCanvas.getHeight();
-          const iw = img.width || 1;
-          const ih = img.height || 1;
-          const maxW = cw * 0.42;
-          const maxH = ch * 0.42;
-          const scale = Math.min(maxW / iw, maxH / ih, 1);
-          img.set({
-            left: cw * 0.5 - (iw * scale) * 0.5,
-            top: ch * 0.5 - (ih * scale) * 0.5,
-            scaleX: scale,
-            scaleY: scale,
-            selectable: true,
-            evented: true,
-            hasControls: true,
-            hasBorders: true
-          });
+          const iw = Math.max(1, Number(img.width || 1));
+          const ih = Math.max(1, Number(img.height || 1));
+
+          // In image-editor mode, the first uploaded photo defines the project size.
+          // This prevents \"blank canvas\"/white card showing behind the image.
+          const existingUploadedImages = fabricCanvas
+            .getObjects()
+            .filter((o) => o && o.type === 'image' && o !== backgroundObj);
+          const isFirstImageInImageEditor = isImageEditor && existingUploadedImages.length === 0;
+          if (isFirstImageInImageEditor) {
+            const nextW = Math.max(240, Math.min(4096, Math.round(iw)));
+            const nextH = Math.max(240, Math.min(4096, Math.round(ih)));
+            try {
+              fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+              fabricCanvas.setWidth(nextW);
+              fabricCanvas.setHeight(nextH);
+              if (campaignCardEl) {
+                campaignCardEl.style.width = `${nextW}px`;
+                campaignCardEl.style.height = `${nextH}px`;
+                campaignCardEl.style.display = '';
+              }
+              // Hide the default background fill so only the photo is visible.
+              try { backgroundObj?.set?.({ opacity: 0, selectable: false, evented: false }); } catch {}
+              try { backgroundObj?.sendToBack?.(); } catch {}
+              // Keep export preset in sync if the controls are visible.
+              try {
+                selectedSizePreset = 'custom';
+                currentAspect = Math.max(0.1, nextW / Math.max(1, nextH));
+                if (saveSizeSelect) saveSizeSelect.value = 'custom';
+                if (customSizeWInput) customSizeWInput.value = String(nextW);
+                if (customSizeHInput) customSizeHInput.value = String(nextH);
+                if (saveSizeCustomWrap) saveSizeCustomWrap.hidden = false;
+              } catch {}
+            } catch (err) {
+              console.error('[NABAD] image editor resize-on-upload error:', err);
+            }
+
+            img.set({
+              left: 0,
+              top: 0,
+              scaleX: nextW / iw,
+              scaleY: nextH / ih,
+              selectable: true,
+              evented: true,
+              hasControls: true,
+              hasBorders: true
+            });
+          } else {
+            const cw = fabricCanvas.getWidth();
+            const ch = fabricCanvas.getHeight();
+            const maxW = cw * 0.42;
+            const maxH = ch * 0.42;
+            const scale = Math.min(maxW / iw, maxH / ih, 1);
+            img.set({
+              left: cw * 0.5 - (iw * scale) * 0.5,
+              top: ch * 0.5 - (ih * scale) * 0.5,
+              scaleX: scale,
+              scaleY: scale,
+              selectable: true,
+              evented: true,
+              hasControls: true,
+              hasBorders: true
+            });
+          }
           fabricCanvas.add(img);
           brandMarkObj?.bringToFront?.();
           ctaBg?.bringToFront?.();
