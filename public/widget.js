@@ -7071,7 +7071,7 @@ function finishOnboarding() {
                     <button type="button" class="nabad-editor-btn" id="nabad-editor-send-back">Send Back</button>
                   </div>
                 </div>
-                <div id="nabad-new-project-gate" class="nabad-editor-new-project ${startBlank && campaignData.editorNeedsNewProject ? 'show' : ''}">
+                <div id="nabad-new-project-gate" class="nabad-editor-new-project" hidden>
                   <div class="nabad-editor-new-project-card">
                     <div class="nabad-editor-new-project-title">Create New Project</div>
                     <div class="nabad-editor-new-project-sub">Choose your working ratio to start an empty canvas.</div>
@@ -10115,7 +10115,8 @@ function finishOnboarding() {
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
       if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj?.fontSize || 34));
-      applyResizePreset(cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase());
+      const initialPreset = (isMobileLayout() && startBlank) ? 'square' : cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase();
+      applyResizePreset(initialPreset);
       setBackgroundLockState(true);
       historyMuted = false;
       undoStack = [snapshotEditorState()];
@@ -10972,7 +10973,7 @@ function openNabadEditorFromMenu() {
     subtext: '',
     ctaText: '',
     editorStartBlank: true,
-    editorNeedsNewProject: true,
+    editorNeedsNewProject: false,
     imagePrompt: '',
     platform: 'social',
     format: '16:9',
