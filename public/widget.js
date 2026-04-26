@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-26-v70-fix-syncEmptyState-tdz';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-26-v71-fix-mobilelayout-dedupe-upload';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -9787,6 +9787,9 @@ function finishOnboarding() {
               return;
             }
             await addImageObjectFromSource(dataUrl);
+            try { syncEmptyState(); } catch {}
+            try { requestWorkspaceFit(); } catch {}
+            try { if (emptyStateEl) emptyStateEl.hidden = true; } catch {}
           } catch (err) {
             console.error('[NABAD] delegated proxy upload error:', err);
             alert('Could not add uploaded image.');
@@ -9796,48 +9799,6 @@ function finishOnboarding() {
         };
         reader.readAsDataURL(file);
       }, true);
-
-      const bindProxyFileInputs = () => {
-        const proxyInputs = Array.from(refs.messages?.querySelectorAll?.('.nabad-file-proxy') || []);
-        proxyInputs.forEach((inp) => {
-          if (!inp || inp.__nabadProxyBound) return;
-          inp.__nabadProxyBound = true;
-          inp.addEventListener('change', () => {
-            const file = inp.files?.[0];
-            if (!file) return;
-            const kind = String(inp.getAttribute('data-kind') || '').trim();
-            const reader = new FileReader();
-            reader.onload = async () => {
-              try {
-                const dataUrl = String(reader.result || '');
-                if (kind === 'logo') {
-                  // Use the same logo flow as the main logo input.
-                  const logoObj = await addImageObjectFromSource(dataUrl);
-                  if (logoObj) {
-                    logoObj.set('nabadRole', 'brand');
-                    logoObj.set({ left: fabricCanvas.getWidth() * 0.78, top: fabricCanvas.getHeight() * 0.05 });
-                    if (brandMarkObj && brandMarkObj !== logoObj) {
-                      fabricCanvas.remove(brandMarkObj);
-                    }
-                    brandMarkObj = logoObj;
-                    fabricCanvas.renderAll();
-                    updateLayerVisibilityControls();
-                  }
-                  return;
-                }
-                await addImageObjectFromSource(dataUrl);
-              } catch (err) {
-                console.error('[NABAD] proxy upload error:', err);
-                alert('Could not add uploaded image.');
-              } finally {
-                try { inp.value = ''; } catch {}
-              }
-            };
-            reader.readAsDataURL(file);
-          });
-        });
-      };
-      bindProxyFileInputs();
 
       // Show build marker inside the editor UI (so we can confirm cache/deploy without DevTools).
       try {
@@ -10946,6 +10907,7 @@ function finishOnboarding() {
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
       if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj?.fontSize || 34));
+      const isMobileLayout = () => window.matchMedia && window.matchMedia('(max-width: 700px)').matches;
       const shouldUseMobileSquareDefault = isMobileLayout() && (startBlank || !prompt);
       const initialPreset = shouldUseMobileSquareDefault
         ? 'square'
