@@ -7560,6 +7560,9 @@ function finishOnboarding() {
       const stageSurfaceEl = document.getElementById('nabad-canvas-stage');
       const campaignCardEl = document.getElementById('nabad-campaign-card');
       const cardHandleEl = document.getElementById('nabad-card-handle');
+      // Force-hide canvas card immediately for image-editor mode.
+      // Some layout/fit code can run before `syncEmptyState()` and briefly show it.
+      if (isImageEditor && campaignCardEl) campaignCardEl.style.display = 'none';
       const aiSheetEl = document.getElementById('nabad-ai-sheet');
       const aiSheetTextEl = document.getElementById('nabad-ai-sheet-text');
       const actionOverlayEl = document.getElementById('nabad-editor-action-overlay');
@@ -9591,11 +9594,14 @@ function finishOnboarding() {
 
       if (isImageEditor) {
         syncEmptyState();
-        emptyUploadBtn?.addEventListener('click', (e) => {
+        const triggerFirstUpload = (e) => {
           e.preventDefault();
           e.stopPropagation();
-          objectFile?.click?.();
-        });
+          try { objectFile?.click?.(); } catch {}
+        };
+        emptyUploadBtn?.addEventListener('click', triggerFirstUpload);
+        // iOS Safari can be picky; allow tapping anywhere on the empty card too.
+        emptyStateEl?.addEventListener?.('click', triggerFirstUpload);
       }
       logoFile?.addEventListener('change', () => {
         const file = logoFile.files?.[0];
