@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v78-edit-generated-image-action';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v79-edit-generated-image-bind-direct';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -11136,6 +11136,35 @@ function finishOnboarding() {
         editBtn.setAttribute('data-nabad-action', 'edit-generated-image');
         editBtn.setAttribute('data-src', src);
         editBtn.setAttribute('data-prompt', prompt);
+        // This button is created async (after bubble listeners are bound), so bind directly here.
+        editBtn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const srcValue = String(editBtn.getAttribute('data-src') || '').trim();
+          const promptValue = String(editBtn.getAttribute('data-prompt') || '').trim();
+          if (!srcValue) return;
+          const kind = isLogoLikePrompt(promptValue) ? 'logo' : 'image';
+          try { showDebugBanner(`Edit → opening editor (${kind})`, 2200); } catch {}
+          openNabadEditorFromMenu();
+          const startedAt = Date.now();
+          const tryImport = async () => {
+            if (window.__NABAD_EDITOR_DO__) {
+              try {
+                const ok = await window.__NABAD_EDITOR_DO__('import_image', { url: srcValue, kind });
+                try { showDebugBanner(ok ? 'Imported into editor' : 'Import failed', 2600); } catch {}
+              } catch (err) {
+                try { showDebugBanner(`Import error: ${String(err?.message || err || 'unknown').slice(0, 60)}`, 5200); } catch {}
+              }
+              return;
+            }
+            if (Date.now() - startedAt > 9000) {
+              try { showDebugBanner('Editor not ready (timeout)', 5200); } catch {}
+              return;
+            }
+            setTimeout(tryImport, 160);
+          };
+          setTimeout(tryImport, 200);
+        });
         saveBtn.addEventListener('click', async (e) => {
           e.preventDefault();
           e.stopPropagation();
