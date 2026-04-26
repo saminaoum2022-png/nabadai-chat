@@ -9540,8 +9540,9 @@ function finishOnboarding() {
       };
 
       sideAddTextBtn?.addEventListener('click', addTextAction);
-      sideAddImageBtn?.addEventListener('click', addImageAction);
-      sideAddLogoBtn?.addEventListener('click', addLogoAction);
+      // If these controls are <label for="...">, rely on the browser-native picker.
+      if (sideAddImageBtn?.tagName === 'BUTTON') sideAddImageBtn.addEventListener('click', addImageAction);
+      if (sideAddLogoBtn?.tagName === 'BUTTON') sideAddLogoBtn.addEventListener('click', addLogoAction);
       sideAddShapeBtn?.addEventListener('click', addShapeAction);
       sidebarFillBgBtn?.addEventListener('click', fillBgAction);
       sidebarCropBtn?.addEventListener('click', cropAction);
@@ -9622,14 +9623,8 @@ function finishOnboarding() {
 
       if (isImageEditor) {
         syncEmptyState();
-        const triggerFirstUpload = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          openFilePicker(objectFile);
-        };
-        // If labels/for is supported, the browser will handle opening the picker.
-        // Still keep handlers as a fallback.
-        emptyUploadBtn?.addEventListener('click', triggerFirstUpload);
+        // The empty upload control is a <label for="nabad-editor-object-file">.
+        // Do NOT attach preventDefault handlers here or it will block the native picker.
       }
       logoFile?.addEventListener('change', () => {
         const file = logoFile.files?.[0];
