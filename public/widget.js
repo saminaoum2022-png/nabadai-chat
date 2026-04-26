@@ -4194,6 +4194,41 @@ function showPersonalityPill(id) {
       .nabad-editor-action-overlay[hidden] {
         display: none !important;
       }
+      .nabad-editor-empty-state {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 18;
+        padding: 18px;
+      }
+      .nabad-editor-empty-card {
+        width: min(420px, 92%);
+        border-radius: 16px;
+        border: 1px solid rgba(37,99,235,0.18);
+        background: rgba(255,255,255,0.92);
+        box-shadow: 0 18px 44px rgba(15,23,42,0.12);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        padding: 14px;
+        pointer-events: auto;
+        text-align: center;
+      }
+      .nabad-editor-empty-title {
+        font-size: 14px;
+        font-weight: 900;
+        color: #0f172a;
+        margin-bottom: 6px;
+      }
+      .nabad-editor-empty-sub {
+        font-size: 12px;
+        font-weight: 700;
+        color: #475569;
+        margin-bottom: 12px;
+        line-height: 1.4;
+      }
       .nabad-editor-action-popup {
         background: #fff;
         border-radius: 16px;
@@ -4819,6 +4854,9 @@ function showPersonalityPill(id) {
         }
         .nabad-editor-top-right {
           display: contents;
+        }
+        .nabad-editor-top-right #nabad-editor-add {
+          display: none !important;
         }
         .nabad-editor-top-right #nabad-editor-undo {
           grid-area: undo;
@@ -7029,7 +7067,8 @@ function finishOnboarding() {
   async function openCampaignCanvasEditorFromData(campaignData = {}) {
     const prompt = cleanText(campaignData.imagePrompt || '', 1200);
     const startBlank = !!campaignData.editorStartBlank;
-    const isNewProjectFlow = !!campaignData.editorNeedsNewProject;
+    const isImageEditor = cleanText(campaignData.editorMode || '', 24).toLowerCase() === 'image';
+    const isNewProjectFlow = !!campaignData.editorNeedsNewProject || isImageEditor;
     if (!prompt && !startBlank) {
       renderMessage('assistant', '<p>Campaign prompt is missing. Please ask Nabad to generate the campaign draft again.</p>');
       return;
@@ -7052,6 +7091,15 @@ function finishOnboarding() {
               <div class="nabad-editor-title">Nabad Editor</div>
             </div>
             <div class="nabad-editor-top-right">
+              <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-add">
+                <span class="nabad-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 5v14"></path>
+                    <path d="M5 12h14"></path>
+                  </svg>
+                </span>
+                <span>Add</span>
+              </button>
               <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-undo">
                 <span class="nabad-btn-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -7081,14 +7129,6 @@ function finishOnboarding() {
                 <span class="sep">×</span>
                 <input id="nabad-editor-custom-h" type="number" min="240" max="4096" step="1" value="1080" title="Custom height" />
               </div>
-              <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-merge">
-                <span class="nabad-btn-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M6 7h12M6 12h12M6 17h12"/>
-                  </svg>
-                </span>
-                <span>Merge Layers</span>
-              </button>
               <button type="button" class="nabad-editor-btn primary with-icon" id="nabad-editor-save">
                 <span class="nabad-btn-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -7286,13 +7326,12 @@ function finishOnboarding() {
                   <button type="button" id="nabad-zoom-out" title="Zoom out">−</button>
                   <button type="button" id="nabad-zoom-reset" title="Reset view">⌂</button>
                 </div>
-                <button type="button" id="nabad-layer-fab" title="Layers">
-                  <span class="icon">☰</span>
-                  <span>Layers</span>
-                  <span class="count" id="nabad-layer-fab-count">0</span>
-                </button>
-                <div id="nabad-layer-flyout" hidden>
-                  <div id="nabad-floating-layer-list"></div>
+                <div id="nabad-editor-empty-state" class="nabad-editor-empty-state" hidden>
+                  <div class="nabad-editor-empty-card">
+                    <div class="nabad-editor-empty-title">Start with an image</div>
+                    <div class="nabad-editor-empty-sub">Upload a photo to remove background, crop, and edit.</div>
+                    <button type="button" class="nabad-editor-btn primary" id="nabad-editor-upload-first">Upload image</button>
+                  </div>
                 </div>
                 <div id="nabad-workspace-glow" class="nabad-editor-workspace-glow" hidden>
                   <div class="glow-center"></div>
@@ -7425,11 +7464,12 @@ function finishOnboarding() {
       const backBtn = document.getElementById('nabad-editor-back');
       const undoBtn = document.getElementById('nabad-editor-undo');
       const redoBtn = document.getElementById('nabad-editor-redo');
+      const addBtn = document.getElementById('nabad-editor-add');
       const deleteBtn = document.getElementById('nabad-editor-delete');
       const duplicateBtn = document.getElementById('nabad-editor-duplicate');
       const bringFrontBtn = document.getElementById('nabad-editor-bring-front');
       const sendBackBtn = document.getElementById('nabad-editor-send-back');
-      const mergeBtn = document.getElementById('nabad-editor-merge');
+      const mergeBtn = null;
       const saveBtn = document.getElementById('nabad-editor-save');
       const saveSizeSelect = document.getElementById('nabad-editor-save-size');
       const ratioMenuBtn = document.getElementById('nabad-editor-ratio-menu');
@@ -7442,10 +7482,10 @@ function finishOnboarding() {
       const zoomInBtn = document.getElementById('nabad-zoom-in');
       const zoomOutBtn = document.getElementById('nabad-zoom-out');
       const zoomResetBtn = document.getElementById('nabad-zoom-reset');
-      const layerFabBtn = document.getElementById('nabad-layer-fab');
-      const layerFabCount = document.getElementById('nabad-layer-fab-count');
-      const layerFlyout = document.getElementById('nabad-layer-flyout');
-      const floatingLayerList = document.getElementById('nabad-floating-layer-list');
+      const layerFabBtn = null;
+      const layerFabCount = null;
+      const layerFlyout = null;
+      const floatingLayerList = null;
       const selectionPopover = document.getElementById('nabad-editor-selection-popover');
       const contextTextTools = document.getElementById('nabad-context-text-tools');
       const contextCommonTools = document.getElementById('nabad-context-common-tools');
@@ -7508,6 +7548,8 @@ function finishOnboarding() {
       const workspaceEl = document.getElementById('nabad-workspace');
       const workspaceGlowEl = document.getElementById('nabad-workspace-glow');
       const workspaceGlowTextEl = document.getElementById('nabad-workspace-glow-text');
+      const emptyStateEl = document.getElementById('nabad-editor-empty-state');
+      const emptyUploadBtn = document.getElementById('nabad-editor-upload-first');
       const newProjectGateEl = document.getElementById('nabad-new-project-gate');
       const newProjectRatiosWrap = document.getElementById('nabad-new-project-ratios');
       const newProjectCustomWrap = document.getElementById('nabad-new-project-custom');
@@ -7635,6 +7677,23 @@ function finishOnboarding() {
           if (tab === 'tools') setEditorSectionCollapsed('tools', false);
           if (tab === 'ai') setEditorSectionCollapsed('ai', false);
         }
+      });
+
+      // Desktop quick action: jump to Add tools (and on mobile, open Add sheet).
+      addBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isMobileEditorViewport()) {
+          // Mobile uses the floating +; keep behavior consistent if top bar is visible.
+          if (mobileSheetState.openTab === 'add') closeMobileSheet();
+          else setMobileSheetTab('add');
+          setEditorSectionCollapsed('add', false);
+          setLayerFlyoutOpen(false);
+          return;
+        }
+        // Desktop: ensure Add section is visible and scroll into view.
+        try { setEditorSectionCollapsed('add', false); } catch {}
+        try { sectionAddEl?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); } catch {}
       });
 
       // Floating + (mobile): quick open the Add sheet.
@@ -8324,7 +8383,17 @@ function finishOnboarding() {
           redoBtn.classList.toggle('ready', !redoDisabled);
         }
       };
-      const snapshotEditorState = () => JSON.stringify(fabricCanvas.toJSON(['nabadRole', 'isCtaText']));
+      const snapshotEditorState = () => JSON.stringify({
+        v: 1,
+        canvas: fabricCanvas.toJSON(['nabadRole', 'isCtaText']),
+        view: {
+          stageScale: Number(stageScale || 1),
+          stageOffsetX: Number(stageOffsetX || 0),
+          stageOffsetY: Number(stageOffsetY || 0),
+          cardOffsetX: Number(cardOffsetX || 0),
+          cardOffsetY: Number(cardOffsetY || 0)
+        }
+      });
       const pushHistory = () => {
         if (historyMuted) return;
         const snap = snapshotEditorState();
@@ -8337,12 +8406,26 @@ function finishOnboarding() {
       const restoreSnapshot = async (snap) => {
         if (!snap) return;
         historyMuted = true;
+        let parsed = null;
+        try { parsed = JSON.parse(snap); } catch {}
+        const canvasJson = parsed && typeof parsed === 'object' && parsed.canvas ? parsed.canvas : parsed;
+        const view = parsed && typeof parsed === 'object' && parsed.view ? parsed.view : null;
+
         await new Promise((resolve) => {
-          fabricCanvas.loadFromJSON(JSON.parse(snap), () => {
+          fabricCanvas.loadFromJSON(canvasJson, () => {
             fabricCanvas.renderAll();
             resolve();
           });
         });
+        if (view && typeof view === 'object') {
+          stageScale = Math.max(0.2, Math.min(3, Number(view.stageScale || 1)));
+          stageOffsetX = Number(view.stageOffsetX || 0);
+          stageOffsetY = Number(view.stageOffsetY || 0);
+          cardOffsetX = Number(view.cardOffsetX || 0);
+          cardOffsetY = Number(view.cardOffsetY || 0);
+          applyStageTransform();
+          applyCardTransform();
+        }
         refreshCoreRefs();
         historyMuted = false;
         updateControlFromActive();
@@ -8589,9 +8672,15 @@ function finishOnboarding() {
           updateControlFromActive();
         }
       });
+      const syncEmptyState = () => {
+        if (!isImageEditor || !emptyStateEl) return;
+        const hasUserObject = (fabricCanvas?.getObjects?.() || []).some((o) => o && o !== backgroundObj);
+        emptyStateEl.hidden = hasUserObject;
+      };
       const onCanvasObjectsChanged = () => {
         pushHistory();
         refreshFloatingLayers();
+        syncEmptyState();
       };
       fabricCanvas.on('object:added', onCanvasObjectsChanged);
       fabricCanvas.on('object:modified', onCanvasObjectsChanged);
@@ -9495,6 +9584,15 @@ function finishOnboarding() {
         };
         reader.readAsDataURL(file);
       });
+
+      if (isImageEditor) {
+        syncEmptyState();
+        emptyUploadBtn?.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          objectFile?.click?.();
+        });
+      }
       logoFile?.addEventListener('change', () => {
         const file = logoFile.files?.[0];
         if (!file) return;
@@ -10228,6 +10326,7 @@ function finishOnboarding() {
         e.preventDefault();
       };
       const onWindowMouseUpStage = () => {
+        if (isPanningStage || isPinchingStage) pushHistory();
         isPanningStage = false;
         isPinchingStage = false;
         workspaceEl?.classList.remove('nabad-panning');
@@ -10238,6 +10337,7 @@ function finishOnboarding() {
           pinchStartScale = stageScale;
           return;
         }
+        if (isPanningStage || isPinchingStage) pushHistory();
         isPinchingStage = false;
         if (!e.touches || !e.touches.length) {
           isPanningStage = false;
@@ -10316,7 +10416,10 @@ function finishOnboarding() {
         hasUserPannedOrZoomed = true;
         applyCardTransform();
       };
-      const onWindowMouseUpCard = () => { isDraggingCard = false; };
+      const onWindowMouseUpCard = () => {
+        if (isDraggingCard) pushHistory();
+        isDraggingCard = false;
+      };
       window.addEventListener('mousemove', onWindowMouseMoveCard);
       window.addEventListener('touchmove', onWindowTouchMoveCard, { passive: false });
       window.addEventListener('mouseup', onWindowMouseUpCard);
@@ -11454,7 +11557,8 @@ function openNabadEditorFromMenu() {
     subtext: '',
     ctaText: '',
     editorStartBlank: true,
-    editorNeedsNewProject: true,
+    editorNeedsNewProject: false,
+    editorMode: 'image',
     imagePrompt: '',
     platform: 'social',
     format: '16:9',
