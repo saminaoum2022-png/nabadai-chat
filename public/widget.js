@@ -9921,8 +9921,11 @@ function finishOnboarding() {
         const vh = viewportEl.clientHeight || 560;
         const cardW = Math.max(1, Number(fabricCanvas.getWidth() || campaignCardEl.offsetWidth || 1));
         const cardH = Math.max(1, Number(fabricCanvas.getHeight() || campaignCardEl.offsetHeight || 1));
-        cardOffsetX = Math.max(0, (vw - cardW) / 2);
-        cardOffsetY = Math.max(0, (vh - cardH) / 2);
+        // Card is inside a scaled stage surface; center using the *rendered* size.
+        const renderedW = cardW * Math.max(0.01, Number(stageScale || 1));
+        const renderedH = cardH * Math.max(0.01, Number(stageScale || 1));
+        cardOffsetX = Math.max(0, (vw - renderedW) / 2);
+        cardOffsetY = Math.max(0, (vh - renderedH) / 2);
         applyCardTransform();
       };
       const fitWorkspaceToViewport = () => {
