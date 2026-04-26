@@ -8672,10 +8672,11 @@ function finishOnboarding() {
           updateControlFromActive();
         }
       });
-      const syncEmptyState = () => {
+      syncEmptyState = () => {
         if (!isImageEditor || !emptyStateEl) return;
         const hasUserObject = (fabricCanvas?.getObjects?.() || []).some((o) => o && o !== backgroundObj);
         emptyStateEl.hidden = hasUserObject;
+        if (campaignCardEl) campaignCardEl.style.display = hasUserObject ? '' : 'none';
       };
       const onCanvasObjectsChanged = () => {
         pushHistory();
@@ -8851,6 +8852,8 @@ function finishOnboarding() {
       // Allows early helpers (uploads) to request a viewport fit once
       // the workspace transform system is initialized below.
       let requestWorkspaceFit = () => {};
+      // Image-editor empty state (settings entry) sync function, assigned later.
+      let syncEmptyState = () => {};
 
       const addImageObjectFromSource = (src = '') => new Promise((resolve, reject) => {
         window.fabric.Image.fromURL(src, (img) => {
@@ -8878,6 +8881,7 @@ function finishOnboarding() {
           ctaObj.bringToFront();
           fabricCanvas.setActiveObject(img);
           fabricCanvas.renderAll();
+          try { syncEmptyState(); } catch {}
           try { requestWorkspaceFit(); } catch {}
           resolve(img);
         }, { crossOrigin: 'anonymous' });
