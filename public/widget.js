@@ -4228,6 +4228,15 @@ function showPersonalityPill(id) {
         -webkit-user-drag: none;
         cursor: grab;
       }
+      @media (max-width: 700px) {
+        /* Let dotted workspace extend behind the fixed bottom dock */
+        .nabad-editor-stage {
+          height: calc(100dvh - 172px);
+        }
+        #nabad-workspace {
+          padding-bottom: calc(92px + env(safe-area-inset-bottom));
+        }
+      }
       #nabad-canvas-viewport {
         width: 100%;
         height: 100%;
@@ -4692,7 +4701,7 @@ function showPersonalityPill(id) {
           background: rgba(255,255,255,0.92);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
-          box-shadow: 0 12px 28px rgba(15,23,42,0.12);
+          box-shadow: none;
           display: grid;
           grid-template-rows: auto;
           align-items: stretch;
@@ -4728,7 +4737,7 @@ function showPersonalityPill(id) {
         .nabad-editor-fab-add {
           position: fixed;
           right: 14px;
-          bottom: calc(90px + env(safe-area-inset-bottom));
+          bottom: calc(110px + env(safe-area-inset-bottom));
           z-index: 46;
           width: 52px;
           height: 52px;
@@ -7473,6 +7482,10 @@ function finishOnboarding() {
         if (!isMobileEditorViewport()) return;
         e.preventDefault();
         e.stopPropagation();
+        if (mobileSheetState.openTab === 'add') {
+          closeMobileSheet();
+          return;
+        }
         setMobileSheetTab('add');
         setEditorSectionCollapsed('add', false);
         setLayerFlyoutOpen(false);
