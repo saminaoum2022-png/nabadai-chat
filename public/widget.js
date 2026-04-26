@@ -3850,6 +3850,48 @@ function showPersonalityPill(id) {
       #nabad-editor-ratio-menu {
         display: none;
       }
+      #nabad-editor-mobile-menu {
+        display: none;
+        position: absolute;
+        right: 12px;
+        top: calc(100% + 6px);
+        z-index: 80;
+        min-width: 200px;
+        border-radius: 12px;
+        border: 1px solid rgba(37,99,235,0.2);
+        background: rgba(255,255,255,0.98);
+        box-shadow: 0 10px 24px rgba(15,23,42,0.16);
+        overflow: hidden;
+      }
+      #nabad-editor-mobile-menu.open {
+        display: block;
+      }
+      .nabad-editor-mobile-menu-btn {
+        width: 100%;
+        box-sizing: border-box;
+        border: none;
+        border-left: 3px solid transparent;
+        background: transparent;
+        color: #0f172a;
+        border-radius: 0;
+        padding: 10px 12px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all .15s ease;
+      }
+      .nabad-editor-mobile-menu-btn:hover,
+      .nabad-editor-mobile-menu-btn:focus-visible {
+        border-left-color: #2563eb;
+        background: #eff6ff;
+        color: #2563eb;
+        outline: none;
+      }
+      .nabad-editor-mobile-menu-divider {
+        height: 1px;
+        background: #e2e8f0;
+      }
       #nabad-editor-ratio-menu .nabad-btn-icon {
         width: 16px;
         height: 16px;
@@ -4628,9 +4670,9 @@ function showPersonalityPill(id) {
           top: 6px;
           z-index: 30;
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+          grid-template-columns: auto auto auto auto;
           grid-template-areas:
-            "left undo redo save more";
+            "left undo redo more";
           align-items: center;
           gap: 8px;
           padding: 10px 10px 8px;
@@ -4646,6 +4688,9 @@ function showPersonalityPill(id) {
           justify-content: flex-start;
           gap: 8px;
         }
+        .nabad-editor-top-left .nabad-editor-title {
+          display: none;
+        }
         .nabad-editor-top-right {
           display: contents;
         }
@@ -4656,8 +4701,7 @@ function showPersonalityPill(id) {
           grid-area: redo;
         }
         .nabad-editor-top-right #nabad-editor-save {
-          grid-area: save;
-          min-width: 92px;
+          display: none !important;
         }
         .nabad-editor-top-right #nabad-editor-ratio-menu {
           grid-area: more;
@@ -4681,12 +4725,22 @@ function showPersonalityPill(id) {
           min-height: 36px;
           justify-content: center;
         }
-        .nabad-editor-top-left .nabad-editor-title {
-          font-size: 16px;
-          font-weight: 900;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+        #nabad-editor-back > span:last-child,
+        #nabad-editor-undo > span:last-child,
+        #nabad-editor-redo > span:last-child {
+          display: none;
+        }
+        #nabad-editor-back,
+        #nabad-editor-undo,
+        #nabad-editor-redo,
+        #nabad-editor-ratio-menu {
+          min-width: 40px;
+          padding: 8px;
+        }
+        #nabad-editor-mobile-menu {
+          right: 10px;
+          top: calc(100% + 6px);
+          min-width: 220px;
         }
         .nabad-editor-panel.left,
         .nabad-editor-panel.right {
@@ -6912,6 +6966,14 @@ function finishOnboarding() {
                   </svg>
                 </span>
               </button>
+              <div id="nabad-editor-mobile-menu" role="menu" aria-label="Editor menu">
+                <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-action="export">Export PNG</button>
+                <div class="nabad-editor-mobile-menu-divider"></div>
+                <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-ratio="landscape">Landscape 1920×1080</button>
+                <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-ratio="story">Story 1080×1920</button>
+                <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-ratio="square">Square 1080×1080</button>
+                <button type="button" class="nabad-editor-mobile-menu-btn" data-mobile-ratio="custom">Custom size</button>
+              </div>
             </div>
           </div>
 
@@ -7069,6 +7131,7 @@ function finishOnboarding() {
       const saveBtn = document.getElementById('nabad-editor-save');
       const saveSizeSelect = document.getElementById('nabad-editor-save-size');
       const ratioMenuBtn = document.getElementById('nabad-editor-ratio-menu');
+      const mobileMenuEl = document.getElementById('nabad-editor-mobile-menu');
       const saveSizeCustomWrap = document.getElementById('nabad-editor-custom-size');
       const customSizeWInput = document.getElementById('nabad-editor-custom-w');
       const customSizeHInput = document.getElementById('nabad-editor-custom-h');
@@ -9485,9 +9548,17 @@ function finishOnboarding() {
         const preset = cleanText(saveSizeSelect.value || 'landscape', 20).toLowerCase();
         applyResizePreset(preset);
       });
+      const closeMobileEditorMenu = () => {
+        if (!mobileMenuEl) return;
+        mobileMenuEl.classList.remove('open');
+      };
       ratioMenuBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (isMobileLayout() && mobileMenuEl) {
+          mobileMenuEl.classList.toggle('open');
+          return;
+        }
         if (!saveSizeSelect) return;
         try {
           if (typeof saveSizeSelect.showPicker === 'function') {
@@ -9499,6 +9570,32 @@ function finishOnboarding() {
           saveSizeSelect.focus();
           saveSizeSelect.click();
         } catch {}
+      });
+      mobileMenuEl?.addEventListener('click', (e) => {
+        const actionBtn = e.target?.closest?.('[data-mobile-action]');
+        if (actionBtn) {
+          const action = String(actionBtn.getAttribute('data-mobile-action') || '').toLowerCase();
+          if (action === 'export') {
+            saveBtn?.click();
+          }
+          closeMobileEditorMenu();
+          return;
+        }
+        const ratioBtn = e.target?.closest?.('[data-mobile-ratio]');
+        if (ratioBtn) {
+          const ratio = cleanText(ratioBtn.getAttribute('data-mobile-ratio') || 'landscape', 20).toLowerCase();
+          applyResizePreset(ratio);
+          closeMobileEditorMenu();
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (!mobileMenuEl || !mobileMenuEl.classList.contains('open')) return;
+        const target = e.target;
+        if (mobileMenuEl.contains(target) || ratioMenuBtn?.contains(target)) return;
+        closeMobileEditorMenu();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMobileEditorMenu();
       });
       customSizeWInput?.addEventListener('input', () => {
         if (selectedSizePreset !== 'custom') return;
