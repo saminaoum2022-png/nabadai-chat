@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v74-scale-buttons-padded-workspace';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v75-remove-start-upload-overlay';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -4271,41 +4271,6 @@ function showPersonalityPill(id) {
       .nabad-editor-action-overlay[hidden] {
         display: none !important;
       }
-      .nabad-editor-empty-state {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        pointer-events: auto;
-        z-index: 18;
-        padding: 18px;
-      }
-      .nabad-editor-empty-card {
-        width: min(420px, 92%);
-        border-radius: 16px;
-        border: 1px solid rgba(37,99,235,0.18);
-        background: rgba(255,255,255,0.92);
-        box-shadow: 0 18px 44px rgba(15,23,42,0.12);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        padding: 14px;
-        pointer-events: auto;
-        text-align: center;
-      }
-      .nabad-editor-empty-title {
-        font-size: 14px;
-        font-weight: 900;
-        color: #0f172a;
-        margin-bottom: 6px;
-      }
-      .nabad-editor-empty-sub {
-        font-size: 12px;
-        font-weight: 700;
-        color: #475569;
-        margin-bottom: 12px;
-        line-height: 1.4;
-      }
       .nabad-editor-action-popup {
         background: #fff;
         border-radius: 16px;
@@ -7415,16 +7380,6 @@ function finishOnboarding() {
                   <button type="button" id="nabad-zoom-out" title="Zoom out">−</button>
                   <button type="button" id="nabad-zoom-reset" title="Reset view">⌂</button>
                 </div>
-                <div id="nabad-editor-empty-state" class="nabad-editor-empty-state" hidden>
-                  <div class="nabad-editor-empty-card">
-                    <div class="nabad-editor-empty-title">Start with an image</div>
-                    <div class="nabad-editor-empty-sub">Upload a photo to remove background, crop, and edit.</div>
-                    <label class="nabad-editor-btn primary nabad-file-label" id="nabad-editor-upload-first" role="button" tabIndex="0">
-                      Upload image
-                      <input class="nabad-file-proxy" data-kind="object" type="file" accept="image/*" tabindex="-1" aria-hidden="true" />
-                    </label>
-                  </div>
-                </div>
                 <div id="nabad-workspace-glow" class="nabad-editor-workspace-glow" hidden>
                   <div class="glow-center"></div>
                   <div id="nabad-workspace-glow-text" class="glow-label">Nabad is generating...</div>
@@ -7644,8 +7599,8 @@ function finishOnboarding() {
       const workspaceEl = document.getElementById('nabad-workspace');
       const workspaceGlowEl = document.getElementById('nabad-workspace-glow');
       const workspaceGlowTextEl = document.getElementById('nabad-workspace-glow-text');
-      const emptyStateEl = document.getElementById('nabad-editor-empty-state');
-      const emptyUploadBtn = document.getElementById('nabad-editor-upload-first');
+      const emptyStateEl = null;
+      const emptyUploadBtn = null;
       const newProjectGateEl = document.getElementById('nabad-new-project-gate');
       const newProjectRatiosWrap = document.getElementById('nabad-new-project-ratios');
       const newProjectCustomWrap = document.getElementById('nabad-new-project-custom');
@@ -8784,14 +8739,8 @@ function finishOnboarding() {
           updateControlFromActive();
         }
       });
-      syncEmptyState = () => {
-        if (!isImageEditor || !emptyStateEl) return;
-        const objs = (fabricCanvas?.getObjects?.() || []);
-        // Consider the editor "started" if there's any non-background image/object.
-        const hasUserObject = objs.some((o) => o && o !== backgroundObj);
-        emptyStateEl.hidden = hasUserObject;
-        if (campaignCardEl) campaignCardEl.style.display = hasUserObject ? '' : 'none';
-      };
+      // Empty upload overlay removed. Keep as no-op for safety.
+      syncEmptyState = () => {};
       const onCanvasObjectsChanged = () => {
         try { pushHistory(); } catch (err) { console.error('[NABAD] pushHistory error:', err); }
         try { refreshFloatingLayers(); } catch (err) { console.error('[NABAD] refreshFloatingLayers error:', err); }
@@ -9047,13 +8996,6 @@ function finishOnboarding() {
           ctaObj?.bringToFront?.();
           fabricCanvas.setActiveObject(img);
           fabricCanvas.renderAll();
-          try {
-            if (emptyStateEl) {
-              emptyStateEl.hidden = true;
-              // Hard-stop: remove the overlay so it can't reappear due to any later state sync.
-              emptyStateEl.remove();
-            }
-          } catch {}
           try { syncEmptyState(); } catch {}
           try { requestWorkspaceFit(); } catch {}
           resolve(img);
@@ -9820,12 +9762,6 @@ function finishOnboarding() {
             await addImageObjectFromSource(dataUrl);
             try { syncEmptyState(); } catch {}
             try { requestWorkspaceFit(); } catch {}
-            try {
-              if (emptyStateEl) {
-                emptyStateEl.hidden = true;
-                emptyStateEl.remove();
-              }
-            } catch {}
           } catch (err) {
             console.error('[NABAD] delegated proxy upload error:', err);
             alert('Could not add uploaded image.');
@@ -9845,11 +9781,7 @@ function finishOnboarding() {
         }
       } catch {}
 
-      if (isImageEditor) {
-        syncEmptyState();
-        // The empty upload control is a <label for="nabad-editor-object-file">.
-        // Do NOT attach preventDefault handlers here or it will block the native picker.
-      }
+      // Image editor starts blank; upload via Add / floating + controls.
       logoFile?.addEventListener('change', () => {
         const file = logoFile.files?.[0];
         if (!file) return;
