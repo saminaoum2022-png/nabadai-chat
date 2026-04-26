@@ -14,7 +14,7 @@
   window.__NABAD_WIDGET_LOADED__ = true;
 
   // Build marker to confirm the newest widget.js is actually loaded.
-  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v76-edit-generated-image-to-editor';
+  window.__NABAD_WIDGET_BUILD__ = 'widget-build-2026-04-27-v77-debug-edit-import';
   try { console.log('[NABAD] widget build:', window.__NABAD_WIDGET_BUILD__); } catch {}
 
   function showDebugBanner(text = '', ms = 2400) {
@@ -11147,14 +11147,23 @@ function finishOnboarding() {
           e.preventDefault();
           e.stopPropagation();
           const kind = isLogoLikePrompt(prompt) ? 'logo' : 'image';
+          try { showDebugBanner(`Edit clicked → opening editor (${kind})`, 2200); } catch {}
           openNabadEditorFromMenu();
           const startedAt = Date.now();
           const tryImport = async () => {
             if (window.__NABAD_EDITOR_DO__) {
-              try { await window.__NABAD_EDITOR_DO__('import_image', { url: src, kind }); } catch {}
+              try {
+                const ok = await window.__NABAD_EDITOR_DO__('import_image', { url: src, kind });
+                try { showDebugBanner(ok ? 'Imported into editor' : 'Import failed', 2600); } catch {}
+              } catch (err) {
+                try { showDebugBanner(`Import error: ${String(err?.message || err || 'unknown').slice(0, 60)}`, 5200); } catch {}
+              }
               return;
             }
-            if (Date.now() - startedAt > 5000) return;
+            if (Date.now() - startedAt > 6000) {
+              try { showDebugBanner('Editor not ready (timeout)', 5200); } catch {}
+              return;
+            }
             setTimeout(tryImport, 120);
           };
           setTimeout(tryImport, 120);
