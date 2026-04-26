@@ -11097,6 +11097,33 @@ function finishOnboarding() {
 
   // ── PROCESS ASSISTANT BUBBLE (cards, images, score bars) ─────
   function processAssistantBubble(bubble) {
+    const openGeneratedImageInEditor = (src = '', prompt = '') => {
+      const srcValue = String(src || '').trim();
+      const promptValue = String(prompt || '').trim();
+      if (!srcValue) return;
+      const kind = isLogoLikePrompt(promptValue) ? 'logo' : 'image';
+      try { showDebugBanner(`Edit → opening editor (${kind})`, 2200); } catch {}
+      openNabadEditorFromMenu();
+      const startedAt = Date.now();
+      const tryImport = async () => {
+        if (window.__NABAD_EDITOR_DO__) {
+          try {
+            const ok = await window.__NABAD_EDITOR_DO__('import_image', { url: srcValue, kind });
+            try { showDebugBanner(ok ? 'Imported into editor' : 'Import failed', 2600); } catch {}
+          } catch (err) {
+            try { showDebugBanner(`Import error: ${String(err?.message || err || 'unknown').slice(0, 60)}`, 5200); } catch {}
+          }
+          return;
+        }
+        if (Date.now() - startedAt > 9000) {
+          try { showDebugBanner('Editor not ready (timeout)', 5200); } catch {}
+          return;
+        }
+        setTimeout(tryImport, 160);
+      };
+      setTimeout(tryImport, 200);
+    };
+
     // Score bars
     bubble.querySelectorAll('.nabad-score-bar-fill').forEach(bar => {
       const target = parseFloat(bar.dataset.score || '0');
@@ -11140,30 +11167,10 @@ function finishOnboarding() {
         editBtn.addEventListener('click', async (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const srcValue = String(editBtn.getAttribute('data-src') || '').trim();
-          const promptValue = String(editBtn.getAttribute('data-prompt') || '').trim();
-          if (!srcValue) return;
-          const kind = isLogoLikePrompt(promptValue) ? 'logo' : 'image';
-          try { showDebugBanner(`Edit → opening editor (${kind})`, 2200); } catch {}
-          openNabadEditorFromMenu();
-          const startedAt = Date.now();
-          const tryImport = async () => {
-            if (window.__NABAD_EDITOR_DO__) {
-              try {
-                const ok = await window.__NABAD_EDITOR_DO__('import_image', { url: srcValue, kind });
-                try { showDebugBanner(ok ? 'Imported into editor' : 'Import failed', 2600); } catch {}
-              } catch (err) {
-                try { showDebugBanner(`Import error: ${String(err?.message || err || 'unknown').slice(0, 60)}`, 5200); } catch {}
-              }
-              return;
-            }
-            if (Date.now() - startedAt > 9000) {
-              try { showDebugBanner('Editor not ready (timeout)', 5200); } catch {}
-              return;
-            }
-            setTimeout(tryImport, 160);
-          };
-          setTimeout(tryImport, 200);
+          openGeneratedImageInEditor(
+            editBtn.getAttribute('data-src') || '',
+            editBtn.getAttribute('data-prompt') || ''
+          );
         });
         saveBtn.addEventListener('click', async (e) => {
           e.preventDefault();
@@ -11254,31 +11261,16 @@ function finishOnboarding() {
           }
           openCampaignCanvasEditorFromData(payload);
           return;
-        } else if (action === 'edit-generated-image') {
-          const src = String(btn.getAttribute('data-src') || '').trim();
-          const prompt = String(btn.getAttribute('data-prompt') || '').trim();
-          if (!src) return;
-          const kind = isLogoLikePrompt(prompt) ? 'logo' : 'image';
-          try { showDebugBanner(`Edit → opening editor (${kind})`, 2200); } catch {}
-          openNabadEditorFromMenu();
-          const startedAt = Date.now();
-          const tryImport = async () => {
-            if (window.__NABAD_EDITOR_DO__) {
-              try {
-                const ok = await window.__NABAD_EDITOR_DO__('import_image', { url: src, kind });
-                try { showDebugBanner(ok ? 'Imported into editor' : 'Import failed', 2600); } catch {}
-              } catch (err) {
-                try { showDebugBanner(`Import error: ${String(err?.message || err || 'unknown').slice(0, 60)}`, 5200); } catch {}
-              }
-              return;
-            }
-            if (Date.now() - startedAt > 9000) {
-              try { showDebugBanner('Editor not ready (timeout)', 5200); } catch {}
-              return;
-            }
-            setTimeout(tryImport, 160);
-          };
-          setTimeout(tryImport, 200);
+        } else if (
+          action === 'edit-generated-image' ||
+          action === 'add-edit-generated-image' ||
+          action === 'image-edit' ||
+          action === 'edit-image'
+        ) {
+          openGeneratedImageInEditor(
+            btn.getAttribute('data-src') || '',
+            btn.getAttribute('data-prompt') || btn.getAttribute('data-caption') || ''
+          );
           return;
         } else if (action === 'campaign-refine-text') {
           const stage = ensureCampaignTemplateStage(bubble);
