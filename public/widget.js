@@ -7454,9 +7454,9 @@ function finishOnboarding() {
           <input id="nabad-size-w" type="number" step="1" hidden />
           <input id="nabad-size-h" type="number" step="1" hidden />
 
-          <input id="nabad-editor-object-file" type="file" accept="image/*" hidden />
-          <input id="nabad-editor-logo-file" type="file" accept="image/*" hidden />
-          <input id="nabad-editor-bg-file" type="file" accept="image/*" hidden />
+          <input id="nabad-editor-object-file" type="file" accept="image/*" tabindex="-1" aria-hidden="true" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" />
+          <input id="nabad-editor-logo-file" type="file" accept="image/*" tabindex="-1" aria-hidden="true" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" />
+          <input id="nabad-editor-bg-file" type="file" accept="image/*" tabindex="-1" aria-hidden="true" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" />
           <input id="nabad-editor-bg-color-input" type="color" value="#ffffff" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" />
         </div>
       `;
