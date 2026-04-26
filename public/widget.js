@@ -9304,7 +9304,22 @@ function finishOnboarding() {
         fabricCanvas.setActiveObject(text);
         fabricCanvas.renderAll();
       };
-      const addImageAction = () => objectFile?.click();
+      const openFilePicker = (inputEl) => {
+        if (!inputEl) {
+          alert('Upload input not found. Please reload and try again.');
+          return;
+        }
+        try { inputEl.value = ''; } catch {}
+        try {
+          if (typeof inputEl.showPicker === 'function') {
+            inputEl.showPicker();
+            return;
+          }
+        } catch {}
+        try { inputEl.click(); } catch {}
+      };
+
+      const addImageAction = () => openFilePicker(objectFile);
       const addLogoAction = () => logoFile?.click();
       const addShapeAction = () => {
         const choice = cleanText(window.prompt('Shape type: rect / circle / line / star / blob', 'rect') || 'rect', 20).toLowerCase();
@@ -9597,7 +9612,7 @@ function finishOnboarding() {
         const triggerFirstUpload = (e) => {
           e.preventDefault();
           e.stopPropagation();
-          try { objectFile?.click?.(); } catch {}
+          openFilePicker(objectFile);
         };
         emptyUploadBtn?.addEventListener('click', triggerFirstUpload);
         // iOS Safari can be picky; allow tapping anywhere on the empty card too.
