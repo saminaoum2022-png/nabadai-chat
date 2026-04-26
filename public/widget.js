@@ -3847,6 +3847,18 @@ function showPersonalityPill(id) {
         flex-wrap: wrap;
         justify-content: flex-end;
       }
+      #nabad-editor-ratio-menu {
+        display: none;
+      }
+      #nabad-editor-ratio-menu .nabad-btn-icon {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+      }
+      #nabad-editor-ratio-menu .nabad-btn-icon svg {
+        width: 16px;
+        height: 16px;
+      }
       .nabad-editor-title {
         font-size: 14px;
         font-weight: 800;
@@ -4616,10 +4628,9 @@ function showPersonalityPill(id) {
           top: 6px;
           z-index: 30;
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto auto;
+          grid-template-columns: minmax(0, 1fr) auto auto auto auto;
           grid-template-areas:
-            "left undo redo"
-            "ratio ratio save";
+            "left undo redo save more";
           align-items: center;
           gap: 8px;
           padding: 10px 10px 8px;
@@ -4644,30 +4655,25 @@ function showPersonalityPill(id) {
         .nabad-editor-top-right #nabad-editor-redo {
           grid-area: redo;
         }
-        .nabad-editor-top-right #nabad-editor-save-size {
-          grid-area: ratio;
-          width: 100%;
-          min-width: 0;
-        }
         .nabad-editor-top-right #nabad-editor-save {
           grid-area: save;
-          min-width: 104px;
+          min-width: 92px;
+        }
+        .nabad-editor-top-right #nabad-editor-ratio-menu {
+          grid-area: more;
+          display: inline-flex;
+          min-width: 40px;
+          padding: 8px 10px;
+          justify-content: center;
+        }
+        .nabad-editor-top-right #nabad-editor-save-size {
+          display: none !important;
         }
         .nabad-editor-top-right #nabad-editor-merge {
           display: none !important;
         }
         .nabad-editor-top-right #nabad-editor-custom-size {
-          grid-column: 1 / -1;
-          align-items: stretch;
-          display: flex;
-          width: 100%;
-          justify-content: space-between;
-          gap: 8px;
-          margin-top: 2px;
-        }
-        .nabad-editor-top-right #nabad-editor-custom-size input {
-          flex: 1 1 0;
-          min-width: 0;
+          display: none !important;
         }
         .nabad-editor-top-right .nabad-editor-btn,
         .nabad-editor-top-right .nabad-editor-select,
@@ -6897,6 +6903,15 @@ function finishOnboarding() {
                 </span>
                 <span>Export</span>
               </button>
+              <button type="button" class="nabad-editor-btn with-icon" id="nabad-editor-ratio-menu" title="Project ratio">
+                <span class="nabad-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="5" cy="12" r="1.9"></circle>
+                    <circle cx="12" cy="12" r="1.9"></circle>
+                    <circle cx="19" cy="12" r="1.9"></circle>
+                  </svg>
+                </span>
+              </button>
             </div>
           </div>
 
@@ -7053,6 +7068,7 @@ function finishOnboarding() {
       const mergeBtn = document.getElementById('nabad-editor-merge');
       const saveBtn = document.getElementById('nabad-editor-save');
       const saveSizeSelect = document.getElementById('nabad-editor-save-size');
+      const ratioMenuBtn = document.getElementById('nabad-editor-ratio-menu');
       const saveSizeCustomWrap = document.getElementById('nabad-editor-custom-size');
       const customSizeWInput = document.getElementById('nabad-editor-custom-w');
       const customSizeHInput = document.getElementById('nabad-editor-custom-h');
@@ -7311,11 +7327,16 @@ function finishOnboarding() {
         try {
           await setBackgroundFromUrl(makeWhiteBackground(), false);
           setBackgroundLockState(true);
-          if (headlineObj) headlineObj.set({ text: '', visible: false });
-          if (subtextObj) subtextObj.set({ text: '', visible: false });
-          if (ctaObj) ctaObj.set({ text: '', visible: false });
-          if (ctaBg) ctaBg.set({ visible: false });
-          if (brandMarkObj) brandMarkObj.set({ text: '', visible: false });
+          if (headlineObj) fabricCanvas.remove(headlineObj);
+          if (subtextObj) fabricCanvas.remove(subtextObj);
+          if (ctaObj) fabricCanvas.remove(ctaObj);
+          if (ctaBg) fabricCanvas.remove(ctaBg);
+          if (brandMarkObj) fabricCanvas.remove(brandMarkObj);
+          headlineObj = null;
+          subtextObj = null;
+          ctaObj = null;
+          ctaBg = null;
+          brandMarkObj = null;
           layerHeadline && (layerHeadline.checked = false);
           layerSubtext && (layerSubtext.checked = false);
           layerCta && (layerCta.checked = false);
@@ -7737,6 +7758,7 @@ function finishOnboarding() {
       ctaBg.set('nabadRole', 'ctaBg');
 
       const syncCtaBackground = () => {
+        if (!ctaObj || !ctaBg) return;
         const padX = 14;
         const padY = 8;
         ctaBg.set({
@@ -7750,6 +7772,7 @@ function finishOnboarding() {
       };
 
       const applyCtaStyle = (styleName = 'solid') => {
+        if (!ctaObj || !ctaBg) return;
         const s = String(styleName || 'solid');
         const ctaFill = toHexColor(String(ctaBg.fill || '#2563eb'));
         if (s === 'outline') {
@@ -7786,24 +7809,33 @@ function finishOnboarding() {
 
       fabricCanvas.add(ctaBg, headlineObj, subtextObj, ctaObj, brandMarkObj);
       if (isNewProjectFlow) {
-        headlineObj.set({ visible: false });
-        subtextObj.set({ visible: false });
-        ctaObj.set({ visible: false });
-        ctaBg.set({ visible: false });
-        brandMarkObj.set({ visible: false });
+        fabricCanvas.remove(headlineObj);
+        fabricCanvas.remove(subtextObj);
+        fabricCanvas.remove(ctaObj);
+        fabricCanvas.remove(ctaBg);
+        fabricCanvas.remove(brandMarkObj);
+        headlineObj = null;
+        subtextObj = null;
+        ctaObj = null;
+        ctaBg = null;
+        brandMarkObj = null;
       }
       syncCtaBackground();
       applyCtaStyle('solid');
-      fabricCanvas.setActiveObject(headlineObj);
+      if (headlineObj) {
+        fabricCanvas.setActiveObject(headlineObj);
+      } else {
+        fabricCanvas.discardActiveObject();
+      }
       fabricCanvas.renderAll();
 
       const getByRole = (role = '') => fabricCanvas.getObjects().find((obj) => cleanText(obj?.nabadRole || '', 24) === role);
       const refreshCoreRefs = () => {
-        headlineObj = getByRole('headline') || headlineObj;
-        subtextObj = getByRole('subtext') || subtextObj;
-        ctaObj = getByRole('cta') || ctaObj;
-        ctaBg = getByRole('ctaBg') || ctaBg;
-        brandMarkObj = getByRole('brand') || brandMarkObj;
+        headlineObj = getByRole('headline') || null;
+        subtextObj = getByRole('subtext') || null;
+        ctaObj = getByRole('cta') || null;
+        ctaBg = getByRole('ctaBg') || null;
+        brandMarkObj = getByRole('brand') || null;
         backgroundObj = getByRole('background') || backgroundObj;
         if (backgroundObj) {
           backgroundObj.set({
@@ -9453,6 +9485,21 @@ function finishOnboarding() {
         const preset = cleanText(saveSizeSelect.value || 'landscape', 20).toLowerCase();
         applyResizePreset(preset);
       });
+      ratioMenuBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!saveSizeSelect) return;
+        try {
+          if (typeof saveSizeSelect.showPicker === 'function') {
+            saveSizeSelect.showPicker();
+            return;
+          }
+        } catch {}
+        try {
+          saveSizeSelect.focus();
+          saveSizeSelect.click();
+        } catch {}
+      });
       customSizeWInput?.addEventListener('input', () => {
         if (selectedSizePreset !== 'custom') return;
         clampCustomSize();
@@ -9970,7 +10017,7 @@ function finishOnboarding() {
       };
 
       if (fontFamilySelect) fontFamilySelect.value = defaultFont;
-      if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj.fontSize || 58));
+      if (textSizeRange) textSizeRange.value = String(Math.round(headlineObj?.fontSize || 34));
       applyResizePreset(cleanText(saveSizeSelect?.value || 'landscape', 20).toLowerCase());
       setBackgroundLockState(true);
       historyMuted = false;
