@@ -162,7 +162,7 @@ export default function AppPage() {
           };
         `}
       </Script>
-      <Script id="nabad-widget-script-app" src="/widget.js?v=78" strategy="afterInteractive" />
+      <Script id="nabad-widget-script-app" src="/widget.js?v=79" strategy="afterInteractive" />
 
       <main className="nabad-app-page">
         <div className={`nabad-app-shell ${editorMode ? 'editor-open' : ''}`}>
