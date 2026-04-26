@@ -4168,6 +4168,16 @@ function showPersonalityPill(id) {
         user-select: none;
         -webkit-user-select: none;
       }
+      .nabad-file-label { position: relative; overflow: hidden; }
+      .nabad-file-proxy{
+        position:absolute;
+        inset:0;
+        width:100%;
+        height:100%;
+        opacity:0;
+        cursor:pointer;
+        pointer-events:auto;
+      }
       .nabad-editor-sidebar-section .add-grid .nabad-editor-btn:hover,
       .nabad-editor-sidebar-section .add-grid .nabad-editor-btn:focus-visible {
         border-left-color: #2563eb;
@@ -7182,7 +7192,7 @@ function finishOnboarding() {
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Text">Text</span>
                   </button>
-                  <label class="nabad-editor-btn nabad-file-label" id="nabad-side-add-image" for="nabad-editor-object-file" role="button" tabIndex="0">
+                  <label class="nabad-editor-btn nabad-file-label" id="nabad-side-add-image" role="button" tabIndex="0">
                     <span class="nabad-editor-btn-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="5" width="18" height="14" rx="2"></rect>
@@ -7191,6 +7201,7 @@ function finishOnboarding() {
                       </svg>
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Image">Image</span>
+                    <input class="nabad-file-proxy" data-kind="object" type="file" accept="image/*" tabindex="-1" aria-hidden="true" />
                   </label>
                   <button type="button" class="nabad-editor-btn" id="nabad-side-add-shape">
                     <span class="nabad-editor-btn-icon" aria-hidden="true">
@@ -7200,13 +7211,14 @@ function finishOnboarding() {
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Shape">Shape</span>
                   </button>
-                  <label class="nabad-editor-btn nabad-file-label" id="nabad-side-add-logo" for="nabad-editor-logo-file" role="button" tabIndex="0">
+                  <label class="nabad-editor-btn nabad-file-label" id="nabad-side-add-logo" role="button" tabIndex="0">
                     <span class="nabad-editor-btn-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 3l2.6 5.4 6 .9-4.3 4.2 1 6-5.3-2.8-5.3 2.8 1-6L3.4 9.3l6-.9L12 3z"></path>
                       </svg>
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Logo">Logo</span>
+                    <input class="nabad-file-proxy" data-kind="logo" type="file" accept="image/*" tabindex="-1" aria-hidden="true" />
                   </label>
                 </div>
               </section>
@@ -7334,7 +7346,10 @@ function finishOnboarding() {
                   <div class="nabad-editor-empty-card">
                     <div class="nabad-editor-empty-title">Start with an image</div>
                     <div class="nabad-editor-empty-sub">Upload a photo to remove background, crop, and edit.</div>
-                    <label class="nabad-editor-btn primary nabad-file-label" id="nabad-editor-upload-first" for="nabad-editor-object-file" role="button" tabIndex="0">Upload image</label>
+                    <label class="nabad-editor-btn primary nabad-file-label" id="nabad-editor-upload-first" role="button" tabIndex="0">
+                      Upload image
+                      <input class="nabad-file-proxy" data-kind="object" type="file" accept="image/*" tabindex="-1" aria-hidden="true" />
+                    </label>
                   </div>
                 </div>
                 <div id="nabad-workspace-glow" class="nabad-editor-workspace-glow" hidden>
@@ -9620,6 +9635,48 @@ function finishOnboarding() {
         };
         reader.readAsDataURL(file);
       });
+
+      const bindProxyFileInputs = () => {
+        const proxyInputs = Array.from(refs.messages?.querySelectorAll?.('.nabad-file-proxy') || []);
+        proxyInputs.forEach((inp) => {
+          if (!inp || inp.__nabadProxyBound) return;
+          inp.__nabadProxyBound = true;
+          inp.addEventListener('change', () => {
+            const file = inp.files?.[0];
+            if (!file) return;
+            const kind = String(inp.getAttribute('data-kind') || '').trim();
+            const reader = new FileReader();
+            reader.onload = async () => {
+              try {
+                const dataUrl = String(reader.result || '');
+                if (kind === 'logo') {
+                  // Use the same logo flow as the main logo input.
+                  const logoObj = await addImageObjectFromSource(dataUrl);
+                  if (logoObj) {
+                    logoObj.set('nabadRole', 'brand');
+                    logoObj.set({ left: fabricCanvas.getWidth() * 0.78, top: fabricCanvas.getHeight() * 0.05 });
+                    if (brandMarkObj && brandMarkObj !== logoObj) {
+                      fabricCanvas.remove(brandMarkObj);
+                    }
+                    brandMarkObj = logoObj;
+                    fabricCanvas.renderAll();
+                    updateLayerVisibilityControls();
+                  }
+                  return;
+                }
+                await addImageObjectFromSource(dataUrl);
+              } catch (err) {
+                console.error('[NABAD] proxy upload error:', err);
+                alert('Could not add uploaded image.');
+              } finally {
+                try { inp.value = ''; } catch {}
+              }
+            };
+            reader.readAsDataURL(file);
+          });
+        });
+      };
+      bindProxyFileInputs();
 
       if (isImageEditor) {
         syncEmptyState();
