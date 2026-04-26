@@ -682,8 +682,15 @@
   let __editorRuntimePromise = null;
   async function getEditorRuntime() {
     if (!__editorRuntimePromise) {
-      __editorRuntimePromise = import('/editor/editor.js')
-        .then((mod) => mod.createNabadEditorRuntime());
+      const buildTag = String(window.__NABAD_WIDGET_BUILD__ || Date.now());
+      // Dynamic-import failures can get "stuck" if we cache the rejected promise.
+      // Make this retryable and lightly cache-busted.
+      __editorRuntimePromise = import(`/editor/editor.js?v=${encodeURIComponent(buildTag)}`)
+        .then((mod) => mod.createNabadEditorRuntime())
+        .catch((err) => {
+          __editorRuntimePromise = null;
+          throw err;
+        });
     }
     return __editorRuntimePromise;
   }
