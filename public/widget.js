@@ -8048,7 +8048,7 @@ function finishOnboarding() {
         };
       };
       const applyEraserStrokeToImage = async (imgObj, points, brushSizeCanvas = 24) => {
-        if (!imgObj || !Array.isArray(points) || points.length < 2) return;
+        if (!imgObj || !Array.isArray(points) || points.length < 1) return;
         const element = imgObj._element;
         if (!element) return;
         const srcW = Math.max(
@@ -8081,7 +8081,9 @@ function finishOnboarding() {
         drawCtx.lineJoin = 'round';
         drawCtx.strokeStyle = 'rgba(0,0,0,1)';
         drawCtx.lineWidth = brushSrc;
+        drawCtx.fillStyle = 'rgba(0,0,0,1)';
         let started = false;
+        let dotApplied = false;
         points.forEach((pt) => {
           const mapped = getImageSourcePointFromCanvasPoint(imgObj, pt);
           if (!mapped) {
@@ -8090,6 +8092,15 @@ function finishOnboarding() {
           }
           const mx = mapped.x * drawScale;
           const my = mapped.y * drawScale;
+          // Single click/tap (1 point) should erase a dot.
+          if (points.length === 1 && !dotApplied) {
+            drawCtx.beginPath();
+            drawCtx.arc(mx, my, Math.max(1, brushSrc / 2), 0, Math.PI * 2);
+            drawCtx.fill();
+            dotApplied = true;
+            started = false;
+            return;
+          }
           if (!started) {
             drawCtx.beginPath();
             drawCtx.moveTo(mx, my);
@@ -8223,7 +8234,7 @@ function finishOnboarding() {
         }
         const points = eraserPoints.slice();
         eraserPoints = [];
-        if (!eraserTargetObj || points.length < 2 || eraserApplying) return;
+        if (!eraserTargetObj || points.length < 1 || eraserApplying) return;
         eraserApplying = true;
         try {
           await applyEraserStrokeToImage(eraserTargetObj, points, eraserBrushPx);
