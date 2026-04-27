@@ -8301,11 +8301,11 @@ function finishOnboarding() {
         const ow = Math.max(1, Number(imgObj.width || 1));
         const oh = Math.max(1, Number(imgObj.height || 1));
         const point = new window.fabric.Point(Number(canvasPoint.x || 0), Number(canvasPoint.y || 0));
-        const originX = imgObj.originX || 'left';
-        const originY = imgObj.originY || 'top';
         let local = null;
         try {
-          local = imgObj.toLocalPoint(point, originX, originY);
+          // Use center-origin mapping so we don't depend on obj.originX/Y.
+          // This also behaves better when the object is locked/unselectable during brushing.
+          local = imgObj.toLocalPoint(point, 'center', 'center');
         } catch {
           local = null;
         }
@@ -8326,11 +8326,9 @@ function finishOnboarding() {
           } catch {}
         }
         if (!Number.isFinite(lx) || !Number.isFinite(ly)) return null;
-        // Normalize local coords to top-left space regardless of origin.
-        if (originX === 'center') lx += ow / 2;
-        else if (originX === 'right') lx += ow;
-        if (originY === 'center') ly += oh / 2;
-        else if (originY === 'bottom') ly += oh;
+        // Convert from center-origin local space to top-left local space.
+        lx += ow / 2;
+        ly += oh / 2;
         const tol = 0.5;
         if (lx < -tol || ly < -tol || lx > ow + tol || ly > oh + tol) return null;
         return {
