@@ -8504,11 +8504,9 @@ function finishOnboarding() {
         evt?.e?.preventDefault?.();
       });
       const cancelEraserStroke = () => {
-        if (nativeEraserActive) {
-          eraserIsDrawing = false;
-          eraserPoints = [];
-          return;
-        }
+        // Important: during Eraser/Restore we apply on Fabric's `mouse:up`.
+        // Don't clear points here or the brush will "do nothing".
+        if (nativeEraserActive) return;
         if (!eraserIsDrawing) return;
         eraserIsDrawing = false;
         eraserPoints = [];
@@ -8567,7 +8565,6 @@ function finishOnboarding() {
       try {
         const upper = fabricCanvas?.upperCanvasEl;
         upper?.addEventListener?.('mouseleave', cancelEraserStroke);
-        window.addEventListener('mouseup', cancelEraserStroke);
         window.addEventListener('blur', cancelEraserStroke);
       } catch {}
 
