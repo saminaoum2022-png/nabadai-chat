@@ -8474,9 +8474,9 @@ function finishOnboarding() {
         if (nativeEraserActive) {
           if (eraserApplying) return;
           const pointer = fabricCanvas.getPointer(evt.e);
-          const selected = fabricCanvas.getActiveObject();
-          if (!selected || selected.type !== 'image' || selected === backgroundObj) return;
-          eraserTargetObj = selected;
+          const target = nativeEraserLockedObj || fabricCanvas.getActiveObject();
+          if (!target || target.type !== 'image' || target === backgroundObj) return;
+          eraserTargetObj = target;
           eraserIsDrawing = true;
           eraserPoints = [{ x: Number(pointer?.x || 0), y: Number(pointer?.y || 0) }];
           evt?.e?.preventDefault?.();
