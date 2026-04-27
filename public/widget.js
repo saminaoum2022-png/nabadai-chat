@@ -7997,6 +7997,8 @@ function finishOnboarding() {
       let nativeEraserMode = ''; // 'erase' | 'restore' | ''
       let nativeEraserPrevErasable = new Map();
       let nativeEraserBrush = null;
+      let nativeEraserLockedObj = null;
+      let nativeEraserLockedPrev = null;
       const restoreEraserTargetInteractivity = () => {
         if (!eraserTargetObj || !eraserTargetPrevState) return;
         try {
@@ -8054,6 +8056,26 @@ function finishOnboarding() {
         if (!nativeEraserActive) return;
         nativeEraserActive = false;
         nativeEraserMode = '';
+        // Restore locked object interactivity so it can be moved again.
+        if (nativeEraserLockedObj && nativeEraserLockedPrev) {
+          try {
+            nativeEraserLockedObj.set({
+              selectable: nativeEraserLockedPrev.selectable,
+              evented: nativeEraserLockedPrev.evented,
+              hasControls: nativeEraserLockedPrev.hasControls,
+              hasBorders: nativeEraserLockedPrev.hasBorders,
+              lockMovementX: nativeEraserLockedPrev.lockMovementX,
+              lockMovementY: nativeEraserLockedPrev.lockMovementY,
+              lockScalingX: nativeEraserLockedPrev.lockScalingX,
+              lockScalingY: nativeEraserLockedPrev.lockScalingY,
+              lockRotation: nativeEraserLockedPrev.lockRotation
+            });
+            nativeEraserLockedObj.setCoords?.();
+          } catch {}
+        }
+        nativeEraserLockedObj = null;
+        nativeEraserLockedPrev = null;
+        try { fabricCanvas.skipTargetFind = false; } catch {}
         setNativeEraserUi('');
         fabricCanvas.defaultCursor = 'default';
         fabricCanvas.hoverCursor = 'move';
@@ -8237,6 +8259,34 @@ function finishOnboarding() {
         nativeEraserMode = m;
         eraserMode = true; // used by viewport drag guards elsewhere
         try { ensureMaskEditState(selected, { resetBase: false }); } catch {}
+        // Lock the selected object in place while brushing, so it won't drag under the pointer.
+        nativeEraserLockedObj = selected;
+        nativeEraserLockedPrev = {
+          selectable: selected.selectable !== false,
+          evented: selected.evented !== false,
+          hasControls: selected.hasControls !== false,
+          hasBorders: selected.hasBorders !== false,
+          lockMovementX: !!selected.lockMovementX,
+          lockMovementY: !!selected.lockMovementY,
+          lockScalingX: !!selected.lockScalingX,
+          lockScalingY: !!selected.lockScalingY,
+          lockRotation: !!selected.lockRotation
+        };
+        try {
+          selected.set({
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hasBorders: false,
+            lockMovementX: true,
+            lockMovementY: true,
+            lockScalingX: true,
+            lockScalingY: true,
+            lockRotation: true
+          });
+          selected.setCoords?.();
+        } catch {}
+        try { fabricCanvas.skipTargetFind = true; } catch {}
         fabricCanvas.defaultCursor = 'crosshair';
         fabricCanvas.hoverCursor = 'crosshair';
         fabricCanvas.moveCursor = 'crosshair';
