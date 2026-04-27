@@ -8054,16 +8054,6 @@ function finishOnboarding() {
         if (!nativeEraserActive) return;
         nativeEraserActive = false;
         nativeEraserMode = '';
-        try { fabricCanvas.isDrawingMode = false; } catch {}
-        try { fabricCanvas.freeDrawingBrush = null; } catch {}
-        nativeEraserBrush = null;
-        // restore previous erasable flags
-        try {
-          nativeEraserPrevErasable.forEach((value, obj) => {
-            try { obj.erasable = value; } catch {}
-          });
-        } catch {}
-        nativeEraserPrevErasable = new Map();
         setNativeEraserUi('');
         fabricCanvas.defaultCursor = 'default';
         fabricCanvas.hoverCursor = 'move';
@@ -8071,16 +8061,161 @@ function finishOnboarding() {
         fabricCanvas.requestRenderAll();
       };
 
+      const ensureMaskEditState = (imgObj, { resetBase = false } = {}) => {
+        if (!imgObj || imgObj.type !== 'image') return null;
+        const element = imgObj._element;
+        if (!element) return null;
+        const srcW = Math.max(1, Number(element.naturalWidth || element.videoWidth || element.width || 1));
+        const srcH = Math.max(1, Number(element.naturalHeight || element.videoHeight || element.height || 1));
+        const MAX_EDIT_DIM = 3072;
+        const drawScale = Math.min(1, MAX_EDIT_DIM / Math.max(srcW, srcH));
+        const key = `${srcW}x${srcH}@${drawScale}`;
+        const currentSrc = String(element.currentSrc || element.src || '');
+
+        if (!resetBase && imgObj.__nabadMaskBaseCanvas && imgObj.__nabadMaskCanvas && imgObj.__nabadMaskKey === key && imgObj.__nabadMaskSrc === currentSrc) {
+          return {
+            base: imgObj.__nabadMaskBaseCanvas,
+            mask: imgObj.__nabadMaskCanvas,
+            scale: Number(imgObj.__nabadMaskScale || drawScale)
+          };
+        }
+
+        const w = Math.max(1, Math.round(srcW * drawScale));
+        const h = Math.max(1, Math.round(srcH * drawScale));
+        const base = document.createElement('canvas');
+        base.width = w;
+        base.height = h;
+        const bctx = base.getContext('2d');
+        if (!bctx) return null;
+        bctx.clearRect(0, 0, w, h);
+        bctx.drawImage(element, 0, 0, w, h);
+
+        const mask = document.createElement('canvas');
+        mask.width = w;
+        mask.height = h;
+        const mctx = mask.getContext('2d');
+        if (!mctx) return null;
+        mctx.clearRect(0, 0, w, h);
+        mctx.fillStyle = 'rgba(255,255,255,1)';
+        mctx.fillRect(0, 0, w, h);
+
+        imgObj.__nabadMaskBaseCanvas = base;
+        imgObj.__nabadMaskCanvas = mask;
+        imgObj.__nabadMaskScale = drawScale;
+        imgObj.__nabadMaskKey = key;
+        imgObj.__nabadMaskSrc = currentSrc;
+
+        return { base, mask, scale: drawScale };
+      };
+
+      const applyMaskBrushToImage = async (imgObj, points, brushSizeCanvas = 24, mode = 'erase') => {
+        if (!imgObj || !Array.isArray(points) || points.length < 1) return;
+        const state = ensureMaskEditState(imgObj, { resetBase: false });
+        if (!state) return;
+        const { base, mask, scale: drawScale } = state;
+        const mctx = mask.getContext('2d');
+        if (!mctx) return;
+
+        const renderedW = Math.max(1, Number(imgObj.getScaledWidth?.() || imgObj.width || 1));
+        const renderedH = Math.max(1, Number(imgObj.getScaledHeight?.() || imgObj.height || 1));
+        const baseW = Math.max(1, Number(imgObj.width || 1));
+        const baseH = Math.max(1, Number(imgObj.height || 1));
+        const sx = renderedW / baseW;
+        const sy = renderedH / baseH;
+        const avgScale = Math.max(0.05, (sx + sy) / 2);
+        const brushMask = Math.max(1, (Number(brushSizeCanvas || 24) / avgScale) * drawScale);
+
+        mctx.save();
+        mctx.lineCap = 'round';
+        mctx.lineJoin = 'round';
+        mctx.lineWidth = brushMask;
+
+        const isRestore = String(mode || '') === 'restore';
+        mctx.globalCompositeOperation = isRestore ? 'source-over' : 'destination-out';
+        mctx.strokeStyle = isRestore ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)';
+        mctx.fillStyle = isRestore ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)';
+
+        let started = false;
+        let dotApplied = false;
+        points.forEach((pt) => {
+          const mapped = getImageSourcePointFromCanvasPoint(imgObj, pt);
+          if (!mapped) {
+            started = false;
+            return;
+          }
+          const mx = mapped.x * drawScale;
+          const my = mapped.y * drawScale;
+          if (points.length === 1 && !dotApplied) {
+            mctx.beginPath();
+            mctx.arc(mx, my, Math.max(1, brushMask / 2), 0, Math.PI * 2);
+            mctx.fill();
+            dotApplied = true;
+            started = false;
+            return;
+          }
+          if (!started) {
+            mctx.beginPath();
+            mctx.moveTo(mx, my);
+            started = true;
+          } else {
+            mctx.lineTo(mx, my);
+          }
+        });
+        if (started) mctx.stroke();
+        mctx.restore();
+
+        const out = document.createElement('canvas');
+        out.width = base.width;
+        out.height = base.height;
+        const octx = out.getContext('2d');
+        if (!octx) return;
+        octx.clearRect(0, 0, out.width, out.height);
+        octx.drawImage(base, 0, 0);
+        octx.globalCompositeOperation = 'destination-in';
+        octx.drawImage(mask, 0, 0);
+        octx.globalCompositeOperation = 'source-over';
+
+        const nextSrc = out.toDataURL('image/png');
+        const prevState = {
+          left: Number(imgObj.left || 0),
+          top: Number(imgObj.top || 0),
+          scaleX: Number(imgObj.scaleX || 1),
+          scaleY: Number(imgObj.scaleY || 1),
+          angle: Number(imgObj.angle || 0),
+          originX: imgObj.originX || 'left',
+          originY: imgObj.originY || 'top',
+          flipX: !!imgObj.flipX,
+          flipY: !!imgObj.flipY,
+          opacity: Number(imgObj.opacity ?? 1),
+          selectable: imgObj.selectable !== false,
+          evented: imgObj.evented !== false,
+          cropX: Number(imgObj.cropX || 0),
+          cropY: Number(imgObj.cropY || 0),
+          width: Number(imgObj.width || 1),
+          height: Number(imgObj.height || 1)
+        };
+
+        await new Promise((resolve, reject) => {
+          if (typeof imgObj.setSrc !== 'function') return reject(new Error('setSrc unavailable'));
+          imgObj.setSrc(nextSrc, () => {
+            try {
+              imgObj.set(prevState);
+              imgObj.setCoords?.();
+              fabricCanvas.setActiveObject(imgObj);
+              fabricCanvas.requestRenderAll();
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }, { crossOrigin: 'anonymous' });
+        });
+      };
+
       const startNativeEraser = (mode = 'erase') => {
         const m = mode === 'restore' ? 'restore' : 'erase';
         const selected = fabricCanvas.getActiveObject();
         if (!selected || selected.type !== 'image' || selected === backgroundObj) {
           alert('Select an uploaded image object first.');
-          return;
-        }
-        const BrushCtor = window.fabric?.EraserBrush;
-        if (typeof BrushCtor !== 'function') {
-          alert('Eraser/Restore is not supported in this Fabric build.');
           return;
         }
         // toggle off if clicking same tool
@@ -8096,38 +8231,15 @@ function finishOnboarding() {
           if (Number.isFinite(parsed)) eraserBrushPx = Math.max(6, Math.min(160, Math.round(parsed)));
         }
 
-        // Enable native eraser mode
+        // Enable mask-based brush mode (no Fabric EraserBrush required)
         stopNativeEraser();
         nativeEraserActive = true;
         nativeEraserMode = m;
         eraserMode = true; // used by viewport drag guards elsewhere
-
-        // Only the selected object should be erasable while tool is active.
-        nativeEraserPrevErasable = new Map();
-        try {
-          fabricCanvas.getObjects().forEach((obj) => {
-            if (!obj) return;
-            nativeEraserPrevErasable.set(obj, obj.erasable);
-            obj.erasable = obj === selected;
-          });
-        } catch {}
-
-        try {
-          const brush = new BrushCtor(fabricCanvas);
-          brush.width = eraserBrushPx;
-          brush.inverted = m === 'restore';
-          nativeEraserBrush = brush;
-          fabricCanvas.freeDrawingBrush = brush;
-          fabricCanvas.isDrawingMode = true;
-          fabricCanvas.defaultCursor = 'crosshair';
-          fabricCanvas.hoverCursor = 'crosshair';
-          fabricCanvas.moveCursor = 'crosshair';
-        } catch (err) {
-          console.error('[NABAD] native eraser init error:', err);
-          stopNativeEraser();
-          alert('Could not start Eraser tool. Please reload and try again.');
-          return;
-        }
+        try { ensureMaskEditState(selected, { resetBase: false }); } catch {}
+        fabricCanvas.defaultCursor = 'crosshair';
+        fabricCanvas.hoverCursor = 'crosshair';
+        fabricCanvas.moveCursor = 'crosshair';
 
         setNativeEraserUi(m);
         try { fabricCanvas.setActiveObject(selected); } catch {}
@@ -8309,13 +8421,30 @@ function finishOnboarding() {
           evt?.e?.preventDefault?.();
           return;
         }
+        if (nativeEraserActive) {
+          if (eraserApplying) return;
+          const pointer = fabricCanvas.getPointer(evt.e);
+          const selected = fabricCanvas.getActiveObject();
+          if (!selected || selected.type !== 'image' || selected === backgroundObj) return;
+          eraserTargetObj = selected;
+          eraserIsDrawing = true;
+          eraserPoints = [{ x: Number(pointer?.x || 0), y: Number(pointer?.y || 0) }];
+          evt?.e?.preventDefault?.();
+          return;
+        }
         if (!evt?.target) {
           fabricCanvas.discardActiveObject();
           fabricCanvas.requestRenderAll();
         }
       });
       fabricCanvas.on('mouse:move', (evt) => {
-        if (nativeEraserActive) return;
+        if (nativeEraserActive) {
+          if (!eraserIsDrawing) return;
+          const pointer = fabricCanvas.getPointer(evt.e);
+          eraserPoints.push({ x: Number(pointer?.x || 0), y: Number(pointer?.y || 0) });
+          evt?.e?.preventDefault?.();
+          return;
+        }
         if (!eraserMode || !eraserIsDrawing || !eraserPreview) return;
         const pointer = fabricCanvas.getPointer(evt.e);
         eraserPoints.push({ x: Number(pointer?.x || 0), y: Number(pointer?.y || 0) });
@@ -8325,7 +8454,11 @@ function finishOnboarding() {
         evt?.e?.preventDefault?.();
       });
       const cancelEraserStroke = () => {
-        if (nativeEraserActive) return;
+        if (nativeEraserActive) {
+          eraserIsDrawing = false;
+          eraserPoints = [];
+          return;
+        }
         if (!eraserIsDrawing) return;
         eraserIsDrawing = false;
         eraserPoints = [];
@@ -8337,7 +8470,25 @@ function finishOnboarding() {
         fabricCanvas.requestRenderAll();
       };
       fabricCanvas.on('mouse:up', async (evt) => {
-        if (nativeEraserActive) return;
+        if (nativeEraserActive) {
+          if (!eraserIsDrawing) return;
+          eraserIsDrawing = false;
+          const points = eraserPoints.slice();
+          eraserPoints = [];
+          if (!eraserTargetObj || points.length < 1 || eraserApplying) return;
+          eraserApplying = true;
+          try {
+            await applyMaskBrushToImage(eraserTargetObj, points, eraserBrushPx, nativeEraserMode || 'erase');
+            pushHistory();
+          } catch (err) {
+            console.error('[NABAD] mask brush error:', err);
+            alert('Could not apply brush on this image. Try again.');
+          } finally {
+            eraserApplying = false;
+            evt?.e?.preventDefault?.();
+          }
+          return;
+        }
         if (!eraserMode || !eraserIsDrawing) return;
         eraserIsDrawing = false;
         if (eraserPreview) {
@@ -9477,6 +9628,8 @@ function finishOnboarding() {
                 obj.setCoords();
                 fabricCanvas.setActiveObject(obj);
                 fabricCanvas.renderAll();
+                // Reset mask editing baseline to this new cutout (for Restore after Remove BG).
+                try { ensureMaskEditState(obj, { resetBase: true }); } catch {}
                 resolve();
               } catch (err) {
                 reject(err);
