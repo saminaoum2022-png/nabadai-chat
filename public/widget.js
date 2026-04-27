@@ -9655,6 +9655,51 @@ function finishOnboarding() {
           reader.readAsDataURL(blob);
         });
 
+        const featherCutoutEdges = async (dataUrl = '', featherPx = 3) => {
+          const px = Math.max(0, Math.min(12, Number(featherPx || 0)));
+          if (!dataUrl || px <= 0) return dataUrl;
+
+          const img = await new Promise((resolve, reject) => {
+            const i = new Image();
+            i.onload = () => resolve(i);
+            i.onerror = () => reject(new Error('Failed to load cutout for feathering.'));
+            i.src = dataUrl;
+          });
+
+          const srcW = Math.max(1, Number(img.naturalWidth || img.width || 1));
+          const srcH = Math.max(1, Number(img.naturalHeight || img.height || 1));
+          // Cap work size for responsiveness; export stays visually identical at normal sizes.
+          const MAX_DIM = 2048;
+          const scale = Math.min(1, MAX_DIM / Math.max(srcW, srcH));
+          const w = Math.max(1, Math.round(srcW * scale));
+          const h = Math.max(1, Math.round(srcH * scale));
+
+          const base = document.createElement('canvas');
+          base.width = w;
+          base.height = h;
+          const bctx = base.getContext('2d');
+          if (!bctx) return dataUrl;
+          bctx.clearRect(0, 0, w, h);
+          bctx.drawImage(img, 0, 0, w, h);
+
+          // Blur the alpha edge by blurring the cutout itself, then using it as an alpha mask.
+          const blurred = document.createElement('canvas');
+          blurred.width = w;
+          blurred.height = h;
+          const blctx = blurred.getContext('2d');
+          if (!blctx) return base.toDataURL('image/png');
+          blctx.clearRect(0, 0, w, h);
+          blctx.filter = `blur(${px}px)`;
+          blctx.drawImage(img, 0, 0, w, h);
+          blctx.filter = 'none';
+
+          bctx.globalCompositeOperation = 'destination-in';
+          bctx.drawImage(blurred, 0, 0, w, h);
+          bctx.globalCompositeOperation = 'source-over';
+
+          return base.toDataURL('image/png');
+        };
+
         const runBrowserRemoveBg = async (source = '', fabricImageObj = null) => {
           const imglyRemoveBackground = await loadImglyRemoveBackground();
           const inputBlob = await imageObjectToBlob(fabricImageObj, source);
@@ -9672,7 +9717,15 @@ function finishOnboarding() {
         if (removeBgBtn) removeBgBtn.disabled = true;
         showEditorBusy('Removing background...', 'removebg');
         try {
-          const dataUrl = await runBrowserRemoveBg(src, obj);
+          const rawDataUrl = await runBrowserRemoveBg(src, obj);
+          let dataUrl = rawDataUrl;
+          try {
+            // Smooth/feather the alpha edge for cleaner cutouts.
+            dataUrl = await featherCutoutEdges(rawDataUrl, 3);
+          } catch (err) {
+            console.warn('[NABAD] feather edges skipped:', err?.message || err);
+            dataUrl = rawDataUrl;
+          }
           const prev = {
             left: Number(obj.left || 0),
             top: Number(obj.top || 0),
