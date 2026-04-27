@@ -7291,6 +7291,24 @@ function finishOnboarding() {
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Crop">Crop</span>
                   </button>
+                  <button type="button" class="nabad-editor-btn" id="nabad-sidebar-erase">
+                    <span class="nabad-editor-btn-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 20H11"></path>
+                        <path d="M7 17l10-10 3 3-10 10H7z"></path>
+                      </svg>
+                    </span>
+                    <span class="nabad-editor-btn-label" data-label="Eraser">Eraser</span>
+                  </button>
+                  <button type="button" class="nabad-editor-btn" id="nabad-sidebar-restore">
+                    <span class="nabad-editor-btn-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+                        <path d="M3 3v6h6"></path>
+                      </svg>
+                    </span>
+                    <span class="nabad-editor-btn-label" data-label="Restore">Restore</span>
+                  </button>
                 </div>
               </section>
               <section class="nabad-editor-sidebar-section with-divider" id="nabad-editor-section-ai" data-collapsed="false">
@@ -7559,7 +7577,9 @@ function finishOnboarding() {
       const sectionAiToggle = document.getElementById('nabad-editor-toggle-ai');
       const sidebarFillBgBtn = document.getElementById('nabad-sidebar-fill-bg');
       const sidebarCropBtn = document.getElementById('nabad-sidebar-crop');
-      const sidebarEraserBtn = document.getElementById('nabad-sidebar-eraser');
+      const sidebarEraseBtn = document.getElementById('nabad-sidebar-erase');
+      const sidebarRestoreBtn = document.getElementById('nabad-sidebar-restore');
+      const sidebarEraserBtn = null;
       const sidebarRemoveBgBtn = document.getElementById('nabad-sidebar-remove-bg');
       const sidebarDetectObjectsBtn = document.getElementById('nabad-sidebar-detect-objects');
       const sidebarRemoveDetectedBtn = document.getElementById('nabad-sidebar-remove-detected');
@@ -7973,6 +7993,10 @@ function finishOnboarding() {
       let eraserPreview = null;
       let eraserTargetObj = null;
       let eraserTargetPrevState = null;
+      let nativeEraserActive = false;
+      let nativeEraserMode = ''; // 'erase' | 'restore' | ''
+      let nativeEraserPrevErasable = new Map();
+      let nativeEraserBrush = null;
       const restoreEraserTargetInteractivity = () => {
         if (!eraserTargetObj || !eraserTargetPrevState) return;
         try {
@@ -8013,6 +8037,100 @@ function finishOnboarding() {
           const label = sidebarEraserBtn.querySelector('.nabad-editor-btn-label');
           if (label) label.textContent = eraserMode ? 'Eraser (On)' : 'Eraser';
         }
+        fabricCanvas.requestRenderAll();
+      };
+
+      const setNativeEraserUi = (mode = '') => {
+        const m = String(mode || '');
+        if (sidebarEraseBtn) sidebarEraseBtn.classList.toggle('active', m === 'erase');
+        if (sidebarRestoreBtn) sidebarRestoreBtn.classList.toggle('active', m === 'restore');
+        const eraseLabel = sidebarEraseBtn?.querySelector?.('.nabad-editor-btn-label');
+        const restoreLabel = sidebarRestoreBtn?.querySelector?.('.nabad-editor-btn-label');
+        if (eraseLabel) eraseLabel.textContent = m === 'erase' ? 'Eraser (On)' : 'Eraser';
+        if (restoreLabel) restoreLabel.textContent = m === 'restore' ? 'Restore (On)' : 'Restore';
+      };
+
+      const stopNativeEraser = () => {
+        if (!nativeEraserActive) return;
+        nativeEraserActive = false;
+        nativeEraserMode = '';
+        try { fabricCanvas.isDrawingMode = false; } catch {}
+        try { fabricCanvas.freeDrawingBrush = null; } catch {}
+        nativeEraserBrush = null;
+        // restore previous erasable flags
+        try {
+          nativeEraserPrevErasable.forEach((value, obj) => {
+            try { obj.erasable = value; } catch {}
+          });
+        } catch {}
+        nativeEraserPrevErasable = new Map();
+        setNativeEraserUi('');
+        fabricCanvas.defaultCursor = 'default';
+        fabricCanvas.hoverCursor = 'move';
+        fabricCanvas.moveCursor = 'move';
+        fabricCanvas.requestRenderAll();
+      };
+
+      const startNativeEraser = (mode = 'erase') => {
+        const m = mode === 'restore' ? 'restore' : 'erase';
+        const selected = fabricCanvas.getActiveObject();
+        if (!selected || selected.type !== 'image' || selected === backgroundObj) {
+          alert('Select an uploaded image object first.');
+          return;
+        }
+        const BrushCtor = window.fabric?.EraserBrush;
+        if (typeof BrushCtor !== 'function') {
+          alert('Eraser/Restore is not supported in this Fabric build.');
+          return;
+        }
+        // toggle off if clicking same tool
+        if (nativeEraserActive && nativeEraserMode === m) {
+          stopNativeEraser();
+          return;
+        }
+
+        // Brush size prompt (optional, keeps current if cancelled)
+        const nextSize = window.prompt(`${m === 'restore' ? 'Restore' : 'Eraser'} size in px (6-160)`, String(eraserBrushPx));
+        if (nextSize !== null) {
+          const parsed = Number(nextSize);
+          if (Number.isFinite(parsed)) eraserBrushPx = Math.max(6, Math.min(160, Math.round(parsed)));
+        }
+
+        // Enable native eraser mode
+        stopNativeEraser();
+        nativeEraserActive = true;
+        nativeEraserMode = m;
+        eraserMode = true; // used by viewport drag guards elsewhere
+
+        // Only the selected object should be erasable while tool is active.
+        nativeEraserPrevErasable = new Map();
+        try {
+          fabricCanvas.getObjects().forEach((obj) => {
+            if (!obj) return;
+            nativeEraserPrevErasable.set(obj, obj.erasable);
+            obj.erasable = obj === selected;
+          });
+        } catch {}
+
+        try {
+          const brush = new BrushCtor(fabricCanvas);
+          brush.width = eraserBrushPx;
+          brush.inverted = m === 'restore';
+          nativeEraserBrush = brush;
+          fabricCanvas.freeDrawingBrush = brush;
+          fabricCanvas.isDrawingMode = true;
+          fabricCanvas.defaultCursor = 'crosshair';
+          fabricCanvas.hoverCursor = 'crosshair';
+          fabricCanvas.moveCursor = 'crosshair';
+        } catch (err) {
+          console.error('[NABAD] native eraser init error:', err);
+          stopNativeEraser();
+          alert('Could not start Eraser tool. Please reload and try again.');
+          return;
+        }
+
+        setNativeEraserUi(m);
+        try { fabricCanvas.setActiveObject(selected); } catch {}
         fabricCanvas.requestRenderAll();
       };
       const getImageSourcePointFromCanvasPoint = (imgObj, canvasPoint) => {
@@ -8138,7 +8256,7 @@ function finishOnboarding() {
       };
       // Extra safety: empty clicks should clear active object cleanly (outside eraser drawing).
       fabricCanvas.on('mouse:down', (evt) => {
-        if (eraserMode) {
+        if (eraserMode && !nativeEraserActive) {
           if (eraserApplying) return;
           const pointer = fabricCanvas.getPointer(evt.e);
           const selected = fabricCanvas.getActiveObject();
@@ -8197,6 +8315,7 @@ function finishOnboarding() {
         }
       });
       fabricCanvas.on('mouse:move', (evt) => {
+        if (nativeEraserActive) return;
         if (!eraserMode || !eraserIsDrawing || !eraserPreview) return;
         const pointer = fabricCanvas.getPointer(evt.e);
         eraserPoints.push({ x: Number(pointer?.x || 0), y: Number(pointer?.y || 0) });
@@ -8206,6 +8325,7 @@ function finishOnboarding() {
         evt?.e?.preventDefault?.();
       });
       const cancelEraserStroke = () => {
+        if (nativeEraserActive) return;
         if (!eraserIsDrawing) return;
         eraserIsDrawing = false;
         eraserPoints = [];
@@ -8217,6 +8337,7 @@ function finishOnboarding() {
         fabricCanvas.requestRenderAll();
       };
       fabricCanvas.on('mouse:up', async (evt) => {
+        if (nativeEraserActive) return;
         if (!eraserMode || !eraserIsDrawing) return;
         eraserIsDrawing = false;
         if (eraserPreview) {
@@ -9678,24 +9799,9 @@ function finishOnboarding() {
         cropCanvasAction();
       };
       const eraserAction = () => {
-        alert('Eraser is currently disabled.');
+        // Legacy eraser (pixel-edit) is superseded by Fabric's EraserBrush.
+        // Keep as a no-op for older code paths.
         return;
-        if (eraserMode) {
-          setEraserMode(false);
-          return;
-        }
-        const selected = fabricCanvas.getActiveObject();
-        if (!canEraseImageObject(selected)) {
-          alert('Select an image object first, then click Eraser.');
-          return;
-        }
-        const nextSize = window.prompt('Eraser size in px (6-120)', String(eraserBrushPx));
-        if (nextSize !== null) {
-          const parsed = Number(nextSize);
-          if (Number.isFinite(parsed)) eraserBrushPx = Math.max(6, Math.min(120, Math.round(parsed)));
-        }
-        eraserTargetObj = selected;
-        setEraserMode(true);
       };
 
       sideAddTextBtn?.addEventListener('click', addTextAction);
@@ -9706,6 +9812,8 @@ function finishOnboarding() {
       sidebarFillBgBtn?.addEventListener('click', fillBgAction);
       sidebarCropBtn?.addEventListener('click', cropAction);
       // Eraser tool removed from UI (disabled).
+      sidebarEraseBtn?.addEventListener('click', () => startNativeEraser('erase'));
+      sidebarRestoreBtn?.addEventListener('click', () => startNativeEraser('restore'));
       layerFabBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -9927,6 +10035,7 @@ function finishOnboarding() {
         }
         if (e.key === 'Escape' && eraserMode) {
           e.preventDefault();
+          try { stopNativeEraser(); } catch {}
           setEraserMode(false);
           return;
         }
