@@ -7291,15 +7291,6 @@ function finishOnboarding() {
                     </span>
                     <span class="nabad-editor-btn-label" data-label="Crop">Crop</span>
                   </button>
-                  <button type="button" class="nabad-editor-btn" id="nabad-sidebar-eraser">
-                    <span class="nabad-editor-btn-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20 20H11"></path>
-                        <path d="M7 17l10-10 3 3-10 10H7z"></path>
-                      </svg>
-                    </span>
-                    <span class="nabad-editor-btn-label" data-label="Eraser">Eraser</span>
-                  </button>
                 </div>
               </section>
               <section class="nabad-editor-sidebar-section with-divider" id="nabad-editor-section-ai" data-collapsed="false">
@@ -9687,6 +9678,8 @@ function finishOnboarding() {
         cropCanvasAction();
       };
       const eraserAction = () => {
+        alert('Eraser is currently disabled.');
+        return;
         if (eraserMode) {
           setEraserMode(false);
           return;
@@ -9712,7 +9705,7 @@ function finishOnboarding() {
       sideAddShapeBtn?.addEventListener('click', addShapeAction);
       sidebarFillBgBtn?.addEventListener('click', fillBgAction);
       sidebarCropBtn?.addEventListener('click', cropAction);
-      sidebarEraserBtn?.addEventListener('click', eraserAction);
+      // Eraser tool removed from UI (disabled).
       layerFabBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
