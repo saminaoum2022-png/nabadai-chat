@@ -8235,14 +8235,15 @@ function finishOnboarding() {
 
       const startNativeEraser = (mode = 'erase') => {
         const m = mode === 'restore' ? 'restore' : 'erase';
+        // Allow toggling OFF without needing an active selection.
+        if (nativeEraserActive && nativeEraserMode === m) {
+          stopNativeEraser();
+          setEraserMode(false);
+          return;
+        }
         const selected = fabricCanvas.getActiveObject();
         if (!selected || selected.type !== 'image' || selected === backgroundObj) {
           alert('Select an uploaded image object first.');
-          return;
-        }
-        // toggle off if clicking same tool
-        if (nativeEraserActive && nativeEraserMode === m) {
-          stopNativeEraser();
           return;
         }
 
@@ -8302,9 +8303,28 @@ function finishOnboarding() {
         const point = new window.fabric.Point(Number(canvasPoint.x || 0), Number(canvasPoint.y || 0));
         const originX = imgObj.originX || 'left';
         const originY = imgObj.originY || 'top';
-        const local = imgObj.toLocalPoint(point, originX, originY);
+        let local = null;
+        try {
+          local = imgObj.toLocalPoint(point, originX, originY);
+        } catch {
+          local = null;
+        }
         let lx = Number(local?.x ?? NaN);
         let ly = Number(local?.y ?? NaN);
+        // Fallback mapping (works well when object isn't rotated).
+        if (!Number.isFinite(lx) || !Number.isFinite(ly)) {
+          try {
+            const br = imgObj.getBoundingRect?.(true, true);
+            if (br && Number.isFinite(br.left) && Number.isFinite(br.top) && br.width > 0 && br.height > 0) {
+              const rx = (Number(canvasPoint.x || 0) - br.left) / br.width;
+              const ry = (Number(canvasPoint.y || 0) - br.top) / br.height;
+              if (rx >= 0 && rx <= 1 && ry >= 0 && ry <= 1) {
+                lx = rx * ow;
+                ly = ry * oh;
+              }
+            }
+          } catch {}
+        }
         if (!Number.isFinite(lx) || !Number.isFinite(ly)) return null;
         // Normalize local coords to top-left space regardless of origin.
         if (originX === 'center') lx += ow / 2;
