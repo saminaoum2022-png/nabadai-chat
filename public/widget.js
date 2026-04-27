@@ -7982,26 +7982,29 @@ function finishOnboarding() {
       let eraserPreview = null;
       let eraserTargetObj = null;
       let eraserTargetPrevState = null;
+      const restoreEraserTargetInteractivity = () => {
+        if (!eraserTargetObj || !eraserTargetPrevState) return;
+        try {
+          eraserTargetObj.set({
+            selectable: eraserTargetPrevState.selectable,
+            evented: eraserTargetPrevState.evented,
+            hasControls: eraserTargetPrevState.hasControls,
+            lockMovementX: eraserTargetPrevState.lockMovementX,
+            lockMovementY: eraserTargetPrevState.lockMovementY,
+            lockScalingX: eraserTargetPrevState.lockScalingX,
+            lockScalingY: eraserTargetPrevState.lockScalingY,
+            lockRotation: eraserTargetPrevState.lockRotation
+          });
+          eraserTargetObj.setCoords?.();
+        } catch {}
+      };
       const isImageObject = (obj) => !!obj && obj.type === 'image';
       const canEraseImageObject = (obj) => isImageObject(obj) && obj !== backgroundObj;
       const setEraserMode = (enabled) => {
         eraserMode = !!enabled;
         eraserIsDrawing = false;
         eraserPoints = [];
-        if (!eraserMode && eraserTargetObj && eraserTargetPrevState) {
-          try {
-            eraserTargetObj.set({
-              selectable: eraserTargetPrevState.selectable,
-              evented: eraserTargetPrevState.evented,
-              hasControls: eraserTargetPrevState.hasControls,
-              lockMovementX: eraserTargetPrevState.lockMovementX,
-              lockMovementY: eraserTargetPrevState.lockMovementY,
-              lockScalingX: eraserTargetPrevState.lockScalingX,
-              lockScalingY: eraserTargetPrevState.lockScalingY,
-              lockRotation: eraserTargetPrevState.lockRotation
-            });
-          } catch {}
-        }
+        if (!eraserMode) restoreEraserTargetInteractivity();
         if (!eraserMode) {
           eraserTargetObj = null;
           eraserTargetPrevState = null;
@@ -8023,19 +8026,25 @@ function finishOnboarding() {
       };
       const getImageSourcePointFromCanvasPoint = (imgObj, canvasPoint) => {
         if (!imgObj || !canvasPoint) return null;
-        const local = imgObj.toLocalPoint(
-          new window.fabric.Point(Number(canvasPoint.x || 0), Number(canvasPoint.y || 0)),
-          'left',
-          'top'
-        );
-        const lw = Number(local?.x || 0);
-        const lh = Number(local?.y || 0);
         const ow = Math.max(1, Number(imgObj.width || 1));
         const oh = Math.max(1, Number(imgObj.height || 1));
-        if (lw < 0 || lh < 0 || lw > ow || lh > oh) return null;
+        const point = new window.fabric.Point(Number(canvasPoint.x || 0), Number(canvasPoint.y || 0));
+        const originX = imgObj.originX || 'left';
+        const originY = imgObj.originY || 'top';
+        const local = imgObj.toLocalPoint(point, originX, originY);
+        let lx = Number(local?.x ?? NaN);
+        let ly = Number(local?.y ?? NaN);
+        if (!Number.isFinite(lx) || !Number.isFinite(ly)) return null;
+        // Normalize local coords to top-left space regardless of origin.
+        if (originX === 'center') lx += ow / 2;
+        else if (originX === 'right') lx += ow;
+        if (originY === 'center') ly += oh / 2;
+        else if (originY === 'bottom') ly += oh;
+        const tol = 0.5;
+        if (lx < -tol || ly < -tol || lx > ow + tol || ly > oh + tol) return null;
         return {
-          x: Number(imgObj.cropX || 0) + lw,
-          y: Number(imgObj.cropY || 0) + lh
+          x: Number(imgObj.cropX || 0) + lx,
+          y: Number(imgObj.cropY || 0) + ly
         };
       };
       const applyEraserStrokeToImage = async (imgObj, points, brushSizeCanvas = 24) => {
@@ -8050,12 +8059,15 @@ function finishOnboarding() {
           1,
           Number(element.naturalHeight || element.videoHeight || element.height || (Number(imgObj.cropY || 0) + Number(imgObj.height || 1)))
         );
+        // Keep edits responsive on large images by downscaling the working canvas.
+        const MAX_EDIT_DIM = 2048;
+        const drawScale = Math.min(1, MAX_EDIT_DIM / Math.max(srcW, srcH));
         const drawCanvas = document.createElement('canvas');
-        drawCanvas.width = srcW;
-        drawCanvas.height = srcH;
+        drawCanvas.width = Math.max(1, Math.round(srcW * drawScale));
+        drawCanvas.height = Math.max(1, Math.round(srcH * drawScale));
         const drawCtx = drawCanvas.getContext('2d');
         if (!drawCtx) return;
-        drawCtx.drawImage(element, 0, 0, srcW, srcH);
+        drawCtx.drawImage(element, 0, 0, drawCanvas.width, drawCanvas.height);
         const renderedW = Math.max(1, Number(imgObj.getScaledWidth?.() || imgObj.width || 1));
         const renderedH = Math.max(1, Number(imgObj.getScaledHeight?.() || imgObj.height || 1));
         const baseW = Math.max(1, Number(imgObj.width || 1));
@@ -8063,7 +8075,7 @@ function finishOnboarding() {
         const sx = renderedW / baseW;
         const sy = renderedH / baseH;
         const avgScale = Math.max(0.05, (sx + sy) / 2);
-        const brushSrc = Math.max(1, Number(brushSizeCanvas || 24) / avgScale);
+        const brushSrc = Math.max(1, (Number(brushSizeCanvas || 24) / avgScale) * drawScale);
         drawCtx.globalCompositeOperation = 'destination-out';
         drawCtx.lineCap = 'round';
         drawCtx.lineJoin = 'round';
@@ -8076,12 +8088,14 @@ function finishOnboarding() {
             started = false;
             return;
           }
+          const mx = mapped.x * drawScale;
+          const my = mapped.y * drawScale;
           if (!started) {
             drawCtx.beginPath();
-            drawCtx.moveTo(mapped.x, mapped.y);
+            drawCtx.moveTo(mx, my);
             started = true;
           } else {
-            drawCtx.lineTo(mapped.x, mapped.y);
+            drawCtx.lineTo(mx, my);
           }
         });
         if (started) drawCtx.stroke();
@@ -8189,6 +8203,17 @@ function finishOnboarding() {
         fabricCanvas.requestRenderAll();
         evt?.e?.preventDefault?.();
       });
+      const cancelEraserStroke = () => {
+        if (!eraserIsDrawing) return;
+        eraserIsDrawing = false;
+        eraserPoints = [];
+        if (eraserPreview) {
+          try { fabricCanvas.remove(eraserPreview); } catch {}
+          eraserPreview = null;
+        }
+        restoreEraserTargetInteractivity();
+        fabricCanvas.requestRenderAll();
+      };
       fabricCanvas.on('mouse:up', async (evt) => {
         if (!eraserMode || !eraserIsDrawing) return;
         eraserIsDrawing = false;
@@ -8208,9 +8233,19 @@ function finishOnboarding() {
           alert('Eraser could not apply on this image. Try again.');
         } finally {
           eraserApplying = false;
+          // Always restore interactivity after applying a stroke (prevents "stuck" objects).
+          restoreEraserTargetInteractivity();
           evt?.e?.preventDefault?.();
         }
       });
+      // If the user releases the pointer outside the canvas, Fabric may not emit mouse:up.
+      // Ensure we never get stuck in drawing mode.
+      try {
+        const upper = fabricCanvas?.upperCanvasEl;
+        upper?.addEventListener?.('mouseleave', cancelEraserStroke);
+        window.addEventListener('mouseup', cancelEraserStroke);
+        window.addEventListener('blur', cancelEraserStroke);
+      } catch {}
 
       let backgroundObj = null;
       let backgroundLocked = true;
